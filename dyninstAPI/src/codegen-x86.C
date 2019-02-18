@@ -833,7 +833,7 @@ bool insnCodeGen::generateMem(codeGen &gen,
    }
    else if (loadExpr == Null_Register && storeExpr == Null_Register)  {
       cerr << "can't rewrite insn\nError in generateMem: loadExpr " << loadExpr << ", storeExpr " << storeExpr << endl;
-      assert(0);
+      //assert(0);
      return false; //None specified
    }
    else if (loadExpr != Null_Register && storeExpr == Null_Register) 
