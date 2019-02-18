@@ -84,32 +84,15 @@ bool SFIWidget::generate(const codeGen &templ,
     BPatch_memoryAccessAdapter converter;
     BPatch_memoryAccess * mem = converter.convert(insn_, addr_, true);
     const BPatch_addrSpec_NP* spec = mem->getStartAddr();
-    const BPatch_addrSpec_NP* count = mem->getByteCount();
-    fprintf(stderr, "Handling instruction %s at %lx\n", insn_.format().c_str(), addr_);
-    fprintf(stderr, "\t reg1 %d, reg2 %d, imm %lx, scale %d\n", spec->getReg(0), spec->getReg(1), spec->getImm(), spec->getScale());
-    int reg = spec->getReg(0);
-    if (spec->getImm() == 0 && 
-        spec->getScale() == 0 && 
-        spec->getReg(1) == -1) {
-        // In this case, the effective address is in reg.
-        // We just directly do the bit mast
-        GenerateBitMask(reg, buffer);
-        buffer.addPIC(gen, tracker());
 
-        // We can reuse the origianal instruction
-        buffer.addPIC(insn_.ptr(), insn_.size(), tracker()); 
-    } else {
-        // The effective address needs some calculation.
-        // We first do the calculation and put the result into reg
-        // We can then do bit mask
-        GenerateEffectiveAddress(reg, buffer, spec);
-        GenerateBitMask(reg, buffer);
+    // We simply perform bit maksing to the registers 
+    // used for addressing
+    if (spec->getReg(0) >= 0) GenerateBitMask(spec->getReg(0), buffer);
+    if (spec->getReg(1) >= 0) GenerateBitMask(spec->getReg(1), buffer);
+    buffer.addPIC(gen, tracker());
 
-        // After bit masking, the final effectivess address is in reg
-        // We need to modify original instruction to load memory from reg
-        GenerateNewMemoryAccess(reg, buffer, count->getImm());
-        buffer.addPIC(gen, tracker());
-    }
+    // We can reuse the origianal instruction
+    buffer.addPIC(insn_.ptr(), insn_.size(), tracker()); 
     return true;
 }
 
