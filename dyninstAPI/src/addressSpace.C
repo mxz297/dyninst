@@ -63,6 +63,8 @@
 
 #include <boost/bind.hpp>
 
+#include "SFI/SFITransformer.h"
+
 // Implementations of non-virtual functions in the address space
 // class.
 
@@ -89,7 +91,8 @@ AddressSpace::AddressSpace () :
     emulateMem_(false),
     emulatePC_(false),
     delayRelocation_(false),
-    patcher_(NULL)
+    patcher_(NULL),
+    maskBits(0)
 {
 #if 0
    // Disabled for now; used by defensive mode
@@ -1904,6 +1907,11 @@ bool AddressSpace::transform(CodeMover::Ptr cm) {
       cm->transform(m);
   }
 #endif
+
+   if (maskBits > 0) {
+       SFITransformer s(maskBits);
+       cm->transform(s);
+   }
 
   // Add instrumentation
   relocation_cerr << "Inst transformer" << endl;

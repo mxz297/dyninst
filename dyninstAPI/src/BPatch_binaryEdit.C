@@ -364,4 +364,10 @@ bool BPatch_binaryEdit::replaceTrapHandler() {
     return success;
 }
 
-
+void BPatch_binaryEdit::memoryWriteSanitizing(int bits) {
+    // Start with only the main executable
+    origBinEdit->memoryWriteSanitizing(bits);
+    // Perform memory write sanitizing on every modules
+    //for (auto llit = llBinEdits.begin(); llit != llBinEdits.end(); ++llit)
+    //    llit->second->memoryWriteSanitizing(bits);
+}

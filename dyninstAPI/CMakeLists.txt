@@ -122,6 +122,8 @@ set (SRC_LIST ${SRC_LIST}
      src/dynProcess-x86.C
      src/parse-x86.C 
      src/IAPI_to_AST.C 
+     src/SFI/SFITransformer.C
+     src/SFI/SFIWidget.C
 )
 elseif (PLATFORM MATCHES ppc)
 set (SRC_LIST ${SRC_LIST}

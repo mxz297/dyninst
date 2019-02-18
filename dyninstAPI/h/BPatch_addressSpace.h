@@ -414,6 +414,8 @@ class BPATCH_DLL_EXPORT BPatch_addressSpace {
   // Returns true if the underlying image represents a 
   // statically-linked executable, false otherwise
   bool  isStaticExecutable();
+  
+  virtual void memoryWriteSanitizing(int bits) {};
 };
 
 

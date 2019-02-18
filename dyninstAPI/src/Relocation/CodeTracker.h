@@ -60,7 +60,8 @@ class TrackerElement {
     original,
     emulated,
     instrumentation,
-    padding
+    padding,
+    sfi // software fault isolation
   } type_t;
 
   TrackerElement(Address o, block_instance *b, func_instance *f) 
@@ -203,6 +204,29 @@ class PaddingTracker : public TrackerElement {
  private:
   unsigned pad_; 
 };
+
+class SFITracker : public TrackerElement {
+ public:
+  SFITracker(Address orig, block_instance *b, func_instance *f) : 
+   TrackerElement(orig, b, f) {};
+  virtual ~SFITracker() {};
+
+  virtual Address relocToOrig(Address reloc) const {
+    (void)reloc; // unused
+    assert(reloc >= reloc_);
+    assert(reloc < (reloc_ + size_));
+    return orig_;
+  }
+
+  virtual Address origToReloc(Address orig) const {
+    (void)orig; // unused
+    assert(orig == orig_);
+    return reloc_;
+  }
+
+  virtual type_t type() const { return TrackerElement::sfi; };
+};
+
 
 class CodeTracker {
  public:

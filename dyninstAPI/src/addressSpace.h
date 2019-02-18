@@ -573,6 +573,9 @@ class AddressSpace : public InstructionSource {
   protected:
     Dyninst::PatchAPI::PatchMgrPtr mgr_;
     Dyninst::PatchAPI::Patcher* patcher_;
+    int maskBits;
+  public:
+    void memoryWriteSanitizing(int bits) { maskBits = bits; }
 };
 
 
