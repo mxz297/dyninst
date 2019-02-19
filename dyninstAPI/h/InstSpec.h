@@ -7,10 +7,12 @@
 
 struct BPATCH_DLL_EXPORT InstSpec {
     std::vector<Dyninst::MachRegister> saveRegs;
+    Dyninst::MachRegister raLoc;
     bool inlineCalls;   
     bool trampGuard;
     bool redZone;
     InstSpec():
+        raLoc(Dyninst::InvalidReg),
         inlineCalls(false),
         trampGuard(true),
         redZone(true)

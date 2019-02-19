@@ -2474,6 +2474,11 @@ bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
            registerSlot *reg = gen.rs()->GPRs()[i];
            emitPushReg64(i,gen);
        }
+       if (s->raLoc != InvalidReg) {
+           bool upcast;
+           int i = convertRegID(s->raLoc, upcast);
+           emitLEA(REGNUM_RSP, Null_Register, 0, 8 * s->saveRegs.size(), i, gen);
+       }
        return true;
    }
    int instFrameSize = 0; // Tracks how much we are moving %rsp
