@@ -892,7 +892,8 @@ extern int dyn_debug_ast;
 BPatchSnippetHandle *BPatch_addressSpace::insertSnippet(const BPatch_snippet &expr,
                                                                     const BPatch_Vector<BPatch_point *> &points,
                                                                     BPatch_callWhen when,
-                                                                    BPatch_snippetOrder order)
+                                                                    BPatch_snippetOrder order,
+                                                                    InstSpec * instSpec)
 {
   BPatchSnippetHandle *retHandle = new BPatchSnippetHandle(this);
 
@@ -951,6 +952,7 @@ BPatchSnippetHandle *BPatch_addressSpace::insertSnippet(const BPatch_snippet &ex
 
       /* PatchAPI stuffs */
       instPoint *ipoint = static_cast<instPoint *>(bppoint->getPoint(when));
+      ipoint->setInstSpec(instSpec);
       Dyninst::PatchAPI::InstancePtr instance = (ipOrder == orderFirstAtPoint) ?
          ipoint->pushFront(expr.ast_wrapper) :
          ipoint->pushBack(expr.ast_wrapper);
@@ -1175,4 +1177,3 @@ Dyninst::PatchAPI::PatchMgrPtr Dyninst::PatchAPI::convert(const BPatch_addressSp
       return proc->lowlevel_process()->mgr();
    }
 }
-

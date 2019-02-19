@@ -37,6 +37,7 @@
 #include "BPatch_enums.h"
 #include "BPatch_instruction.h" // for register type
 #include "BPatch_callbacks.h"
+#include "InstSpec.h"
 
 #include <vector>
 
@@ -244,7 +245,8 @@ class BPATCH_DLL_EXPORT BPatch_addressSpace {
   virtual BPatchSnippetHandle * insertSnippet(const BPatch_snippet &expr,
 					      const BPatch_Vector<BPatch_point *> &points,
 					      BPatch_callWhen when,
-					      BPatch_snippetOrder order = BPatch_firstSnippet);
+					      BPatch_snippetOrder order = BPatch_firstSnippet,
+                          InstSpec * instSpec = NULL);
 
 
 

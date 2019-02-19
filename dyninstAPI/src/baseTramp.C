@@ -501,6 +501,7 @@ bool baseTramp::saveFPRs() {
 bool baseTramp::guarded() const {
    if (suppressGuards) return false;
    if (!point_) return false; // iRPCs never guarded
+   if (point_->instSpec() && !point_->instSpec()->trampGuard) return false; // User overrides
 
    bool guarded = false;
    bool recursive = false;

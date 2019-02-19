@@ -42,6 +42,7 @@
 #include "common/src/stats.h"
 #include "dyninstAPI/src/ast.h"
 #include "bitArray.h"
+#include "InstSpec.h"
 
 #include "dyninstAPI/src/baseTramp.h" // iterator
 
@@ -121,6 +122,9 @@ class instPoint : public Dyninst::PatchAPI::Point {
     func_instance *func() const;
     block_instance *block() const;
     edge_instance *edge() const;
+    InstSpec* instSpec() const {return instSpec_; };
+
+    void setInstSpec(InstSpec* is) { instSpec_ = is;} 
 
     // I'm commenting this out so that we don't reinvent the wheel.
     // instPoints have two types of addresses. The first is "instrument
@@ -157,6 +161,7 @@ class instPoint : public Dyninst::PatchAPI::Point {
                           Address a);
 
     baseTramp *baseTramp_;
+    InstSpec * instSpec_;
 };
 
 #define IPCONV(p) (static_cast<instPoint *>(p))

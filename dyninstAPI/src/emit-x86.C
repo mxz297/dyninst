@@ -55,6 +55,7 @@
 #include "ABI.h"
 #include "liveness.h"
 #include "RegisterConversion.h"
+#include "InstSpec.h"
 
 const int EmitterIA32::mt_offset = -4;
 #if defined(arch_x86_64)
@@ -1778,7 +1779,8 @@ Register EmitterAMD64::emitCall(opCode op, codeGen &gen, const pdvector<AstNodeP
    pdvector <Register> srcs;
 
    bool inInstrumentation = true;
-
+   InstSpec *is = gen.point()->instSpec();
+   if (is) inInstrumentation = false;
    //  Sanity check for NULL address arg
    if (!callee) {
       char msg[256];
@@ -1904,9 +1906,10 @@ Register EmitterAMD64::emitCall(opCode op, codeGen &gen, const pdvector<AstNodeP
 
    // RAX = number of FP regs used by varargs on AMD64 (also specified as caller-saved).
    //Clobber it to 0.
-   emitMovImmToReg64(REGNUM_RAX, 0, true, gen);
-   gen.markRegDefined(REGNUM_RAX);
-
+   if (!is) {
+       emitMovImmToReg64(REGNUM_RAX, 0, true, gen);
+       gen.markRegDefined(REGNUM_RAX);
+   }
    emitCallInstruction(gen, callee, REG_NULL);
 
    // Now clear whichever registers were "allocated" for a return value
@@ -2457,7 +2460,22 @@ void EmitterAMD64::emitStackAlign(int offset, codeGen &gen)
 bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
 {
    gen.setInInstrumentation(true);
-
+   InstSpec* s = bt->instP()->instSpec();
+   if (s) {
+       // Create a user specified instrumentation set up,
+       // bypassing all Dyninst internal analysis.
+       // User is responsible for the correctness
+       if (s->redZone) {
+           emitLEA(REGNUM_RSP, Null_Register, 0, -AMD64_RED_ZONE, REGNUM_RSP, gen);
+       }
+       for (auto rit = s->saveRegs.begin(); rit != s->saveRegs.end(); ++rit) {
+           bool upcast;
+           int i = convertRegID(*rit, upcast);
+           registerSlot *reg = gen.rs()->GPRs()[i];
+           emitPushReg64(i,gen);
+       }
+       return true;
+   }
    int instFrameSize = 0; // Tracks how much we are moving %rsp
 
    // Align the stack now to avoid having a padding hole in the middle of
@@ -2704,6 +2722,21 @@ bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
 
 bool EmitterAMD64::emitBTRestores(baseTramp* bt, codeGen &gen)
 {
+   InstSpec* s = bt->instP()->instSpec();
+   if (s) {
+       for (auto rit = s->saveRegs.rbegin(); rit != s->saveRegs.rend(); ++rit) {
+           bool upcast;
+           int i = convertRegID(*rit, upcast);
+           emitPopReg64(i,gen);
+       }
+       if (s->redZone) {
+           emitLEA(REGNUM_RSP, Null_Register, 0, AMD64_RED_ZONE, REGNUM_RSP, gen);
+       }
+
+       gen.setInInstrumentation(false);
+       return true;
+   }
+
    bool useFPRs = false;
    bool createFrame = false;
    bool saveOrigAddr = false;
