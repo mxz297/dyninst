@@ -1364,6 +1364,7 @@ namespace Dyninst
 
                 /* Get the base register number */
                 regnum = locs->modrm_reg;
+                if (pref.rexR()) regnum += 8;
 
                 /* Get the register bank and the index */
                 if(decodeAVX(bank, &bank_index, regnum, avx_type, pref, operand.admet))
@@ -1449,9 +1450,11 @@ namespace Dyninst
                                 makeModRMExpression(b, makeSizeType(optype)),
                                 isRead, isWritten, isImplicit);
                         break;
-                    case 0x03:
+                    case 0x03: {
                         /* Just the register is used */
-                        if(decodeAVX(bank, &bank_index, locs->modrm_rm,
+                        int reg = locs->modrm_rm;
+                        if (pref.rexB()) reg += 8;
+                        if(decodeAVX(bank, &bank_index, reg,
                                     avx_type, pref, operand.admet))
                             return false;
 
@@ -1460,6 +1463,7 @@ namespace Dyninst
                                         m_Arch, bank, bank_index)),
                                 isRead, isWritten, isImplicit);
                         break;
+                               }
                     default:
                         assert(!"2-bit value modrm_mod out of range");
                         break;
