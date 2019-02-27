@@ -1182,6 +1182,7 @@ void emitElf<ElfTypes>::fixPhdrs(unsigned &extraAlignSize) {
 template<class ElfTypes>
 void emitElf<ElfTypes>::updateDynamic(unsigned tag, Elf_Addr val) {
     if (isStaticBinary) return;
+    if (dynamicSecData[tag].empty()) return;
     // This is for REL/RELA if it doesnt already exist in the original binary;
     dynamicSecData[tag][0]->d_tag = tag;
     switch (dynamicSecData[tag][0]->d_tag) {
