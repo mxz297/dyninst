@@ -126,7 +126,7 @@ bool baseTramp::shouldRegenBaseTramp(registerSpace *rs)
 #if !defined(cap_tramp_liveness)
    return false;
 #endif
-
+   if (instP()->instSpec() != NULL) return false;
    int saved_unneeded = 0;
    unsigned actually_saved = 0;
    int needed_saved = 0;

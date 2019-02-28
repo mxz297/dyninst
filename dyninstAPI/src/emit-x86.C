@@ -1933,7 +1933,7 @@ Register EmitterAMD64::emitCall(opCode op, codeGen &gen, const pdvector<AstNodeP
       gen.rs()->incStack(-alignment);
    }
 
-   if (!inInstrumentation) return REG_NULL;
+   if (!inInstrumentation) return REGNUM_RAX;
 
    // We now have a bit of an ordering problem.
    // The RS thinks all registers are free; this is not the case
@@ -2473,11 +2473,13 @@ bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
            int i = convertRegID(*rit, upcast);
            registerSlot *reg = gen.rs()->GPRs()[i];
            emitPushReg64(i,gen);
+           gen.rs()->markSavedRegister(i, 0);
        }
        if (s->raLoc != InvalidReg) {
            bool upcast;
            int i = convertRegID(s->raLoc, upcast);
            emitLEA(REGNUM_RSP, Null_Register, 0, 8 * s->saveRegs.size(), i, gen);
+           gen.markRegDefined(i);
        }
        return true;
    }
