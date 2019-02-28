@@ -47,6 +47,7 @@
 
 #include "boost/tuple/tuple.hpp"
 
+#include "BPatch.h"
 using namespace Dyninst;
 using namespace Relocation;
 using namespace InstructionAPI;
@@ -78,12 +79,14 @@ RelocBlock *RelocBlock::createReloc(block_instance *block, func_instance *func) 
   block_instance::Insns insns;
   block->getInsns(insns);
   int cnt = 0;
+
   for (block_instance::Insns::iterator iter = insns.begin();
        iter != insns.end(); ++iter, ++cnt) {
     if (block->_ignorePowerPreamble && cnt < 2) continue;
     relocation_cerr << "  Adding instruction @" 
 		    << std::hex << iter->first << std::dec
 		    << ": " << iter->second.format(iter->first) << endl;
+    if (BPatch::bpatch->shouldDeleteOpcode(iter->second.getOperation().getID())) continue;
     Widget::Ptr ptr = InsnWidget::create(iter->second, iter->first);
 
     if (!ptr) {

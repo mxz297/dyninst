@@ -1995,3 +1995,11 @@ void BPatch::registerStopThreadCallback(BPatchStopThreadCallback stopCB) {
 int BPatch::getStopThreadCallbackID(BPatchStopThreadCallback stopCB) {
     return info->getStopThreadCallbackID((Address)stopCB);
 }
+
+void BPatch::addDeleteInstructionOpcode(entryID id) {
+    delInsnOpcodes.insert(id);
+}
+
+bool BPatch::shouldDeleteOpcode(entryID id) {
+    return delInsnOpcodes.find(id) != delInsnOpcodes.end();
+}

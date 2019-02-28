@@ -206,6 +206,7 @@ class BPATCH_DLL_EXPORT BPatch {
    // If we're destroying everything, skip cleaning up some intermediate
    // data structures
    bool inDestructor;
+   std::set<entryID> delInsnOpcodes;
 
    public:  
      
@@ -681,6 +682,9 @@ public:
     //  Globally specify that any function with a given name will not return
     
     void  addNonReturningFunc(std::string name);
+
+    void  addDeleteInstructionOpcode(entryID);
+    bool  shouldDeleteOpcode(entryID);
 };
 
 #ifdef _MSC_VER
