@@ -62,7 +62,7 @@
 #pragma weak pthread_self
 extern pthread_t pthread_self(void);
 #else
-#include <pthread.h>
+//#include <pthread.h>
 #endif
 
 extern double DYNINSTstaticHeap_512K_lowmemHeap_1[];
@@ -337,7 +337,8 @@ dyntid_t dyn_pthread_self()
            return (dyntid_t) DYNINST_SINGLETHREADED;
        }
 #endif
-      return (dyntid_t) pthread_self();
+      //return (dyntid_t) pthread_self();
+      return 0;
    }
    if (!DYNINST_pthread_self) {
       return (dyntid_t) DYNINST_SINGLETHREADED;
