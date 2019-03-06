@@ -257,7 +257,7 @@ bool IA_x86::isTailCall(const Function *context, EdgeTypeEnum type, unsigned int
         }
         return false;
     }
-    
+
     bool valid; Address addr;
     boost::tie(valid, addr) = getCFT();
 
@@ -274,6 +274,12 @@ bool IA_x86::isTailCall(const Function *context, EdgeTypeEnum type, unsigned int
        )
     {
       parsing_printf("\tjump to 0x%lx, TAIL CALL\n", addr);
+      tailCalls[type] = true;
+      return true;
+    }
+
+    if (valid && addr > 0 && !context->region()->contains(addr)) {
+      parsing_printf("\tjump to 0x%lx in other regions, TAIL CALL\n", addr);
       tailCalls[type] = true;
       return true;
     }
