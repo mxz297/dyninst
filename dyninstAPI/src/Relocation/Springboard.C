@@ -258,21 +258,34 @@ SpringboardBuilder::generateSpringboard(std::list<codeGen> &springboards,
 					const SpringboardReq &r,
                                         SpringboardMap &input) {
    codeGen gen;
+   codeGen tmpGen;
    bool usedTrap = false;
    // Arbitrarily select the first function containing this springboard, since only one can win. 
-   generateBranch(r.from, r.destinations.begin()->second, gen);
-   unsigned size = gen.used();
+   generateBranch(r.from, r.destinations.begin()->second, tmpGen);
+   unsigned size = tmpGen.used();
    
-   if (r.useTrap || conflict(r.from, r.from + gen.used(), r.fromRelocatedCode, r.func, r.priority)) {
+   if (r.useTrap || conflict(r.from, r.from + tmpGen.used(), r.fromRelocatedCode, r.func, r.priority)) {
       // Errr...
       // Fine. Let's do the trap thing. 
+      springboard_cerr << "\t Attempting a springboard trap for springboard at addr: 0x" << std::hex << r.from << std::endl;
 
       usedTrap = true;
-      if (conflict(r.from, r.from + 1, r.fromRelocatedCode, r.func, r.priority)) { return Failed; }
-      if(!addrSpace_->canUseTraps()) { return Failed; }
-      
       generateTrap(r.from, r.destinations.begin()->second, gen);
-      size = 1;
+      // This check must be left in place.
+      // Reason: Suggested springboards use generateSpringboard to create their springboards.
+      //         If a suggested springboard's block entry is used by a required springboard,
+      //         we could potentially overwrite an instruction from a required springboard.
+      if (conflict(r.from, r.from + gen.used(), r.fromRelocatedCode, r.func, r.priority)) { return Failed; }
+      if(!addrSpace_->canUseTraps()) { return Failed; }
+
+      size = gen.used();
+      springboard_cerr << "\t Using a springboard trap for springboard at addr: 0x" << std::hex << r.from << std::endl;
+   } else {
+      // regenerate the branch into gen
+      // ideally we would like to do gen = tmpGen but there is a problem with codeGen's copy constructor
+      generateBranch(r.from, r.destinations.begin()->second, gen);
+      springboard_cerr << "\t Using a branch for springboard at addr: 0x" << std::hex << r.from
+                       << " with byte size = " << std::dec << gen.used() << std::endl;
    }
 
    if (r.includeRelocatedCopies) {
@@ -345,6 +358,16 @@ bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocate
            << state->val << ", "
            << state->func->name() << ", priority " 
            << state->priority << dec << endl;
+              // BLOCK PRIORITY CHECK:
+       //    Check to see if the block we are writing to contains a required (or greater) springboard
+       //    What this check prevents is a required springboard in a block at a lower address from
+       //    overwriting a block at a higher address (that has already been written).
+       //    This check assumes that we are always generating springboards starting at the highest address
+       //    and working backwards (i.e. 0xfff... -> 0x000...)
+       if (state->priority >= Required) {
+            springboard_cerr << "\t Trying to write a springboard that crosses into another required block, ret conflict" << std::endl;
+            return true;
+        }
       if (state->val == Allocated) {
 	if(LB == start && UB >= end) 
 	{
@@ -370,7 +393,7 @@ bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocate
                 }
                 
                 springboard_cerr << "\t Starting range matches already allocated springboard, assuming overwrite, ret OK" << endl;
-               return false;
+               return true;
            }
 
            springboard_cerr << "\t Starting range already allocated, ret conflict" << endl;

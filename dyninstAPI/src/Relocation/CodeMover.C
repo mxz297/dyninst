@@ -105,12 +105,6 @@ bool CodeMover::addRelocBlock(block_instance *bbl, func_instance *f) {
    if (!block)
       return false;
    cfg_->addRelocBlock(block);
-   
-   if (!bbl->wasUserAdded()) {
-     relocation_cerr << "\t Added suggested entry for " << f->symTabName() << " / " << hex << bbl->start() << dec << endl;
-     priorityMap_[std::make_pair(bbl, f)] = Suggested;
-   }
-
    return true;
 }
 
