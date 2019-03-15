@@ -113,7 +113,8 @@ instPoint::instPoint(Type t,
                      PatchMgrPtr mgr,
                      func_instance *f) :
    Point(t, mgr, f),
-   baseTramp_(NULL) {
+   baseTramp_(NULL),
+   instSpec_(NULL) {
 };
 
 instPoint::instPoint(Type          t,
@@ -121,7 +122,8 @@ instPoint::instPoint(Type          t,
                      func_instance *f,
                      block_instance *b) :
   Point(t, mgr, f, b),
-  baseTramp_(NULL) {
+  baseTramp_(NULL),
+  instSpec_(NULL) {
 };
 
 instPoint::instPoint(Type          t,
@@ -129,7 +131,8 @@ instPoint::instPoint(Type          t,
                      block_instance *b,
                      func_instance *f) :
   Point(t, mgr, b, f),
-  baseTramp_(NULL) {
+  baseTramp_(NULL),
+  instSpec_(NULL) {
 };
 
 instPoint::instPoint(Type t,
@@ -139,7 +142,8 @@ instPoint::instPoint(Type t,
                      Instruction i,
                      func_instance *f) :
   Point(t, mgr, b, a, i, f),
-  baseTramp_(NULL) {
+  baseTramp_(NULL),
+  instSpec_(NULL) {
 };
 
 instPoint::instPoint(Type          t,
@@ -147,7 +151,8 @@ instPoint::instPoint(Type          t,
                      edge_instance *e,
                      func_instance *f) :
   Point(t, mgr, e, f),
-  baseTramp_(NULL) {
+  baseTramp_(NULL),
+  instSpec_(NULL) {
 };
 
 
