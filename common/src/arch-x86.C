@@ -8074,7 +8074,7 @@ static struct ia32_entry vexWMap[][2] =
       { e_vpextrd, t_done, 0, true, { Vpd, Wpd, Ib }, 0, s1W2R3R, 0 }, /* W = 0 */
       { e_vpextrq, t_done, 0, true, { Vpd, Wpd, Ib }, 0, s1W2R3R, 0 }  /* W = 1 */
     }, { /* VEXW27 */
-      { e_vpinsrd, t_done, 0, true, { Vpd, Hpd, Wpd }, 0, s1W2R3R4R, 0 }, /* W = 0 */
+      { e_vpinsrd, t_done, 0, true, { Vpd, Hpd, Ed }, 0, s1W2R3R4R, 0 }, /* W = 0 */
       { e_vpinsrq, t_done, 0, true, { Vpd, Hpd, Wpd }, 0, s1W2R3R4R, 0 }  /* W = 1 */
     }, { /* VEXW28 */
       { e_valignd, t_done, 0, true, { Vps, Hps, Wps }, 0, s1W2R3R4R, 0 }, /* W = 0 */ /* Intel manual wrong, 4 operands */
