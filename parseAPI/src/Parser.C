@@ -1579,7 +1579,9 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
             auto work_ah = work->ah();
             parsing_printf("... continue parse indirect jump at %lx\n", work_ah->getAddr());
             ProcessCFInsn(frame,NULL,work->ah());
-            frame.value_driven_jump_tables.insert(work_ah->getAddr());
+            // We only re-parse jump tables
+            if (!work_ah->isTailCall(frame.func, INDIRECT, frame.num_insns, frame.knownTargets))
+                frame.value_driven_jump_tables.insert(work_ah->getAddr());
             continue;
         }
             // call fallthrough case where we have already checked that

@@ -238,7 +238,10 @@ void RelocBlock::processEdge(EdgeDirection e, edge_instance *edge, RelocGraph *c
             return;
          }
          else {
-            // RelocBlock -> trace edge, will get created later
+            cfg->makeEdge(new Target<RelocBlock *>(t), 
+                          new Target<RelocBlock *>(this),
+                          edge,
+                          type);
             return;
          }
       }
@@ -265,7 +268,6 @@ bool RelocBlock::determineSpringboards(PriorityMap &p) {
    // 1) We are a function entry block;
    // 2) We are the target of an indirect branch;
    // 3) We are the target of an edge not from a trace. 
-
    if (func_ &&
        func_->entryBlock() == block_) {
      relocation_cerr << "determineSpringboards (entry block): " << func_->symTabName()
@@ -496,7 +498,7 @@ std::string RelocBlock::format() const {
   ret << "In edges: ";
   for (RelocEdges::const_iterator iter = inEdges_.begin();
        iter != inEdges_.end(); ++iter) {
-     ret << (*iter)->src->format() << ", ";
+     ret << (*iter)->src->format() << "<" << ParseAPI::format((*iter)->type) << ">, ";
   }
   ret << endl;
   ret << "Out edges:";
