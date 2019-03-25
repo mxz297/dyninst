@@ -333,6 +333,7 @@ enum entryID {
   e_minss,
   e_mmxud,
   e_mov,
+  e_movbe,
   e_movsl,
   e_movabs,
   e_movapd,

@@ -696,6 +696,7 @@ static int vex3_simdop_convert[3][4] = {
 #define Mf   { am_M, op_f }
 #define Mfd  { am_M, op_dbl }
 #define M14  { am_M, op_14 }
+#define Mv   { am_M, op_v }
 #define Nss  { am_N, op_ss }
 #define Ob   { am_O, op_b }
 #define Ov   { am_O, op_v }
@@ -1106,6 +1107,7 @@ COMMON_EXPORT dyn_hash_map<entryID, std::string> entryNames_IAPI = map_list_of
   (e_mov, "mov")
   (e_movapd, "movapd")
   (e_movaps, "movaps")
+  (e_movbe, "movbe")
   (e_movd, "movd")
   (e_movddup, "movddup")
   (e_movdq2q, "movdq2q")
@@ -5764,15 +5766,15 @@ static ia32_entry sseMapBis[][5] = {
         { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 },
         { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 },
     }, { /* SSEBF0 */
+        { e_movbe, t_done, 0, true, {Gv, Mv}, 0, s1W2R, 0 },
         { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 },
-        { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 },
-        { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 },
+        { e_movbe, t_done, 0, true, {Gv, Mv}, 0, s1W2R, 0 },
         { e_crc32, t_done, 0, true, { Gv, Eb, Zz }, 0, s1RW2R, 0 },
         { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 }
     }, { /* SSEBF1 */
+        { e_movbe, t_done, 0, true, {Mv, Gv}, 0, s1W2R, 0 },
         { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 },
-        { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 },
-        { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 },
+        { e_movbe, t_done, 0, true, {Mv, Gv}, 0, s1W2R, 0 },
         { e_crc32, t_done, 0, true, { Vps, Wps, Zz }, 0, s1RW2R, 0 },
         { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 }
     }, { /* SSEBF2 */
@@ -7609,7 +7611,7 @@ ia32_entry sseMapTerMult[][3] =
         { e_vrndscaless, t_done, 0, true, { Vps, Hps, Wps }, 0, s1W2R3R4R, 0 }
     }, { /* SSET0B_66 */
         { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 },
-        { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 },
+        { e_vroundsd, t_done, 0, true, { Vps, Hps, Wps }, 0, s1W2R3R4R, 0 },
         { e_vrndscalesd, t_done, 0, true, { Vps, Hps, Wps }, 0, s1W2R3R4R, 0 }
     }, { /* SSET0C_66 */
         { e_No_Entry, t_ill, 0, false, { Zz, Zz, Zz }, 0, 0, 0 },
