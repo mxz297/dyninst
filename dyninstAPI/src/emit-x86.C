@@ -2469,6 +2469,11 @@ bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
            emitLEA(REGNUM_RSP, Null_Register, 0, -AMD64_RED_ZONE, REGNUM_RSP, gen);
        }
        for (auto rit = s->saveRegs.begin(); rit != s->saveRegs.end(); ++rit) {
+           if (*rit == x86_64::fs) {
+               emitSimpleInsn(0x0f, gen);
+               emitSimpleInsn(0xa0, gen);
+               continue;
+           }
            bool upcast;
            int i = convertRegID(*rit, upcast);
            registerSlot *reg = gen.rs()->GPRs()[i];
@@ -2732,6 +2737,11 @@ bool EmitterAMD64::emitBTRestores(baseTramp* bt, codeGen &gen)
    InstSpec* s = bt->instP()->instSpec();
    if (s) {
        for (auto rit = s->saveRegs.rbegin(); rit != s->saveRegs.rend(); ++rit) {
+           if (*rit == x86_64::fs) {
+               emitSimpleInsn(0x0f, gen);
+               emitSimpleInsn(0xa1, gen);
+               continue;
+           }
            bool upcast;
            int i = convertRegID(*rit, upcast);
            emitPopReg64(i,gen);

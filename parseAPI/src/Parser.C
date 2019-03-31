@@ -496,7 +496,7 @@ LockFreeQueueItem<ParseFrame *> *Parser::postProcessFrame(ParseFrame *pf, bool r
                     work.insert(tf);
 
             }
-            resumeFrames(pf->func, work);
+            //resumeFrames(pf->func, work);
             break;
         }
         case ParseFrame::PARSED:{
@@ -512,7 +512,7 @@ LockFreeQueueItem<ParseFrame *> *Parser::postProcessFrame(ParseFrame *pf, bool r
             }
 
             /* add waiting frames back onto the worklist */
-            resumeFrames(pf->func, work);
+            //resumeFrames(pf->func, work);
 
             pf->cleanup();
             break;
@@ -559,7 +559,7 @@ LockFreeQueueItem<ParseFrame *> *Parser::postProcessFrame(ParseFrame *pf, bool r
 
             /* if the return status of this function has been updated, add
              * waiting frames back onto the work list */
-            resumeFrames(pf->func, work);
+            //resumeFrames(pf->func, work);
             break;
         }
         case ParseFrame::PROGRESS:
@@ -871,6 +871,7 @@ Parser::finalize(Function *f)
 		    // it is a recursive tail call.
 		    // Otherwise,  this edge is not a tail call
 		    e->_type._interproc = false;
+            f->_exitBL.erase(b->start());
 		    parsing_printf("from %lx to %lx, marked as not tail call\n", b->last(), e->trg()->start());
 		}
 	    }
@@ -895,6 +896,7 @@ Parser::finalize(Function *f)
                 ParseAPI::Edge *e = *eit;
 		if (e->type() == INDIRECT || e->type() == DIRECT) {
 		    e->_type._interproc = true;
+            f->_exitBL[b->start()] = b;
     		    parsing_printf("from %lx to %lx, marked as tail call\n", b->last(), e->trg()->start());
     		}
 	    }
