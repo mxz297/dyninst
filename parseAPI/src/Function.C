@@ -202,6 +202,8 @@ void
 Function::finalize()
 {
     boost::lock_guard<Function> g(*this);
+    bool done;
+    do {
   _extents.clear();
   _exitBL.clear();
 
@@ -216,7 +218,8 @@ Function::finalize()
 
     // The Parser knows how to finalize
     // a Function's parse data
-    _obj->parser->finalize(this);
+    done  = _obj->parser->finalize(this);
+    } while (!done);
 }
 
 Function::blocklist
