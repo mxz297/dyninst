@@ -75,9 +75,11 @@ namespace Dyninst
       int Instruction::numInsnsAllocated = 0;
     INSTRUCTION_EXPORT Instruction::Instruction(Operation what,
 			     size_t size, const unsigned char* raw,
-                             Dyninst::Architecture arch)
+                             Dyninst::Architecture arch,
+                             DecodingBackend d)
       : m_InsnOp(what), m_Valid(true), arch_decoded_from(arch),
-        formatter(ArchSpecificFormatter::getFormatter(arch))
+        formatter(ArchSpecificFormatter::getFormatter(arch)),
+        dbe(d)
     {
         copyRaw(size, raw);
 
@@ -117,12 +119,12 @@ namespace Dyninst
     void Instruction::decodeOperands() const
     {
         //m_Operands.reserve(5);
-        InstructionDecoder dec(ptr(), size(), arch_decoded_from);
+        InstructionDecoder dec(ptr(), size(), arch_decoded_from, dbe);
         dec.doDelayedDecode(this);
     }
     
     INSTRUCTION_EXPORT Instruction::Instruction() :
-      m_Valid(false), m_size(0), arch_decoded_from(Arch_none), formatter(ArchSpecificFormatter::getFormatter(Arch_x86_64))
+      m_Valid(false), m_size(0), arch_decoded_from(Arch_none), formatter(ArchSpecificFormatter::getFormatter(Arch_x86_64)), dbe(Capstone)
     {
 #if defined(DEBUG_INSN_ALLOCATIONS)
         numInsnsAllocated++;
@@ -155,7 +157,8 @@ namespace Dyninst
       m_Operands(o.m_Operands),
       m_InsnOp(o.m_InsnOp),
       m_Valid(o.m_Valid),
-      formatter(o.formatter)
+      formatter(o.formatter),
+      dbe(o.dbe)
 
     {
       m_size = o.m_size;
@@ -207,6 +210,7 @@ namespace Dyninst
         formatter = rhs.formatter;
       arch_decoded_from = rhs.arch_decoded_from;
       m_Successors = rhs.m_Successors;
+      dbe = rhs.dbe;
       return *this;
     }    
     

@@ -138,7 +138,7 @@ namespace Dyninst {
         };
 
         InstructionDecoder_aarch64::InstructionDecoder_aarch64(Architecture a)
-                : InstructionDecoderImpl(a), isPstateRead(false), isPstateWritten(false), isFPInsn(false),
+                : InstructionDecoderImpl(a, DyninstInternal), isPstateRead(false), isPstateWritten(false), isFPInsn(false),
                   isSIMDInsn(false), skipRn(false), skipRm(false),
                   is64Bit(true), isValid(true), insn(0), insn_in_progress(NULL),
                   hasHw(false), hasShift(false), hasOption(false), hasN(false),

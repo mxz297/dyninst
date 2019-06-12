@@ -21,6 +21,7 @@ set (SRC_LIST
      src/InstructionDecoder-power.C 
      src/InstructionDecoder-aarch64.C 
      src/InstructionDecoderImpl.C
+     src/InstructionDecoder-Capstone.C
   )
 SET_SOURCE_FILES_PROPERTIES(${SRC_LIST} PROPERTIES LANGUAGE CXX)
 
@@ -36,7 +37,7 @@ ADD_DEFINITIONS(-DINSTRUCTION_LIB)
 
 dyninst_library(instructionAPI common)
 
-target_link_private_libraries(instructionAPI ${Boost_LIBRARIES} ${TBB_LIBRARIES} tbbmalloc)
+target_link_private_libraries(instructionAPI ${Boost_LIBRARIES} ${TBB_LIBRARIES} tbbmalloc capstone)
 
 if (USE_COTIRE)
     cotire(instructionAPI)

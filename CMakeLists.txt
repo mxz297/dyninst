@@ -24,6 +24,7 @@ include(ThreadingBuildingBlocks)
 include(ElfUtils)
 include(LibIberty)
 include (${DYNINST_ROOT}/cmake/shared.cmake)
+link_directories(${CAPSTONE_ROOT}/lib64)
 
 configure_file(cmake/version.h.in common/h/dyninstversion.h)
 include_directories(${PROJECT_BINARY_DIR})
@@ -58,6 +59,7 @@ include_directories (
   ${DYNINST_ROOT}/external
   ${CILKSCREEN_INCLUDES}
       ${TBB_INCLUDE_DIRS}
+      ${CAPSTONE_ROOT}/include
   )
 
 # Component time
