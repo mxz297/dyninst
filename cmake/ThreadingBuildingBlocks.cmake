@@ -43,7 +43,7 @@
 set(TBB_USE_DEBUG_BUILD OFF CACHE BOOL "Use debug versions of TBB libraries")
 
 # Minimum version of TBB (assumes a dotted-decimal format: YYYY.XX)
-set(_tbb_min_version 2018.6)
+set(_tbb_min_version 2018.2)
 set(TBB_MIN_VERSION ${_tbb_min_version} CACHE STRING "Minimum version of TBB (assumes a dotted-decimal format: YYYY.XX)")
 
 if(${TBB_MIN_VERSION} VERSION_LESS ${_tbb_min_version})
