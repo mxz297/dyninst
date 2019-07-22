@@ -577,6 +577,7 @@ LockFreeQueueItem<ParseFrame *> *Parser::postProcessFrame(ParseFrame *pf, bool r
                         if (!delayed_frames.insert(a, std::make_pair(ct, waiters))) {
                             // Already exists, insert pf into the existing set
                             a->second.insert(pf);
+                            delayed_frames_changed.store(true);
                         }
                     }
                 }
@@ -662,6 +663,7 @@ Parser::ProcessFrames
 void
 Parser::parse_frames(LockFreeQueue<ParseFrame *> &work, bool recursive)
 {
+    delayed_frames_changed.store(false);
     ProcessFrames(&work, recursive);
     // Only master thread will execute the following code
     bool done = false, cycle = false;
@@ -686,9 +688,8 @@ Parser::parse_frames(LockFreeQueue<ParseFrame *> &work, bool recursive)
         if(delayed_frames.empty() && updated.empty()) {
             parsing_printf("[%s] Fixed point reached (0 funcs with unknown return status)\n)",
                            __FILE__);
-            prev_delayed_frames.clear();
             done = true;
-        } else if(delayed_frames.size() > 0 && prev_delayed_frames == delayed_frames && updated.empty()) {
+        } else if(delayed_frames.size() > 0 && !delayed_frames_changed.load()) {
             cycle = true;
         }
     }
@@ -709,8 +710,6 @@ void Parser::processFixedPoint(LockFreeQueue<ParseFrame *> &work, bool recursive
 
     parsing_printf("[%s] Fixed point not yet reached (%d funcs with unknown return status)\n", __FILE__, delayed_frames.size());
     
-    // Update delayed_frames for next iteration
-    prev_delayed_frames = delayed_frames;
     // Recurse through parse_frames
     parsing_printf("[%s] Calling parse_frames again... \n", __FILE__);
 
@@ -802,7 +801,7 @@ static bool isSingleContext(Block *target, dyn_hash_map<Address, bool> &visited)
 
 void Parser::handleTailCall(Function *f, LockFreeQueue<Function*> &new_work) {
     vector<Block*> worklist_block;
-    vector<Edge*> worklist_edge;
+    list<Edge*> worklist_edge;
     worklist_block.push_back(f->entry());
     dyn_hash_map<Address, bool> visited;
     visited[f->addr()] = true;
@@ -971,32 +970,18 @@ Parser::finalize(Function *f)
 void
 Parser::finalize()
 {
-    //fprintf(stderr, "Start finalizing, currently %d functions\n", hint_funcs.size() + discover_funcs.size());
+    parsing_printf("Start finalizing, currently %d functions\n", hint_funcs.size() + discover_funcs.size());
+
     LockFreeQueue<Function*> work1;
     for (auto func_iter = hint_funcs.begin(); func_iter != hint_funcs.end(); ++func_iter) {
         Function * f = *func_iter;
-        bool hasFTEdge = false;
-        for (auto eit = f->entry()->sources().begin(); eit != f->entry()->sources().end(); ++eit) {
-            EdgeTypeEnum t = (*eit)->type();
-            if (t == CALL_FT || t == COND_NOT_TAKEN || t == FALLTHROUGH) {
-                hasFTEdge = true;
-                break;
-            }
-        }
-        if (!hasFTEdge) work1.insert(f);
+        work1.insert(f);
     }
     ProcessFinalizing(&work1);
+    dyn_c_hash_map<Address, Function*>* funcsByAddr = _parse_data->getFuncsByAddrMap((*hint_funcs.begin())->region());
+    for (auto fit = funcsByAddr->begin(); fit != funcsByAddr->end(); ++fit)
+        sorted_funcs.insert(fit->second);
 
-    // We need this second stage because a function may contain a FT from itself
-    // The previous stage will finalize any function that is contained by another function
-    LockFreeQueue<Function*> work2;
-    for (auto func_iter = hint_funcs.begin(); func_iter != hint_funcs.end(); ++func_iter) {
-        Function * f = *func_iter;
-        if (!f->_cache_valid) {
-            work2.insert(f);
-        }
-    }    
-    ProcessFinalizing(&work2);
     _parse_state = FINALIZED;
 }
 
@@ -1059,10 +1044,6 @@ Parser::record_func(Function *f)
         hint_funcs.push_back(f);
     else
         discover_funcs.push_back(f);
-
-    //sorted_funcs.insert(f);
-
-    //_parse_data->record_func(f);
 }
 
 void
@@ -2328,6 +2309,7 @@ void Parser::resumeFrames(Function * func, LockFreeQueue<ParseFrame *> & work)
         }
         // remove func from delayedFrames map
         delayed_frames.erase(a);
+        delayed_frames_changed.store(true);
     }
 }
 

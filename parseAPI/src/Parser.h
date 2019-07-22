@@ -88,7 +88,8 @@ namespace Dyninst {
             // All allocated frames
             LockFreeQueue<ParseFrame *> frames;
 
-            tbb::concurrent_hash_map<Function*, std::set<ParseFrame*> > delayed_frames, prev_delayed_frames;
+            boost::atomic<bool> delayed_frames_changed;
+            tbb::concurrent_hash_map<Function*, std::set<ParseFrame*> > delayed_frames;
 
             // differentiate those provided via hints and
             // those found through RT or speculative parsing
