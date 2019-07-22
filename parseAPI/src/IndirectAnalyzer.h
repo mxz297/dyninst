@@ -32,7 +32,7 @@ class IndirectControlFlowAnalyzer {
 
 public:
     bool NewJumpTableAnalysis(std::vector<std::pair< Address, Dyninst::ParseAPI::EdgeTypeEnum > >& outEdges);
-    IndirectControlFlowAnalyzer(ParseAPI::Function *f, ParseAPI::Block *b): func(f), block(b) {}
+    IndirectControlFlowAnalyzer(ParseAPI::Function *f, ParseAPI::Block *b): func(f->getCreateSource()), block(b) {}
 
 };
 

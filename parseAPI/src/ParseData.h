@@ -231,8 +231,7 @@ public:
     }
     ParseFrame* registerFrame(Address addr, ParseFrame* pf) {
         dyn_c_hash_map<Address, ParseFrame*>::accessor a;
-        if (frame_map.insert(a, addr)) {
-            a->second = pf;
+        if (frame_map.insert(a, std::make_pair(addr, pf))) {
             return pf;
         } else {
             return NULL;
@@ -258,11 +257,13 @@ public:
         }
     }
 
-    void record_func(Function* f) {
-	{
-	  dyn_c_hash_map<Address, Function*>::accessor a;
-	  funcsByAddr.insert(a, std::make_pair(f->addr(), f));
-	}
+    Function* record_func(Function* f) {
+        dyn_c_hash_map<Address, Function*>::accessor a;
+        if (funcsByAddr.insert(a, std::make_pair(f->addr(), f))) {
+            return f;
+        } else {
+            return NULL;
+        }
     }
     Block* record_block(Block* b) {
         Block* ret = NULL;
@@ -408,13 +409,13 @@ class ParseData : public boost::lockable_adapter<boost::recursive_mutex>  {
     virtual ParseFrame* createAndRecordFrame(Function*) = 0;
 
     // creation (if non-existing)
-    virtual Function * createAndRecordFunc(CodeRegion *, Address, FuncSource) =0;
+    virtual Function * createAndRecordFunc(CodeRegion *, Address, FuncSource, Function*) =0;
 
     // mapping
     virtual region_data * findRegion(CodeRegion *) =0;
 
     // accounting
-    virtual void record_func(Function *) =0;
+    virtual Function* record_func(Function *) =0;
     virtual Block* record_block(CodeRegion *, Block *) =0;
 
     // removal
@@ -429,6 +430,7 @@ class ParseData : public boost::lockable_adapter<boost::recursive_mutex>  {
     virtual edge_parsing_data setEdgeParsingStatus(CodeRegion *cr, Address addr, Function *f, Block *b) = 0;
     virtual void getAllRegionData(std::vector<region_data*>&) = 0;
     virtual region_data::edge_data_map* get_edge_data_map(CodeRegion*) = 0;
+    virtual dyn_c_hash_map<Address, Function*>* getFuncsByAddrMap(CodeRegion*) = 0;
 
 };
 
@@ -453,11 +455,11 @@ class StandardParseData : public ParseData {
 
     virtual ParseFrame* createAndRecordFrame(Function*);
 
-    Function * createAndRecordFunc(CodeRegion * cr, Address addr, FuncSource src);
+    Function * createAndRecordFunc(CodeRegion * cr, Address addr, FuncSource src, Function* func_src);
 
     region_data * findRegion(CodeRegion *cr);
 
-    void record_func(Function *f);
+    Function* record_func(Function *f);
     Block* record_block(CodeRegion *cr, Block *b);
 
     void remove_frame(ParseFrame *);
@@ -469,6 +471,7 @@ class StandardParseData : public ParseData {
     edge_parsing_data setEdgeParsingStatus(CodeRegion *cr, Address addr, Function *f, Block *b); 
     void getAllRegionData(std::vector<region_data*>& rds);
     region_data::edge_data_map* get_edge_data_map(CodeRegion* cr);
+    dyn_c_hash_map<Address, Function*>* getFuncsByAddrMap(CodeRegion*);
 
 };
 
@@ -476,9 +479,9 @@ inline region_data * StandardParseData::findRegion(CodeRegion * /* cr */)
 {
     return &_rdata;
 }
-inline void StandardParseData::record_func(Function *f)
+inline Function* StandardParseData::record_func(Function *f)
 {
-    _rdata.record_func(f);
+    return _rdata.record_func(f);
 }
 inline Block* StandardParseData::record_block(CodeRegion * /* cr */, Block *b)
 {
@@ -520,11 +523,11 @@ class OverlappingParseData : public ParseData {
 
     virtual ParseFrame* createAndRecordFrame(Function*);
 
-    Function * createAndRecordFunc(CodeRegion * cr, Address addr, FuncSource src);
+    Function * createAndRecordFunc(CodeRegion * cr, Address addr, FuncSource src, Function*);
 
     region_data * findRegion(CodeRegion *cr);
 
-    void record_func(Function *f);
+    Function* record_func(Function *f);
     Block* record_block(CodeRegion *cr, Block *b);
 
     void remove_frame(ParseFrame *);
@@ -536,6 +539,8 @@ class OverlappingParseData : public ParseData {
     edge_parsing_data setEdgeParsingStatus(CodeRegion *cr, Address addr, Function* f, Block *b); 
     void getAllRegionData(std::vector<region_data*>&);
     region_data::edge_data_map* get_edge_data_map(CodeRegion* cr);
+    dyn_c_hash_map<Address, Function*>* getFuncsByAddrMap(CodeRegion*);
+
 
 };
 

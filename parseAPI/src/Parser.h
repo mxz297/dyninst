@@ -54,6 +54,8 @@
 #include <boost/thread/shared_mutex.hpp>
 #include <unordered_map>
 
+#include "tbb/concurrent_vector.h"
+
 using namespace std;
 
 typedef Dyninst::InsnAdapter::IA_IAPI InstructionAdapter_t;
@@ -82,23 +84,16 @@ namespace Dyninst {
 
             // region data store
             ParseData *_parse_data;
+            
+            // All allocated frames
+            LockFreeQueue<ParseFrame *> frames;
 
-    // All allocated frames
-    LockFreeQueue<ParseFrame *> frames;
-
-            // Delayed frames
-            // This can be a concurrent hash map.
-            // Will do this change if a profile suggests it as a bottleneck
-            struct DelayedFrames : public boost::basic_lockable_adapter<boost::recursive_mutex> {
-                std::map<Function *, std::set<ParseFrame *> > frames, prev_frames;
-
-            };
-            DelayedFrames delayed_frames;
+            tbb::concurrent_hash_map<Function*, std::set<ParseFrame*> > delayed_frames, prev_delayed_frames;
 
             // differentiate those provided via hints and
             // those found through RT or speculative parsing
-            vector<Function *> hint_funcs;
-            vector<Function *> discover_funcs;
+            tbb::concurrent_vector<Function *> hint_funcs;
+            tbb::concurrent_vector<Function *> discover_funcs;
 
             set<Function *, Function::less> sorted_funcs;
 
@@ -173,7 +168,7 @@ namespace Dyninst {
 
             void init_frame(ParseFrame &frame);
 
-            bool finalize(Function *f);
+            LockFreeQueueItem<Function*>* finalize(Function *f);
 
             ParseData *parse_data() { return _parse_data; }
 
@@ -261,12 +256,7 @@ namespace Dyninst {
 
             void finalize();
 
-            void finalize_funcs(vector<Function *> &funcs);
-	    void clean_bogus_funcs(vector<Function*> &funcs);
             void finalize_ranges(vector<Function *> &funcs);
-	    void split_overlapped_blocks();
-            void split_consistent_blocks(region_data *, map<Address, Block*> &);
-            void split_inconsistent_blocks(region_data *, map<Address, Block*> &);
             bool set_edge_parsing_status(ParseFrame&, Address addr, Block *b);
 	    void move_edges_consistent_blocks(Block *, Block *);
             void update_function_ret_status(ParseFrame &, Function*, ParseWorkElem* );
@@ -280,8 +270,6 @@ namespace Dyninst {
             friend class CodeObject;
 
     Mutex<true> parse_mutex;
-
-    struct NewFrames : public std::set<ParseFrame*>, public boost::lockable_adapter<boost::mutex> {};
 
     LockFreeQueueItem<ParseFrame *> *ProcessOneFrame(ParseFrame *pf, bool recursive);
 
@@ -298,7 +286,12 @@ namespace Dyninst {
 
     LockFreeQueueItem<ParseFrame *> *postProcessFrame(ParseFrame *pf, bool recursive);
 
-            void updateBlockEnd(Block *b, Address addr, Address previnsn, region_data *rd) const;
+    void LaunchFinalizingWork(LockFreeQueueItem<Function*>*);
+    void SpawnProcessFinalizing(Function *);
+    LockFreeQueueItem<Function*>* ProcessFinalizingOneFunction(Function*);
+    void handleTailCall(Function*, LockFreeQueue<Function*>&);
+    void computeFunctionExtents(Function*, Function::blocklist&);
+
         };
 
     }

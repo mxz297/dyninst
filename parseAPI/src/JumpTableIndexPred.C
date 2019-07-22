@@ -59,16 +59,9 @@ static void BuildEdgesAux(SliceNode::Ptr srcNode,
     Block::edgelist targets;
     curBlock->copy_targets(targets);
     for (auto eit = targets.begin(); eit != targets.end(); ++eit) {
-	// Xiaozhu:
-	// Our current slicing code ignores tail calls 
-	// (the slice code only checks if an edge type is CALL or not)
- 	// so, I should be consistent here.
-	// If the slice code considers tail calls, need to change
-	// the predicate to (*eit)->interproc()
         if ((*eit)->type() != CALL && 
             (*eit)->type() != RET && 
 	    (*eit)->type() != CATCH && 
-	    !(*eit)->interproc() && 
 	    allowedEdges.find(*eit) != allowedEdges.end()) {
 	    EdgeTypeEnum newT = t; 
 	    if (t == _edgetype_end_) {
@@ -228,6 +221,8 @@ bool JumpTableIndexPred::addNodeCallback(AssignmentPtr ap, set<ParseAPI::Edge*> 
 
     // We create the CFG based on the found nodes
     GraphPtr g = BuildAnalysisGraph(visitedEdges);
+    /* change func->entry() == block to check
+     * whether there is a CALL incoming edge */
     BoundFactsCalculator bfc(func, g, func->entry() == block, false, se);
     bfc.CalculateBoundedFacts();
 

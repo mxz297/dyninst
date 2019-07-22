@@ -441,8 +441,7 @@ static Assignment::Ptr SearchForWrite(SliceNode::Ptr n, AbsRegion &src, Slicer::
         curBlock->copy_sources(sources); 
 	for (auto eit = sources.begin(); eit != sources.end(); ++eit) {
 	    ParseAPI::Edge *e = *eit;
-	    if (e->interproc()) continue;
-	    if (e->type() == CATCH) continue;
+        if (e->type() == CALL || e->type() == RET || e->type() == CATCH) continue;
 	    if (inQueue.find(e->src()) != inQueue.end()) continue;
 	    inQueue.insert(e->src());
 	    workingList.push(e->src());	    

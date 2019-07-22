@@ -43,6 +43,7 @@
 
 #include "InstructionSource.h"
 #include "ParseContainers.h"
+#include "LockFreeQueue.h"
 #include "Annotatable.h"
 #include <iostream>
 #include <boost/thread/lockable_adapter.hpp>
@@ -77,6 +78,12 @@ enum EdgeTypeEnum {
     RET,
     NOEDGE,
     _edgetype_end_
+};
+
+enum TailCallStatusEnum {
+    MAYBE_TAIL_CALL,
+    NOT_TAIL_CALL,
+    IS_TAIL_CALL
 };
 
 PARSER_EXPORT std::string format(EdgeTypeEnum e);
@@ -167,11 +174,11 @@ class PARSER_EXPORT Edge : public allocatable {
 
     struct EdgeType {
         EdgeType(EdgeTypeEnum t, bool s) :
-            _type_enum(t), _sink(s), _interproc(false)
+            _type_enum(t), _sink(s), _tail_call(MAYBE_TAIL_CALL)
         { }
-        uint16_t _type_enum;
+        EdgeTypeEnum _type_enum;
         uint8_t _sink;
-        uint8_t  _interproc;    // modifier for interprocedural branches
+        TailCallStatusEnum _tail_call;    // modifier for interprocedural branches
                                 // (tail calls)
     };
     EdgeType _type;
@@ -192,14 +199,23 @@ class PARSER_EXPORT Edge : public allocatable {
     }
     bool sinkEdge() const { return _type._sink != 0; }
     bool interproc() const { 
-       return (_type._interproc != 0 ||
-               type() == CALL ||
-               type() == RET);
+       if (type() == CALL || type() == RET) return true;
+       if (type() == DIRECT || type() == COND_TAKEN || type() == INDIRECT) {
+           return tailCallStatus() == IS_TAIL_CALL; 
+       }
+       return false;
     }
 
     bool intraproc() const {
-       return !interproc();
+       if (type() == CALL || type() == RET) return false;
+       if (type() == DIRECT || type() == COND_TAKEN || type() == INDIRECT) {
+           return tailCallStatus() == NOT_TAIL_CALL; 
+       }
+       return true;
     }
+
+    TailCallStatusEnum tailCallStatus() const { return _type._tail_call; }
+    void markTailCallStatus(TailCallStatusEnum t) { _type._tail_call = t; }
 
     void install();
 
@@ -454,6 +470,8 @@ enum FuncReturnStatus {
 /* Discovery method of functions */
 enum FuncSource {
     RT = 0,     // recursive traversal (default)
+    RT_CALL,
+    RT_BRANCH,
     HINT,       // specified in code object hints
     GAP,        // gap heuristics
     GAPRT,      // RT from gap-discovered function
@@ -485,12 +503,14 @@ class PARSER_EXPORT Function : public allocatable, public AnnotatableSparse, pub
     CodeRegion * _region;
     InstructionSource * _isrc;
     bool _cache_valid;
+    bool _in_queue_for_finalizing;
     
     FuncSource _src;
     boost::atomic<FuncReturnStatus> _rs;
 
     std::string _name;
     Block * _entry;
+    Function* created_from_src;
  protected:
     Function(); 
  public:
@@ -617,9 +637,11 @@ class PARSER_EXPORT Function : public allocatable, public AnnotatableSparse, pub
     /*** Internal parsing methods and state ***/
     void add_block(Block *b);
 
+    Function* getCreateSource() { return created_from_src; }
+    void setCreateSource(Function* src) { created_from_src = src; }
  private:
     void delayed_link_return(CodeObject * co, Block * retblk);
-    void finalize();
+    LockFreeQueueItem<Function*>* finalize();
 
     bool _parsed;
     //    blocklist _bl;

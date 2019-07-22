@@ -382,7 +382,7 @@ Function *CFGModifier::makeEntry(Block *b) {
 
    ParseData *data = b->obj()->parser->_parse_data;
 
-   Function* f = data->createAndRecordFunc(b->region(), b->start(), MODIFICATION); 
+   Function* f = data->createAndRecordFunc(b->region(), b->start(), MODIFICATION, NULL); 
    if (f == NULL)
        f = data->findFunc(b->region(),b->start());
    return f;

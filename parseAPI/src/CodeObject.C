@@ -97,6 +97,7 @@ CodeObject::process_hints()
                 (*hit)._addr,HINT,(*hit)._name,this,cr,cr);
         if(f) {
             parsing_printf("[%s] adding hint %lx\n",FILE__,f->addr());
+            f->setCreateSource(f);
             parser->add_hint(f);
         }
     }

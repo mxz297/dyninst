@@ -234,7 +234,9 @@ bool IA_x86::isTailCall(const Function *context, EdgeTypeEnum type, unsigned int
    // Collapse down to "branch" or "fallthrough"
     switch(type) {
        case COND_TAKEN:
+           return true;
        case DIRECT:
+           return false;
        case INDIRECT:
           type = DIRECT;
           break;
@@ -258,65 +260,15 @@ bool IA_x86::isTailCall(const Function *context, EdgeTypeEnum type, unsigned int
         return false;
     }
     
-    bool valid; Address addr;
-    boost::tie(valid, addr) = getCFT();
 
-    Function* callee = _obj->findFuncByEntry(_cr, addr);
-    Block* target = _obj->findBlockByEntry(_cr, addr);
-    if(curInsn().getCategory() == c_BranchInsn &&
-       valid &&
-       callee && 
-       callee != context &&
-       // We can only trust entry points from hints
-       callee->src() == HINT &&
-       /* the target can either be not parsed or not within the current context */
-       ((target == NULL) || (target && !context->contains(target)))
-       )
-    {
-      parsing_printf("\tjump to 0x%lx, TAIL CALL\n", addr);
-      tailCalls[type] = true;
-      return true;
-    }
-
-    if (valid && addr > 0 && !context->region()->contains(addr)) {
-      parsing_printf("\tjump to 0x%lx in other regions, TAIL CALL\n", addr);
-      tailCalls[type] = true;
-      return true;
-    }    
-
-    if (curInsn().getCategory() == c_BranchInsn &&
-            valid &&
-            !callee) {
-    if (knownTargets.find(addr) != knownTargets.end()) {
-	    parsing_printf("\tjump to 0x%lx is known target in this function, NOT TAIL CALL\n", addr);
-	    tailCalls[type] = false;
-	    return false;
-	}
-    }
-
-    if(allInsns.size() < 2) {
-      if(context->addr() == _curBlk->start() && curInsn().getCategory() == c_BranchInsn)
-      {
-	parsing_printf("\tjump as only insn in entry block, TAIL CALL\n");
-	tailCalls[type] = true;
-	return true;
-      }
-      else
-      {
-        parsing_printf("\ttoo few insns to detect tail call\n");
-        context->obj()->cs()->incrementCounter(PARSE_TAILCALL_FAIL);
-        tailCalls[type] = false;
-        return false;
-      }
-    }
-
-    if ((curInsn().getCategory() == c_BranchInsn))
+    if ((curInsn().getCategory() == c_BranchInsn) && curInsnIter != allInsns.begin())
     {
         //std::map<Address, Instruction::Ptr>::const_iterator prevIter =
                 //allInsns.find(current);
         
         // Updated: there may be zero or more nops between leave->jmp
-       
+      
+        
         allInsns_t::const_iterator prevIter = curInsnIter;
         --prevIter;
         Instruction prevInsn = prevIter->second;

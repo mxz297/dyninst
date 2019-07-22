@@ -118,7 +118,7 @@ bool
 Intraproc::pred_impl(Edge * e) const
 {
     bool base = EdgePredicate::pred_impl(e);
-    return base && (e->type() != CALL) && (e->type() != RET) && (!e->interproc());
+    return base && e->intraproc();
 }
 
 bool Interproc::pred_impl(Edge *e) const 

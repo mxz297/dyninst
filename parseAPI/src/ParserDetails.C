@@ -145,10 +145,10 @@ Parser::getTamperAbsFrame(Function *tamperFunc) {
     targFunc = _parse_data->createAndRecordFunc
             (*(targRegs.begin()),
              target,
-             tamperFunc->src());
+             tamperFunc->src(), NULL);
 
     if (!targFunc) {
-        targFunc = _parse_data->createAndRecordFunc(*(targRegs.begin()), target, RT);
+        targFunc = _parse_data->createAndRecordFunc(*(targRegs.begin()), target, RT, NULL);
     }
     if (!targFunc) 
         targFunc = _parse_data->findFunc(*(targRegs.begin()), target);
@@ -533,7 +533,6 @@ bool Parser::ProcessCFInsn(
                                newedge,
                                newedge->src()->start(),
                                newedge->trg_addr());
-                newedge->_type._interproc = true;
             }
         }
             /*
@@ -552,7 +551,6 @@ bool Parser::ProcessCFInsn(
                            newedge,
                            newedge->src()->start(),
                            newedge->trg_addr());
-            newedge->_type._interproc = true;
         }
 
         if (!bundle) {

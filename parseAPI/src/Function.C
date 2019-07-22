@@ -64,10 +64,12 @@ Function::Function() :
         _src(RT),
         _rs(UNSET),
         _entry(NULL),
+        created_from_src(NULL),
 	 _is_leaf_function(true),
 	 _ret_addr(0),
         _parsed(false),
         _cache_valid(false),
+        _in_queue_for_finalizing(false),
         _no_stack_frame(true),
         _saves_fp(false),
         _cleans_stack(false),
@@ -92,10 +94,12 @@ Function::Function(Address addr, string name, CodeObject * obj,
         _rs(UNSET),
         _name(name),
         _entry(NULL),
+        created_from_src(NULL),
 	 _is_leaf_function(true),
 	 _ret_addr(0),
         _parsed(false),
         _cache_valid(false),
+        _in_queue_for_finalizing(false),
         _no_stack_frame(true),
         _saves_fp(false),
         _cleans_stack(false),
@@ -199,28 +203,27 @@ Function::extents()
     return _extents;
 }
 
-void
+LockFreeQueueItem<Function*>*
 Function::finalize()
 {
     boost::lock_guard<Function> g(*this);
-    bool done;
-    do {
-  _extents.clear();
-  _exitBL.clear();
-
-  // for each block, decrement its refcount
-  for (auto blk = blocks_begin(); blk != blocks_end(); blk++) {
-    (*blk)->_func_cnt.fetch_add(-1);
-  }
-  _bmap.clear();
-  _retBL.clear(); 
-  _call_edge_list.clear();
-  _cache_valid = false;
+    if (_cache_valid) return NULL;
+    _extents.clear();
+    _exitBL.clear();
+    
+    // for each block, decrement its refcount
+    for (auto blk = blocks_begin(); blk != blocks_end(); blk++) {
+        (*blk)->_func_cnt.fetch_add(-1);
+    }
+    _bmap.clear();
+    _retBL.clear(); 
+    _call_edge_list.clear();
+    _cache_valid = false;
 
     // The Parser knows how to finalize
     // a Function's parse data
-    done  = _obj->parser->finalize(this);
-    } while (!done);
+    auto ret = _obj->parser->finalize(this);
+    return ret;
 }
 
 Function::blocklist
