@@ -286,6 +286,7 @@ namespace Dyninst {
 
     LockFreeQueueItem<ParseFrame *> *postProcessFrame(ParseFrame *pf, bool recursive);
 
+    void ProcessFinalizing(LockFreeQueue<Function*>*);
     void LaunchFinalizingWork(LockFreeQueueItem<Function*>*);
     void SpawnProcessFinalizing(Function *);
     LockFreeQueueItem<Function*>* ProcessFinalizingOneFunction(Function*);

@@ -971,7 +971,7 @@ Parser::finalize(Function *f)
 void
 Parser::finalize()
 {
-    fprintf(stderr, "Start finalizing, currently %d functions\n", hint_funcs.size() + discover_funcs.size());
+    //fprintf(stderr, "Start finalizing, currently %d functions\n", hint_funcs.size() + discover_funcs.size());
     LockFreeQueue<Function*> work1;
     for (auto func_iter = hint_funcs.begin(); func_iter != hint_funcs.end(); ++func_iter) {
         Function * f = *func_iter;
@@ -985,7 +985,7 @@ Parser::finalize()
         }
         if (!hasFTEdge) work1.insert(f);
     }
-    LaunchFinalizingWork(work1.steal());
+    ProcessFinalizing(&work1);
 
     // We need this second stage because a function may contain a FT from itself
     // The previous stage will finalize any function that is contained by another function
@@ -996,9 +996,21 @@ Parser::finalize()
             work2.insert(f);
         }
     }    
-    LaunchFinalizingWork(work2.steal());
+    ProcessFinalizing(&work2);
     _parse_state = FINALIZED;
 }
+
+void
+Parser::ProcessFinalizing(LockFreeQueue<Function *> *work_queue)
+{
+#pragma omp parallel shared(work_queue)
+  {
+#pragma omp master
+    LaunchFinalizingWork(work_queue->steal());
+  }
+}
+
+
 
 void
 Parser::LaunchFinalizingWork(LockFreeQueueItem<Function*> *func_list)
