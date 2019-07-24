@@ -143,8 +143,6 @@ Function::blocklist
 Function::blocks()
 {
     boost::lock_guard<Function> g(*this);
-    if(!_cache_valid)
-        finalize();
     return blocklist(blocks_begin(), blocks_end());
 }
 
@@ -163,24 +161,18 @@ Function::blocks() const
 const Function::edgelist & 
 Function::callEdges() {
     boost::lock_guard<Function> g(*this);
-    if(!_cache_valid)
-        finalize();
     return _call_edge_list; 
 }
 
 Function::const_blocklist
 Function::returnBlocks() {
     boost::lock_guard<Function> g(*this);
-  if (!_cache_valid)
-    finalize();
   return const_blocklist(ret_begin(), ret_end());
 }
 
 Function::const_blocklist
 Function::exitBlocks() {
     boost::lock_guard<Function> g(*this);
-  if (!_cache_valid)
-    finalize();
   return const_blocklist(exit_begin(), exit_end());
   
 }
@@ -198,37 +190,13 @@ vector<FuncExtent *> const&
 Function::extents()
 {
     boost::lock_guard<Function> g(*this);
-    if(!_cache_valid)
-        finalize(); 
     return _extents;
-}
-
-LockFreeQueueItem<Function*>*
-Function::finalize()
-{
-    boost::lock_guard<Function> g(*this);
-    if (_cache_valid) return NULL;
-    _extents.clear();
-    _exitBL.clear();
-    
-    // for each block, decrement its refcount
-    for (auto blk = blocks_begin(); blk != blocks_end(); blk++) {
-        (*blk)->_func_cnt.fetch_add(-1);
-    }
-    _bmap.clear();
-    _retBL.clear(); 
-    _call_edge_list.clear();
-    _cache_valid = false;
-
-    // The Parser knows how to finalize
-    // a Function's parse data
-    auto ret = _obj->parser->finalize(this);
-    return ret;
 }
 
 Function::blocklist
 Function::blocks_int() 
 {
+    /*
     boost::lock_guard<Function> g(*this);
     if(_cache_valid || !_entry)
       return blocklist(blocks_begin(), blocks_end());
@@ -346,7 +314,9 @@ Function::blocks_int()
                 continue;
             }
 
+            */
             /* Handle tailcall edges */
+                /*
             if(e->interproc()) {
                parsing_printf("\t Interprocedural\n");
                 _call_edge_list.insert(e);
@@ -361,8 +331,9 @@ Function::blocks_int()
                exits_func = true;
                 continue;
             }
-
+*/
             /* sink edges receive no further processing */
+                /*
             if(e->sinkEdge()) {
                parsing_printf("\t Sink edge, skipping\n");
                 continue;
@@ -398,7 +369,7 @@ Function::blocks_int()
            }
         }
     }
-
+*/
     return blocklist(blocks_begin(), blocks_end());
 }
 
@@ -458,9 +429,8 @@ Function::delayed_link_return(CodeObject * o, Block * retblk)
 void
 Function::add_block(Block *b)
 {
-    boost::lock_guard<Function> g(*this);
     b->_func_cnt.fetch_add(1);            // block counts references
-    _bmap[b->start()] = b;
+    _bmap.insert(make_pair(b->start(), b));
 }
 
 const string &
@@ -472,20 +442,17 @@ Function::name() const
 bool
 Function::contains(Block *b)
 {
-    boost::lock_guard<Function> g(*this);
+    blockmap::accessor a;
     if (b == NULL) return false;
-    if(!_cache_valid)
-        finalize();
-
-    return HASHDEF(_bmap,b->start());
+    return _bmap.find(a, b->start());
 }
 
 bool
 Function::contains(Block *b) const
 {
-//    boost::lock_guard<const Function> g(*this);
+    blockmap::const_accessor a;
     if (b == NULL) return false;
-    return HASHDEF(_bmap,b->start());
+    return _bmap.find(a, b->start());
 }
 
 

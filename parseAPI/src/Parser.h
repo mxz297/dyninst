@@ -64,6 +64,26 @@ namespace Dyninst {
     namespace ParseAPI {
 
         class CFGModifier;
+        struct FinalizingFunctionData;
+
+        struct FinalizingWorkItem {
+            Function* func;
+            Block* b;
+            FinalizingFunctionData* data;
+            enum WorkItemType {
+                LinearSpan,
+                DetermineFuncBoundary
+            };
+            WorkItemType type;
+            FinalizingWorkItem(Function* F, Block* B, FinalizingFunctionData *D, WorkItemType T):
+                func(F), b(B), data(D), type(T)
+            {}
+        };
+        struct FinalizingFunctionData {
+            boost::atomic<int> workset_item_count;
+            dyn_c_hash_map<FinalizingWorkItem*, bool> workset_items;
+            dyn_c_hash_map<Edge*, bool> boundary_edges;
+        };
 
 /** This is the internal parser **/
         class Parser {
@@ -168,8 +188,6 @@ namespace Dyninst {
             void record_func(Function *f);
 
             void init_frame(ParseFrame &frame);
-
-            LockFreeQueueItem<Function*>* finalize(Function *f);
 
             ParseData *parse_data() { return _parse_data; }
 
@@ -287,12 +305,17 @@ namespace Dyninst {
 
     LockFreeQueueItem<ParseFrame *> *postProcessFrame(ParseFrame *pf, bool recursive);
 
-    void ProcessFinalizing(LockFreeQueue<Function*>*);
-    void LaunchFinalizingWork(LockFreeQueueItem<Function*>*);
-    void SpawnProcessFinalizing(Function *);
-    LockFreeQueueItem<Function*>* ProcessFinalizingOneFunction(Function*);
-    void handleTailCall(Function*, LockFreeQueue<Function*>&);
-    void computeFunctionExtents(Function*, Function::blocklist&);
+    void ProcessFinalizing(LockFreeQueue<FinalizingWorkItem*>*);
+    void LaunchFinalizingWork(LockFreeQueueItem<FinalizingWorkItem*>*);
+    void SpawnProcessFinalizing(FinalizingWorkItem *);
+    LockFreeQueueItem<FinalizingWorkItem*>* ProcessFinalizingOneItem(FinalizingWorkItem*);
+    void computeFunctionExtents(Function*);
+    bool isSingleContext(Function*, Block*);
+    void createFinalizingFuncEntryData(Function*, LockFreeQueue<FinalizingWorkItem*>&);
+    void createFinalizingInFuncItem(FinalizingWorkItem*, Block*, LockFreeQueue<FinalizingWorkItem*>&);
+    void createFinalizingFuncBoundaryItem(FinalizingWorkItem*, LockFreeQueue<FinalizingWorkItem*>&);
+
+    boost::atomic<int> delete_cnt;
 
         };
 

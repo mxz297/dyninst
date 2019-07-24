@@ -789,108 +789,22 @@ void Parser::cleanup_frames()  {
   frames.clear();
 }
 
-static bool isSingleContext(Block *target, dyn_hash_map<Address, bool> &visited) {
+bool Parser::isSingleContext(Function*f, Block *target) {
     for (auto eeit = target->sources().begin(); eeit != target->sources().end(); ++eeit) {
         ParseAPI::Edge* in_edge = *eeit;
-        if (visited.find((*eeit)->src()->start()) == visited.end()) {
-            return false;
-        }
+        if (in_edge->type() == CALL) return false;
+        if (!f->contains(in_edge->src())) return false;
     }
     return true;
 }
 
-void Parser::handleTailCall(Function *f, LockFreeQueue<Function*> &new_work) {
-    vector<Block*> worklist_block;
-    list<Edge*> worklist_edge;
-    worklist_block.push_back(f->entry());
-    dyn_hash_map<Address, bool> visited;
-    visited[f->addr()] = true;
-
-    bool done = false;
-
-    while (!done) {
-        done = true;
-        // First spanning the blocks in the function
-        // by going through intra-procedural edges
-        while (!worklist_block.empty()) {
-            Block * cur = worklist_block.back();
-            worklist_block.pop_back();
-            f->add_block(cur);
-            for (auto eit = cur->targets().begin(); eit != cur->targets().end(); ++eit) {
-                Edge* e = *eit;
-                // Indirect tail calls will go to sink 
-                // as we do not resolve their targets
-                if (e->sinkEdge()) continue;
-                if (e->type() == CALL) continue;
-                if ((e->type() == DIRECT || e->type() == COND_TAKEN) && e->tailCallStatus() != NOT_TAIL_CALL){
-                    if (e->tailCallStatus() == MAYBE_TAIL_CALL) worklist_edge.push_back(e);
-                    continue;
-                }
-                if (visited.find(e->trg()->start()) != visited.end()) continue;
-                visited[e->trg()->start()] = true;
-                worklist_block.push_back(e->trg());
-            }
-        }
-        // Then remove functions that all source edges
-        // are in this function
-        auto eit = worklist_edge.begin();
-        while (eit != worklist_edge.end()) {
-            Block* target = (*eit)->trg();
-            if (visited.find(target->start()) != visited.end()) {
-                (*eit)->markTailCallStatus(NOT_TAIL_CALL);
-                eit = worklist_edge.erase(eit);
-                continue;
-            }
-
-            if (isSingleContext(target, visited)) {
-                (*eit)->markTailCallStatus(NOT_TAIL_CALL);
-                visited[target->start()] = true;
-                worklist_block.push_back(target);
-                done = false;
-                eit = worklist_edge.erase(eit);
-            } else {
-                ++eit;
-            }
-        }
-    }
-
-    // All edges in worklist_edge are tail calls
-    // because their target contains source edges not from
-    // the current function
-    for (auto eit = worklist_edge.begin(); eit != worklist_edge.end(); ++eit) {
-        (*eit)->markTailCallStatus(IS_TAIL_CALL);
-    }
-
-    // We know that all functions that are either HINT or 
-    // created by a call instruction should be real function.
-    //
-    // Then, we delete functions that can only be reached with the current function
-    dyn_c_hash_map<Address, Function*>* funcsByAddr = _parse_data->getFuncsByAddrMap(f->region());
-    for (auto it = visited.begin(); it != visited.end(); ++it) {
-        Address addr = it->first;
-        // The accessor acts as a lock.
-        // Only one thread can check, delete function, and insert function to work queue
-        dyn_c_hash_map<Address,Function*>::accessor a;
-        if (funcsByAddr->find(a, addr)) {
-            Function* func = a->second;
-            if (func->src() == RT_BRANCH && isSingleContext(func->entry(), visited)) {
-                funcsByAddr->erase(a);
-                delete func;
-            } else if (!func->_in_queue_for_finalizing) {
-                func->_in_queue_for_finalizing = true;
-                new_work.insert(func);
-            }
-        } 
-    }
-}
-
-void Parser::computeFunctionExtents(Function *f, Function::blocklist &blocks) {
-    auto bit = blocks.begin();
+void Parser::computeFunctionExtents(Function *f) {
+    auto bit = f->blocks().begin();
     FuncExtent * ext = NULL;
     Address ext_s = (*bit)->start();
     Address ext_e = ext_s;
 
-    for( ; bit != blocks.end(); ++bit) {
+    for( ; bit != f->blocks().end(); ++bit) {
         Block * b = *bit;
         if(b->start() > ext_e) {
             ext = new FuncExtent(f,ext_s,ext_e);
@@ -920,7 +834,7 @@ void Parser::computeFunctionExtents(Function *f, Function::blocklist &blocks) {
             if (2 > (*eit)->src()->targets().size()) {
                 Block *ft = _parse_data->findBlock((*eit)->src()->region(),
                                                    (*eit)->src()->end());
-                if (ft && HASHDEF(f->_bmap,ft->start())) {
+                if (ft && f->contains(ft)) {
                     link_block((*eit)->src(),ft,CALL_FT,false);
                 }
             }
@@ -929,64 +843,52 @@ void Parser::computeFunctionExtents(Function *f, Function::blocklist &blocks) {
 
 }
 
-LockFreeQueueItem<Function*>*
-Parser::finalize(Function *f)
-{
-    if(f->_cache_valid) {
-        return NULL;
-    }
-
-
-    /* this is commented out to prevent a failure in tampersStack, but
-           this may be an incorrect approach to fixing the problem.
-    if(frame_status(f->region(), f->addr()) < ParseFrame::PARSED) {
-        // XXX prevent caching of blocks, extents for functions that
-        // are actively being parsed. This prevents callbacks and other
-        // functions called from within, e.g. parse_frame from setting
-        // the caching flag and preventing later updates to the blocks()
-        // vector during finalization.
-        cache_value = false;
-    }*/
-
-    parsing_printf("[%s] finalizing %s (%lx)\n",
-                   FILE__,f->name().c_str(),f->addr());
-
-    // mark edges for tail call
-    // and remove redundant functions
-    LockFreeQueue<Function*> new_work;
-    handleTailCall(f, new_work);
-
-    // Determine function boundary
-    Function::blocklist blocks = f->blocks_int();
-
-    // Calculate function extents
-    computeFunctionExtents(f, blocks);
-
-    f->_cache_valid = true;
-
-    return new_work.steal();
-}
-
 void
 Parser::finalize()
 {
+    if (_parse_state == FINALIZED) return;
     parsing_printf("Start finalizing, currently %d functions\n", hint_funcs.size() + discover_funcs.size());
+    delete_cnt.store(0);
 
-    LockFreeQueue<Function*> work1;
+    LockFreeQueue<FinalizingWorkItem*> work;
     for (auto func_iter = hint_funcs.begin(); func_iter != hint_funcs.end(); ++func_iter) {
         Function * f = *func_iter;
-        work1.insert(f);
+        createFinalizingFuncEntryData(f, work);
     }
-    ProcessFinalizing(&work1);
-    dyn_c_hash_map<Address, Function*>* funcsByAddr = _parse_data->getFuncsByAddrMap((*hint_funcs.begin())->region());
-    for (auto fit = funcsByAddr->begin(); fit != funcsByAddr->end(); ++fit)
-        sorted_funcs.insert(fit->second);
+    for (auto func_iter = discover_funcs.begin(); func_iter != discover_funcs.end(); ++func_iter) {
+        Function * f = *func_iter;
+        if (f->src() == RT_BRANCH) {
+            bool hasCallEdge = false;
+            for (auto eit = f->entry()->sources().begin(); eit != f->entry()->sources().end(); ++eit)
+                if ((*eit)->type() == CALL) {
+                    hasCallEdge = true;
+                    break;
+                }
+            if (hasCallEdge) f->_src = RT_CALL;
+        }
+    }
+    ProcessFinalizing(&work);
 
+    int finalized_cnt = 0;
+    int not_finalized = 0;
+    dyn_c_hash_map<Address, Function*>* funcsByAddr = _parse_data->getFuncsByAddrMap((*hint_funcs.begin())->region());
+    for (auto fit = funcsByAddr->begin(); fit != funcsByAddr->end(); ++fit) {
+        Function *f = fit->second;
+        sorted_funcs.insert(f);
+        if (!f->_cache_valid)
+            ++not_finalized;
+        else
+            ++finalized_cnt;
+        
+    }
+    fprintf(stderr, "total functions in sorted_funcs %u\n", sorted_funcs.size());
+    fprintf(stderr, "total functions in hint_funcs %u\n", hint_funcs.size());
+    fprintf(stderr, "finalized %d, not finalized %d, deleted function %d\n", finalized_cnt, not_finalized, delete_cnt.load());
     _parse_state = FINALIZED;
 }
 
 void
-Parser::ProcessFinalizing(LockFreeQueue<Function *> *work_queue)
+Parser::ProcessFinalizing(LockFreeQueue<FinalizingWorkItem *> *work_queue)
 {
 #pragma omp parallel shared(work_queue)
   {
@@ -998,30 +900,172 @@ Parser::ProcessFinalizing(LockFreeQueue<Function *> *work_queue)
 
 
 void
-Parser::LaunchFinalizingWork(LockFreeQueueItem<Function*> *func_list)
+Parser::LaunchFinalizingWork(LockFreeQueueItem<FinalizingWorkItem*> *item_list)
 {
-  LockFreeQueue<Function *> private_queue(func_list);
+  LockFreeQueue<FinalizingWorkItem *> private_queue(item_list);
   for(;;) {
-    LockFreeQueueItem<Function *> *first = private_queue.pop();
+    LockFreeQueueItem<FinalizingWorkItem *> *first = private_queue.pop();
     if (first == 0) break;
-    Function *func = first->value();
+    FinalizingWorkItem *item = first->value();
     delete first;
-#pragma omp task firstprivate(func)
-    SpawnProcessFinalizing(func);
+#pragma omp task firstprivate(item)
+    SpawnProcessFinalizing(item);
   }
 }
 
 
 void
-Parser::SpawnProcessFinalizing(Function *func)
+Parser::SpawnProcessFinalizing(FinalizingWorkItem *item)
 {
-  LockFreeQueueItem<Function*> *new_func = ProcessFinalizingOneFunction(func);
-  LaunchFinalizingWork(new_func);
+  LockFreeQueueItem<FinalizingWorkItem*> *new_items = ProcessFinalizingOneItem(item);
+  if (new_items) LaunchFinalizingWork(new_items);
 }
 
-LockFreeQueueItem<Function*>*
-Parser::ProcessFinalizingOneFunction(Function *func) {
-    func->finalize();
+LockFreeQueueItem<FinalizingWorkItem*>*
+Parser::ProcessFinalizingOneItem(FinalizingWorkItem *item) {
+    LockFreeQueue<FinalizingWorkItem*> new_work;
+    dyn_c_hash_map<Address, Function*>* funcsByAddr = _parse_data->getFuncsByAddrMap(item->func->region());
+    if (item->type == FinalizingWorkItem::LinearSpan) {
+        Block * cur = item->b;
+        Block * next_block; 
+        while (cur != NULL) {
+            if (item->func->contains(cur)) break;
+            item->func->add_block(cur);
+            next_block = NULL;
+            for (auto eit = cur->targets().begin(); eit != cur->targets().end(); ++eit) {
+                Edge* e = *eit;
+                // Indirect tail calls will go to sink 
+                // as we do not resolve their targets
+                if (e->sinkEdge() || e->type() == RET) continue;
+                if (e->type() == CALL) {
+                    // The accessor acts as a lock.
+                    // Only one thread can check, delete function, and insert function entry to work queue
+                    dyn_c_hash_map<Address,Function*>::accessor a;
+                    if (funcsByAddr->find(a, e->trg()->start())) {
+                        Function* func = a->second;
+                        if (!func->_in_queue_for_finalizing) {
+                            func->_in_queue_for_finalizing = true;
+                            createFinalizingFuncEntryData(func, new_work);
+                       }
+                    } 
+                    continue;
+                } 
+                if ((e->type() == DIRECT || e->type() == COND_TAKEN)) {
+                    if (e->tailCallStatus() == MAYBE_TAIL_CALL) {
+                        // If the target block can be determined as
+                        // having only incoming edges from one function,
+                        // we delete the function at the target block if there is one
+                        // and create a new finalizing work element within the current function
+                        //
+                        // If we find that the target block as source edges that are
+                        // not currently of the function, we treat this edge as part of the
+                        // function boundary.
+                        if (isSingleContext(item->func, e->trg())) {
+                            e->markTailCallStatus(NOT_TAIL_CALL);
+                            dyn_c_hash_map<Address, Function*>::accessor a;
+                            if (funcsByAddr->find(a, e->trg()->start())) {
+                                Function * func_to_del = a->second;
+                                if (func_to_del->src() == RT_BRANCH) {
+                                    funcsByAddr->erase(a);
+                                    delete func_to_del;
+                                    delete_cnt.fetch_add(1);
+                                }
+                            }
+                            createFinalizingInFuncItem(item, e->trg(), new_work);
+                        } else {
+                            assert(item->data->boundary_edges.insert(make_pair(e, true)));
+                        }
+                    } else if (e->tailCallStatus() == NOT_TAIL_CALL) {
+                        createFinalizingInFuncItem(item, e->trg(), new_work);
+                    }
+                    continue;
+                }
+                if (e->type() == INDIRECT) {
+                    createFinalizingInFuncItem(item, e->trg(), new_work);
+                    continue;
+                }
+                if (item->func->contains(e->trg())) continue;
+                next_block = e->trg();
+            }
+
+            for (auto eit = cur->sources().begin(); eit != cur->sources().end(); ++eit) {
+                Edge *e = *eit;
+                if (e->type() == CALL || e->type() == INDIRECT) continue;
+                if (e->type() == CALL_FT || e->type() == FALLTHROUGH) continue;
+                dyn_c_hash_map<Edge*, bool>::accessor a;
+                if (item->data->boundary_edges.find(a, e)) {
+                    // Edges that are in boundary_edges set means their soruces
+                    // are in the current function. Now we know the target of the edge
+                    // is also in the function, so the edge is not a tail call
+                    item->data->boundary_edges.erase(a);
+                    e->markTailCallStatus(NOT_TAIL_CALL);
+                }
+            }
+        }
+        item->data->workset_items.erase(item);
+        // fetch_add returns the old value.
+        // So, when it returns 1, it means this is the last item
+        if (item->data->workset_item_count.fetch_add(-1) == 1) {
+            createFinalizingFuncBoundaryItem(item, new_work);
+        };
+        // Need an atomic decrement and check zero
+    } else if (item->type == FinalizingWorkItem::DetermineFuncBoundary) {
+        // There should be only one thread per function
+        for (auto eit = item->data->boundary_edges.begin(); eit != item->data->boundary_edges.end(); ++eit) {
+            Edge *e = eit->first;
+            e->markTailCallStatus(IS_TAIL_CALL);
+            dyn_c_hash_map<Address,Function*>::accessor a;
+            if (funcsByAddr->find(a, e->trg()->start())) {
+                Function* func = a->second;
+                if (!func->_in_queue_for_finalizing) {
+                    func->_in_queue_for_finalizing = true;
+                    createFinalizingFuncEntryData(func, new_work);
+                }
+            } 
+        }
+        // Now we can calculate the extents of the function
+        computeFunctionExtents(item->func);
+        // Finalizing of the function is done
+        item->func->_cache_valid = true;
+
+        // After determining function boundary,
+        // the finalization of the fucntion is completed,
+        // we can delete the function finalization data.
+        delete item->data;
+    } else {
+        assert(0);
+    }
+    // Delete the work item since we done with it
+    delete item;
+    return new_work.steal();
+}
+
+void Parser::createFinalizingFuncEntryData(Function *f, LockFreeQueue<FinalizingWorkItem*> &work ) {
+    // We need a new object of FinalizingFunctionData for this function
+    FinalizingFunctionData *data = new FinalizingFunctionData();
+    FinalizingWorkItem *item = new FinalizingWorkItem(f, f->entry(), data, FinalizingWorkItem::LinearSpan);
+    // Initialize work item count to 1
+    data->workset_item_count.store(1);
+    assert(data->workset_items.insert(make_pair(item, true)));
+    // Put the work item in the work queue
+    work.insert(item);
+}
+
+void Parser::createFinalizingInFuncItem(FinalizingWorkItem* item, Block *target, LockFreeQueue<FinalizingWorkItem*> &work) {
+    if (item->func->contains(target)) return;
+    FinalizingFunctionData *data = item->data;
+    FinalizingWorkItem *new_item = new FinalizingWorkItem(item->func, target, data, FinalizingWorkItem::LinearSpan);
+    data->workset_item_count.fetch_add(1);
+    item->data->workset_items.insert(make_pair(new_item, true));
+    work.insert(new_item);
+}
+
+void Parser::createFinalizingFuncBoundaryItem(FinalizingWorkItem* item, LockFreeQueue<FinalizingWorkItem*> & work) {
+    // This is always the last item for a function,
+    // so we do not need to use the item count any more.
+    FinalizingFunctionData *data = item->data;
+    FinalizingWorkItem *new_item = new FinalizingWorkItem(item->func, NULL, data, FinalizingWorkItem::DetermineFuncBoundary);
+    work.insert(new_item);
 }
 
 void
@@ -1129,7 +1173,6 @@ namespace {
 
 void
 Parser::parse_frame(ParseFrame & frame, bool recursive) {
-    frame.func->_cache_valid = false;
 
     if (frame.status() == ParseFrame::UNPARSED) {
         parsing_printf("[%s] ==== starting to parse frame %lx ====\n",
@@ -1430,7 +1473,6 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
                 //
                 update_function_ret_status(frame, work->shared_func(), work);
             }
-            func->_cache_valid = false;
             continue;
 
         }
@@ -1946,7 +1988,6 @@ Parser::split_block(
     {
         Function * po = *oit;
         if (po->_cache_valid) {
-            po->_cache_valid = false;
             parsing_printf("[%s:%d] split of [%lx,%lx) invalidates cache of "
                                    "func at %lx\n",
                            FILE__,__LINE__,b->start(),b->end(),po->addr());

@@ -144,6 +144,7 @@ public:
     using base::const_iterator;
     using base::begin;
     using base::end;
+    using base::value_type;
 };
 
 template<typename T>

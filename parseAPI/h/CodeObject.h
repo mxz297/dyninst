@@ -167,8 +167,6 @@ class CodeObject {
     void add_edge(Block *src, Block *trg, EdgeTypeEnum et);
     // allows Functions to link up return edges after-the-fact
     friend void Function::delayed_link_return(CodeObject *,Block*);
-    // allows Functions to finalize (need Parser access)
-    friend LockFreeQueueItem<Function*>* Function::finalize();
     // allows Function entry blocks to be moved to new regions
     friend void Function::setEntryBlock(Block *);
 

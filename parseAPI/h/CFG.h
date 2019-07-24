@@ -516,7 +516,7 @@ class PARSER_EXPORT Function : public allocatable, public AnnotatableSparse, pub
  public:
     bool _is_leaf_function;
     Address _ret_addr; // return address of a function stored in stack at function entry
-    typedef std::map<Address, Block*> blockmap;
+    typedef dyn_c_hash_map<Address, Block*> blockmap;
     template <typename P>
     struct select2nd
     {
@@ -563,7 +563,6 @@ class PARSER_EXPORT Function : public allocatable, public AnnotatableSparse, pub
     size_t num_blocks()
     {
       boost::lock_guard<Function> g(*this);
-      if(!_cache_valid) finalize();
       return _bmap.size();
     }
     size_t num_blocks() const
@@ -641,7 +640,6 @@ class PARSER_EXPORT Function : public allocatable, public AnnotatableSparse, pub
     void setCreateSource(Function* src) { created_from_src = src; }
  private:
     void delayed_link_return(CodeObject * co, Block * retblk);
-    LockFreeQueueItem<Function*>* finalize();
 
     bool _parsed;
     //    blocklist _bl;

@@ -195,6 +195,7 @@ Block *CFGModifier::split(Block *b, Address a, bool trust, Address newlast) {
       // 1) Extents can't change
       // 2) Add the block to the function list
       (*iter)->add_block(ret);
+      /*
       // 3) Swap the old block for the new in the return blocks
       auto ret_block_to_swap = (*iter)->_retBL.find(b->start());
       if (ret_block_to_swap != (*iter)->_retBL.end()) {
@@ -205,6 +206,7 @@ Block *CFGModifier::split(Block *b, Address a, bool trust, Address newlast) {
       if (exit_block_to_swap != (*iter)->_exitBL.end()) {
           exit_block_to_swap->second = ret;
       }
+      */
       b->obj()->_pcb->addBlock(*iter, ret);
    }
 
@@ -316,7 +318,7 @@ bool CFGModifier::remove(vector<Block*> &blks, bool force) {
    {
       Function *func = *iter;
       func->_cache_valid = false;
-      func->finalize();
+      //func->finalize();
    }
 
    return true;
