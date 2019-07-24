@@ -109,7 +109,7 @@ namespace Dyninst {
             LockFreeQueue<ParseFrame *> frames;
 
             boost::atomic<bool> delayed_frames_changed;
-            tbb::concurrent_hash_map<Function*, std::set<ParseFrame*> > delayed_frames;
+            dyn_c_hash_map<Function*, std::set<ParseFrame*> > delayed_frames;
 
             // differentiate those provided via hints and
             // those found through RT or speculative parsing
@@ -278,7 +278,7 @@ namespace Dyninst {
             void finalize_ranges(vector<Function *> &funcs);
             bool set_edge_parsing_status(ParseFrame&, Address addr, Block *b);
 	    void move_edges_consistent_blocks(Block *, Block *);
-            void update_function_ret_status(ParseFrame &, Function*, ParseWorkElem* );
+            bool update_function_ret_status(ParseFrame &, Function*, ParseWorkElem* );
 
 
 

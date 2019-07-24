@@ -489,6 +489,18 @@ LockFreeQueueItem<ParseFrame *> *Parser::postProcessFrame(ParseFrame *pf, bool r
         }
         case ParseFrame::RETURN_SET: {
             parsing_printf("[%s] frame %lx's function's return status set to RETURN. Chance to resume functions", FILE__, pf->func->addr());
+            // The delayed work items for tail calls are no longer needed
+            auto dit = pf->delayedWork.begin();
+            while (dit != pf->delayedWork.end()) {
+                ParseWorkElem * p = dit->first;
+                if (p->order() == ParseWorkElem::func_shared_code) {
+                    auto to_delete = dit;
+                    ++dit;
+                    pf->delayedWork.erase(to_delete);
+                } else {
+                    ++dit;
+                }
+            }
             work.insert(pf);
             resumeFrames(pf->func, work);
             break;
@@ -520,7 +532,9 @@ LockFreeQueueItem<ParseFrame *> *Parser::postProcessFrame(ParseFrame *pf, bool r
              */
             resumeFrames(pf->func, work);
 
+            // We are done with the frame. 
             pf->cleanup();
+            _parse_data->remove_frame(pf);
             break;
         }
         case ParseFrame::FRAME_ERROR:
@@ -561,24 +575,22 @@ LockFreeQueueItem<ParseFrame *> *Parser::postProcessFrame(ParseFrame *pf, bool r
                      ++iter) {
 
                     Function * ct = iter->second;
-                    if (ct->retstatus() != UNSET) {
-                        immediatelyResume = true;
-                        continue;
-                    }
 
                     parsing_printf("[%s] waiting on %s\n",
                                    __FILE__,
                                    ct->name().c_str());
                     {
-                        tbb::concurrent_hash_map<Function*, std::set<ParseFrame*> >::accessor a;
+                        dyn_c_hash_map<Function*, std::set<ParseFrame*> >::accessor a;
                         set<ParseFrame *> waiters;
-                        waiters.insert(pf);
-                        // Attempt to insert as a new item
-                        if (!delayed_frames.insert(a, std::make_pair(ct, waiters))) {
-                            // Already exists, insert pf into the existing set
-                            a->second.insert(pf);
-                            delayed_frames_changed.store(true);
+                        // This acquires the lock for ct, regardless we get a new set of not
+                        bool new_set = delayed_frames.insert(a, std::make_pair(ct, waiters));
+                        if (ct->retstatus() != UNSET) {
+                            if (new_set) delayed_frames.erase(a);
+                            immediatelyResume = true;
+                            continue;
                         }
+                        a->second.insert(pf);
+                        delayed_frames_changed.store(true);
                     }
                 }
             } else {
@@ -703,7 +715,7 @@ Parser::parse_frames(LockFreeQueue<ParseFrame *> &work, bool recursive)
         }
     }
 
-    cleanup_frames();
+    //cleanup_frames();
 }
 
 void Parser::processFixedPoint(LockFreeQueue<ParseFrame *> &work, bool recursive) {// We haven't yet reached a fixedpoint; let's recurse
@@ -782,7 +794,7 @@ void Parser::cleanup_frames()  {
   for (unsigned int i = 0; i < pfv.size(); i++) {
     ParseFrame *pf = pfv[i];
     if (pf) {
-      _parse_data->remove_frame(pf);
+      //_parse_data->remove_frame(pf);
       delete pf;
     }
   }
@@ -1317,7 +1329,10 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
                 // If func's return status is RETURN, 
                 // then this tail callee does not impact the func's return status
                 if (func->retstatus() != RETURN) {
-                    update_function_ret_status(frame, ct, work);
+                    if (update_function_ret_status(frame, ct, work)) {
+                       frame.set_status(ParseFrame::RETURN_SET); 
+                       return true;
+                    }
                 }
             }
 
@@ -1471,7 +1486,10 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
                 // current function on this control flow path is the same
                 // as the shared function.
                 //
-                update_function_ret_status(frame, work->shared_func(), work);
+                if (update_function_ret_status(frame, work->shared_func(), work)) {
+                    frame.set_status(ParseFrame::RETURN_SET); 
+                    return true;
+                }
             }
             continue;
 
@@ -1525,7 +1543,10 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
                 // also works if the functions that share the code
                 // have the same return blocks.
                 Function * other_func = cur->createdByFunc(); 
-                update_function_ret_status(frame, other_func, frame.mkWork(NULL, other_func));
+                if (update_function_ret_status(frame, other_func, frame.mkWork(NULL, other_func))) {
+                       frame.set_status(ParseFrame::RETURN_SET); 
+                       return true;
+                }
             }
             // The edge to this shared block is changed from
             // "going to sink" to going to this shared block.
@@ -1614,7 +1635,6 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
                 if (!func->_is_leaf_function) func->_ret_addr = ret_addr;
             }
 
-            #pragma omp critical
             _pcb.instruction_cb(func,cur,curAddr,&insn_det);
 
             if (isNopBlock && !ah->isNop()) {
@@ -2325,7 +2345,7 @@ void Parser::resumeFrames(Function * func, LockFreeQueue<ParseFrame *> & work)
     }
 
     // When a function's return status is set, all waiting frames back into the worklist
-    tbb::concurrent_hash_map<Function*, std::set<ParseFrame*> >::accessor a;
+    dyn_c_hash_map<Function*, std::set<ParseFrame*> >::accessor a;
 
     if (!delayed_frames.find(a, func)) {
         // There were no frames waiting, ignore
@@ -2643,7 +2663,7 @@ bool Parser::inspect_value_driven_jump_tables(ParseFrame &frame) {
 }
 
 
-void
+bool
 Parser::update_function_ret_status(ParseFrame &frame, Function * other_func, ParseWorkElem *work) {
     /* The return status starts with UNSET, and increases to RETURN, and maybe NORETURN
      * Once it is RETURN or NORETURN, it will not go back to UNSET.
@@ -2669,8 +2689,10 @@ Parser::update_function_ret_status(ParseFrame &frame, Function * other_func, Par
     } else if (other_func->retstatus() == RETURN) {
         parsing_printf("\t other_func is RETURN, set this function to RETURN\n");
         frame.func->set_retstatus(RETURN);
+        return true;
     } else {
         parsing_printf("\t other_func is NORETURN, this path does not impact the return status of this function\n");
     }
+    return false;
 
 }
