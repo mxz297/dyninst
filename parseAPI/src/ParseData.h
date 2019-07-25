@@ -431,6 +431,7 @@ class ParseData : public boost::lockable_adapter<boost::recursive_mutex>  {
     virtual void getAllRegionData(std::vector<region_data*>&) = 0;
     virtual region_data::edge_data_map* get_edge_data_map(CodeRegion*) = 0;
     virtual dyn_c_hash_map<Address, Function*>* getFuncsByAddrMap(CodeRegion*) = 0;
+    virtual int blockCount(CodeRegion*) = 0;
 
 };
 
@@ -472,7 +473,7 @@ class StandardParseData : public ParseData {
     void getAllRegionData(std::vector<region_data*>& rds);
     region_data::edge_data_map* get_edge_data_map(CodeRegion* cr);
     dyn_c_hash_map<Address, Function*>* getFuncsByAddrMap(CodeRegion*);
-
+    int blockCount(CodeRegion*);
 };
 
 inline region_data * StandardParseData::findRegion(CodeRegion * /* cr */)
@@ -540,8 +541,7 @@ class OverlappingParseData : public ParseData {
     void getAllRegionData(std::vector<region_data*>&);
     region_data::edge_data_map* get_edge_data_map(CodeRegion* cr);
     dyn_c_hash_map<Address, Function*>* getFuncsByAddrMap(CodeRegion*);
-
-
+    int blockCount(CodeRegion*);
 };
 
 }

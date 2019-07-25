@@ -241,7 +241,7 @@ namespace Dyninst {
     bool parse_frame_one_iteration(ParseFrame & frame, bool);
     bool inspect_value_driven_jump_tables(ParseFrame &);
 
-    void resumeFrames(Function * func, LockFreeQueue<ParseFrame *> & work);
+    int resumeFrames(Function * func, LockFreeQueue<ParseFrame *> & work);
 
     // defensive parsing details
     void tamper_post_processing(LockFreeQueue<ParseFrame *>&, ParseFrame *);

@@ -282,6 +282,9 @@ StandardParseData::getFuncsByAddrMap(CodeRegion*) {
     return &(_rdata.funcsByAddr);
 }
 
+int StandardParseData::blockCount(CodeRegion*) {
+    return _rdata.blocksByAddr.size();
+}
 
 /**** Overlapping region ParseData ****/
 OverlappingParseData::OverlappingParseData(
@@ -606,4 +609,13 @@ OverlappingParseData::getFuncsByAddrMap(CodeRegion *cr) {
     return &(rd->funcsByAddr);
 }
 
-
+int OverlappingParseData::blockCount(CodeRegion *cr) {
+    boost::lock_guard<ParseData> g(*this);
+    if(!HASHDEF(rmap,cr)) {
+        fprintf(stderr,"Error, invalid code region [%lx,%lx) in remove_frame\n",
+            cr->offset(),cr->offset()+cr->length());
+        return 0;
+    }
+    region_data * rd = rmap[cr];
+    return rd->blocksByAddr.size();
+}

@@ -589,6 +589,10 @@ LockFreeQueueItem<ParseFrame *> *Parser::postProcessFrame(ParseFrame *pf, bool r
                             immediatelyResume = true;
                             continue;
                         }
+                        if (pf->func->depth < ct->depth + 1) {
+                            pf->func->depth = ct->depth + 1;
+                        }
+
                         a->second.insert(pf);
                         delayed_frames_changed.store(true);
                     }
@@ -627,7 +631,7 @@ Parser::LaunchWork
     if (first == 0) break;
     ParseFrame *frame = first->value();
     delete first;
-#pragma omp task firstprivate(frame, recursive)
+#pragma omp task firstprivate(frame, recursive) priority(frame->func->depth)
     SpawnProcessFrame(frame, recursive);
   }
 }
@@ -689,13 +693,17 @@ Parser::parse_frames(LockFreeQueue<ParseFrame *> &work, bool recursive)
                 updated.push_back(iter->first);
             }
         }
+        int cnt = 0;
         if (updated.size()) {
             for (auto uIter = updated.begin();
                  uIter != updated.end();
                  ++uIter) {
-                resumeFrames((*uIter), work);
+                fprintf(stderr, "Resume %s at %lx\n", (*uIter)->name().c_str(), (*uIter)->addr());
+                cnt += resumeFrames((*uIter), work);
             }
         }
+        fprintf(stderr, "total work size resumed %d\n", cnt);
+        //assert(updated.size() == 0);
 
         if(delayed_frames.empty() && updated.empty()) {
             parsing_printf("[%s] Fixed point reached (0 funcs with unknown return status)\n)",
@@ -730,7 +738,7 @@ void Parser::processFixedPoint(LockFreeQueue<ParseFrame *> &work, bool recursive
 
 void Parser::processCycle(LockFreeQueue<ParseFrame *> &work, bool recursive) {// If we've reached a fixedpoint and have remaining frames, we must
     // have a cyclic dependency
-    vector<Function *> updated;
+    set<Function *> updated;
 
         parsing_printf("[%s] Fixed point reached (%d funcs with unknown return status)\n",
                        __FILE__,
@@ -752,7 +760,7 @@ void Parser::processCycle(LockFreeQueue<ParseFrame *> &work, bool recursive) {//
                 {
                     func->set_retstatus(RETURN);
                 }
-                updated.push_back(func);
+                updated.insert(func);
             }
 
             set<ParseFrame *> vec = iter->second;
@@ -761,18 +769,22 @@ void Parser::processCycle(LockFreeQueue<ParseFrame *> &work, bool recursive) {//
                 if (delayed->retstatus() == UNSET) {
                     delayed->set_retstatus(NORETURN);
                     delayed->obj()->cs()->incrementCounter(PARSE_NORETURN_HEURISTIC);
-                    updated.push_back(func);
+                    updated.insert(func);
                 }
             }
         }
 
     // We should have updated the return status of one or more frames; recurse
     if (updated.size()) {
+        int cnt = 0;
+        int non_trg = 0;
         for (auto uIter = updated.begin();
              uIter != updated.end();
              ++uIter) {
-            resumeFrames((*uIter), work);
+            cnt += resumeFrames((*uIter), work);
+            if ((*uIter)->name().find("targ") == string::npos) ++non_trg;
         }
+        fprintf(stderr, "processCycle: update %u functions, and resume %d frames, non-targ %d\n", updated.size(), cnt, non_trg);
     } else {
         // We shouldn't get here
         parsing_printf("[%s] No more work can be done (%d funcs with unknown return status)\n",
@@ -867,8 +879,10 @@ Parser::finalize()
         Function * f = *func_iter;
         createFinalizingFuncEntryData(f, work);
     }
-    for (auto func_iter = discover_funcs.begin(); func_iter != discover_funcs.end(); ++func_iter) {
-        Function * f = *func_iter;
+    int size = discover_funcs.size();
+#pragma omp parallel for schedule(auto)
+    for (int i = 0; i < size; ++i) {
+        Function * f = discover_funcs[i];
         if (f->src() == RT_BRANCH) {
             bool hasCallEdge = false;
             for (auto eit = f->entry()->sources().begin(); eit != f->entry()->sources().end(); ++eit)
@@ -896,6 +910,7 @@ Parser::finalize()
     fprintf(stderr, "total functions in sorted_funcs %u\n", sorted_funcs.size());
     fprintf(stderr, "total functions in hint_funcs %u\n", hint_funcs.size());
     fprintf(stderr, "finalized %d, not finalized %d, deleted function %d\n", finalized_cnt, not_finalized, delete_cnt.load());
+    fprintf(stderr, "Total blocks %d\n", _parse_data->blockCount((*hint_funcs.begin())->region()));
     _parse_state = FINALIZED;
 }
 
@@ -941,8 +956,9 @@ Parser::ProcessFinalizingOneItem(FinalizingWorkItem *item) {
         Block * cur = item->b;
         Block * next_block; 
         while (cur != NULL) {
-            if (item->func->contains(cur)) break;
-            item->func->add_block(cur);
+            // Function::registerBlock returning false
+            // means that the block has been added to the function
+            if (!item->func->registerBlock(cur)) break;
             next_block = NULL;
             for (auto eit = cur->targets().begin(); eit != cur->targets().end(); ++eit) {
                 Edge* e = *eit;
@@ -992,14 +1008,14 @@ Parser::ProcessFinalizingOneItem(FinalizingWorkItem *item) {
                     }
                     continue;
                 }
-                if (e->type() == INDIRECT) {
+                if (e->type() == INDIRECT || e->type() == CATCH) {
                     createFinalizingInFuncItem(item, e->trg(), new_work);
                     continue;
                 }
                 if (item->func->contains(e->trg())) continue;
+                assert(next_block == NULL);
                 next_block = e->trg();
             }
-
             for (auto eit = cur->sources().begin(); eit != cur->sources().end(); ++eit) {
                 Edge *e = *eit;
                 if (e->type() == CALL || e->type() == INDIRECT) continue;
@@ -1013,6 +1029,7 @@ Parser::ProcessFinalizingOneItem(FinalizingWorkItem *item) {
                     e->markTailCallStatus(NOT_TAIL_CALL);
                 }
             }
+            cur = next_block;
         }
         item->data->workset_items.erase(item);
         // fetch_add returns the old value.
@@ -1036,7 +1053,7 @@ Parser::ProcessFinalizingOneItem(FinalizingWorkItem *item) {
             } 
         }
         // Now we can calculate the extents of the function
-        computeFunctionExtents(item->func);
+        //computeFunctionExtents(item->func);
         // Finalizing of the function is done
         item->func->_cache_valid = true;
 
@@ -2334,14 +2351,14 @@ void Parser::invalidateContainingFuncs(Function *owner, Block *b)
 }
 
 /* Add ParseFrames waiting on func back to the work queue */
-void Parser::resumeFrames(Function * func, LockFreeQueue<ParseFrame *> & work)
+int Parser::resumeFrames(Function * func, LockFreeQueue<ParseFrame *> & work)
 {
     // If we do not know the function's return status, don't put its waiters back on the worklist
     if (func->retstatus() == UNSET) {
         parsing_printf("[%s] %s return status unknown, cannot resume waiters\n",
                        __FILE__,
                        func->name().c_str());
-        return;
+        return 0;
     }
 
     // When a function's return status is set, all waiting frames back into the worklist
@@ -2353,7 +2370,7 @@ void Parser::resumeFrames(Function * func, LockFreeQueue<ParseFrame *> & work)
                        __FILE__,
                        func->name().c_str(),
                        func->retstatus());
-        return;
+        return 0;
     } else {
         parsing_printf("[%s] %s return status %d, undelaying waiting functions\n",
                        __FILE__,
@@ -2361,6 +2378,7 @@ void Parser::resumeFrames(Function * func, LockFreeQueue<ParseFrame *> & work)
                        func->retstatus());
         // Add each waiting frame back to the worklist
         set<ParseFrame *> &vec = a->second;
+        int ret = vec.size();
         for (set<ParseFrame *>::iterator fIter = vec.begin();
              fIter != vec.end();
              ++fIter) {
@@ -2371,6 +2389,7 @@ void Parser::resumeFrames(Function * func, LockFreeQueue<ParseFrame *> & work)
         // remove func from delayedFrames map
         delayed_frames.erase(a);
         delayed_frames_changed.store(true);
+        return ret;
     }
 }
 

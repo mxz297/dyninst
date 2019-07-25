@@ -639,6 +639,8 @@ class PARSER_EXPORT Function : public allocatable, public AnnotatableSparse, pub
     Function* getCreateSource() { return created_from_src; }
     void setCreateSource(Function* src) { created_from_src = src; }
  private:
+    int depth;
+    bool registerBlock(Block*);
     void delayed_link_return(CodeObject * co, Block * retblk);
 
     bool _parsed;

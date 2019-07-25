@@ -106,6 +106,7 @@ CFGFactory::mkfunc(Address addr, FuncSource, string name,
     CodeObject * obj, CodeRegion * reg, Dyninst::InstructionSource * isrc)
 {
     Function * ret = new Function(addr,name,obj,reg,isrc);
+    ret->set_retstatus(RETURN);
 
     return ret;
 }

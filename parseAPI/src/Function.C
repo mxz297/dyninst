@@ -112,6 +112,7 @@ Function::Function(Address addr, string name, CodeObject * obj,
 
 
 {
+    depth = 0;
     if (obj->defensiveMode()) {
         mal_printf("new funct at %lx\n",addr);
     }
@@ -838,4 +839,8 @@ void Function::getAllPostDominates(Block *A, set<Block*> &d) const {
 
     for (auto bit = immediatePostDominates[A]->begin(); bit != immediatePostDominates[A]->end(); ++bit)
         getAllPostDominates(*bit, d);
+}
+
+bool Function::registerBlock(Block* b) {
+    return _bmap.insert(make_pair(b->start(), b));
 }

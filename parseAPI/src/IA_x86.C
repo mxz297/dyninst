@@ -234,9 +234,8 @@ bool IA_x86::isTailCall(const Function *context, EdgeTypeEnum type, unsigned int
    // Collapse down to "branch" or "fallthrough"
     switch(type) {
        case COND_TAKEN:
-           return true;
        case DIRECT:
-           return false;
+           return true;
        case INDIRECT:
           type = DIRECT;
           break;
