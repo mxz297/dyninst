@@ -80,7 +80,7 @@ bool SpringboardBuilder::generateInt(std::list<codeGen> &springboards,
       
       switch (generateSpringboard(springboards, req, input)) {
          case Failed:
-            if (p == OffLimits) {
+            if (p == FuncEntry) {
                return false;
             }
             // Otherwise we didn't need it anyway.
@@ -108,10 +108,10 @@ bool SpringboardBuilder::generate(std::list<codeGen> &springboards,
   // Currently we use a greedy algorithm rather than some sort of scheduling thing.
   // It's a heck of a lot easier that way. 
 
-   if (!generateInt(springboards, input, OffLimits))
+   if (!generateInt(springboards, input, FuncEntry))
       return false;
 
-   if (!generateInt(springboards, input, Required))
+   if (!generateInt(springboards, input, IndirBlockEntry))
       return false;
 
    if (!generateInt(springboards, input, Suggested))
@@ -185,12 +185,17 @@ bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, Bloc
     ParseAPI::CodeRegion* cr = func->ifunc()->region();
     std::set<ParseAPI::Block*> blocks;
     co->findBlocks(cr, end, blocks);
-    while (isNoneContained(blocks) && cr->contains(end)) {
+
+    // Removal of the below code limits the size of range to the size of the block
+    // Future fix is to actually do what the above comment ("int size" 
+    //  suggest and look for noop's explicitly
+/*    while (isNoneContained(blocks) && cr->contains(end)) {
         end++;
         size++;
         blocks.clear();
         co->findBlocks(cr, end, blocks);
     }
+*/
 
     SpringboardInfo* info = new SpringboardInfo(func->addr(), func);
 
@@ -263,28 +268,29 @@ SpringboardBuilder::generateSpringboard(std::list<codeGen> &springboards,
    // Arbitrarily select the first function containing this springboard, since only one can win. 
    generateBranch(r.from, r.destinations.begin()->second, tmpGen);
    unsigned size = tmpGen.used();
-   
    if (r.useTrap || conflict(r.from, r.from + tmpGen.used(), r.fromRelocatedCode, r.func, r.priority)) {
       // Errr...
       // Fine. Let's do the trap thing. 
       springboard_cerr << "\t Attempting a springboard trap for springboard at addr: 0x" << std::hex << r.from << std::endl;
 
       usedTrap = true;
+
+      // Generate the trap
       generateTrap(r.from, r.destinations.begin()->second, gen);
-      // This check must be left in place.
+      // This check must be left in place. 
       // Reason: Suggested springboards use generateSpringboard to create their springboards.
       //         If a suggested springboard's block entry is used by a required springboard,
       //         we could potentially overwrite an instruction from a required springboard.
       if (conflict(r.from, r.from + gen.used(), r.fromRelocatedCode, r.func, r.priority)) { return Failed; }
       if(!addrSpace_->canUseTraps()) { return Failed; }
-
+      
       size = gen.used();
       springboard_cerr << "\t Using a springboard trap for springboard at addr: 0x" << std::hex << r.from << std::endl;
    } else {
-      // regenerate the branch into gen
+      // regenerate the branch into gen 
       // ideally we would like to do gen = tmpGen but there is a problem with codeGen's copy constructor
       generateBranch(r.from, r.destinations.begin()->second, gen);
-      springboard_cerr << "\t Using a branch for springboard at addr: 0x" << std::hex << r.from
+      springboard_cerr << "\t Using a branch for springboard at addr: 0x" << std::hex << r.from 
                        << " with byte size = " << std::dec << gen.used() << std::endl;
    }
 
@@ -357,16 +363,6 @@ bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocate
            << state->val << ", "
            << state->func->name() << ", priority " 
            << state->priority << dec << endl;
-              // BLOCK PRIORITY CHECK:
-       //    Check to see if the block we are writing to contains a required (or greater) springboard
-       //    What this check prevents is a required springboard in a block at a lower address from
-       //    overwriting a block at a higher address (that has already been written).
-       //    This check assumes that we are always generating springboards starting at the highest address
-       //    and working backwards (i.e. 0xfff... -> 0x000...)
-       if (state->priority >= Required) {
-            springboard_cerr << "\t Trying to write a springboard that crosses into another required block, ret conflict" << std::endl;
-            return true;
-        }
       if (state->val == Allocated) {
 	if(LB == start && UB >= end) 
 	{
@@ -390,9 +386,17 @@ bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocate
                     springboard_cerr << "\t Starting range matches already allocated springboard, equivalent priorities and different functions, ret conflict" << endl;
                     return true;
                 }
-                
+                 // In dynamic instrumentation, springboards are installed immediately after
+                 // users wants to insert a snippet. The user can continue to insert
+                 // more snippets to the same function, which will trigger Dyninst to perform
+                 // the relocation one more time. So, we need to overwrite existing springboard
+                 // to update new instrumentations.
+                 //
+                 // However, this will lead to dead code in .dyninstInst. The ideal solution
+                 // for dynamic instrumentation is to only perform relocation before the user
+                 // wants to continue to attached/created process. 
                 springboard_cerr << "\t Starting range matches already allocated springboard, assuming overwrite, ret OK" << endl;
-               return true;
+                return false;
            }
 
            springboard_cerr << "\t Starting range already allocated, ret conflict" << endl;
@@ -404,9 +408,21 @@ bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocate
           springboard_cerr << "\t Crossed into a different function, ret conflict" << endl;
           return true;
       }
+       // BLOCK PRIORITY CHECK:
+       //    Check to see if the block we are writing to contains a required (or greater) springboard
+       //    What this check prevents is a required springboard in a block at a lower address from
+       //    overwriting a block at a higher address (that has already been written).
+       //    This check assumes that we are always generating springboards starting at the highest address
+       //    and working backwards (i.e. 0xfff... -> 0x000...) 
+       if (state->priority >= FuncEntry) {
+            springboard_cerr << "\t Trying to write a springboard that crosses into another required block, ret conflict" << std::endl;
+            return true;
+        }
+
       working = UB;
       lastState = state;
    }
+
    if (UB < end) {
        return true;
    }
@@ -536,7 +552,9 @@ void InstalledSpringboards::debugRanges() {
 
 void SpringboardBuilder::generateBranch(Address from, Address to, codeGen &gen) {
   gen.invalidate();
-  gen.allocate(16);
+  // On ppc, the spring board can be a long branch,
+  // which can takes more than 5 instructions
+  gen.allocate(64);
 
   gen.setAddrSpace(addrSpace_);
   gen.setAddr(from);
@@ -595,7 +613,8 @@ bool SpringboardBuilder::createRelocSpringboards(const SpringboardReq &req,
             case Suggested:
                newPriority = RelocSuggested;
                break;
-            case Required:
+            case FuncEntry:
+            case IndirBlockEntry:
                newPriority = RelocRequired;
                break;
             default:

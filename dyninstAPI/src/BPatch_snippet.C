@@ -541,7 +541,7 @@ BPatch_arithExpr::BPatch_arithExpr(BPatch_unOp op,
 
           BPatch_type *type = const_cast<BPatch_type *> (lOperand.ast_wrapper->getType());
           if (!type || (type->getDataClass() != BPatch_dataPointer)) {
-              ast_wrapper->setType(BPatch::bpatch->stdTypes->findType("int"));
+              ast_wrapper->setType(BPatch::bpatch->stdTypes->findType("long"));
           } else {
               ast_wrapper->setType(type->getConstituentType());
 //              ast_wrapper->setType(dynamic_cast<BPatch_typePointer *>(type)->getConstituentType());
@@ -793,7 +793,7 @@ BPatch_regExpr::BPatch_regExpr(unsigned int value)
     assert(BPatch::bpatch != NULL);
     ast_wrapper->setTypeChecking(BPatch::bpatch->isTypeChecked());
 
-    BPatch_type *type = BPatch::bpatch->stdTypes->findType("int");
+    BPatch_type *type = BPatch::bpatch->stdTypes->findType("long");
     assert(type != NULL);
 
     ast_wrapper->setType(type);
@@ -1257,7 +1257,7 @@ BPatch_variableExpr::BPatch_variableExpr(BPatch_addressSpace *in_addSpace,
         if (!type)
                 type = BPatch::bpatch->type_Untyped;
 
-        //Address baseAddr =  scp->getFunction()->lowlevel_func()->obj()->codeBase();
+        Address baseAddr =  scp->getFunction()->lowlevel_func()->obj()->codeBase();
         vector<AstNodePtr> variableASTs;
         vector<pair<Offset, Offset> > *ranges = new vector<pair<Offset, Offset> >;
         vector<Dyninst::VariableLocation> &locs = lv->getSymtabVar()->getLocationLists();
@@ -1307,8 +1307,8 @@ BPatch_variableExpr::BPatch_variableExpr(BPatch_addressSpace *in_addSpace,
 					hi = (Address) -1;
 				}
 				else {
-					low = locs[i].lowPC;
-					hi = locs[i].hiPC;
+					low = locs[i].lowPC + baseAddr;
+					hi = locs[i].hiPC + baseAddr;
 				}
 
                 ranges->push_back(pair<Address, Address>(low, hi));
@@ -1523,7 +1523,7 @@ BPatch_breakPointExpr::BPatch_breakPointExpr()
  *
  * Construct a snippet representing an effective address.
  */
-BPatch_effectiveAddressExpr::BPatch_effectiveAddressExpr(int _which)
+BPatch_effectiveAddressExpr::BPatch_effectiveAddressExpr(int _which, int size)
 {
 #if defined(i386_unknown_nt4_0)
   assert(_which >= 0 && _which <= 2);
@@ -1532,7 +1532,7 @@ BPatch_effectiveAddressExpr::BPatch_effectiveAddressExpr(int _which)
 #else
   assert(_which >= 0 && _which <= (int) BPatch_instruction::nmaxacc_NP);
 #endif
-  ast_wrapper = AstNodePtr(AstNode::memoryNode(AstNode::EffectiveAddr, _which));
+  ast_wrapper = AstNodePtr(AstNode::memoryNode(AstNode::EffectiveAddr, _which, size));
 };
 
 

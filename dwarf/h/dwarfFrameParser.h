@@ -97,34 +97,7 @@ public:
 
 private:
 
-    bool getRegAtFrame_aux(Address pc,
-            Dwarf_Frame* frame, 
-            Dwarf_Half dwarf_reg,
-            MachRegister orig_reg,
-            DwarfResult &cons,
-            Address &lowpc,
-            FrameErrors_t &err_result);
-
-    bool getFDE(Address pc, 
-            Dwarf_Frame* &frame, 
-            Address &low,
-            Address &high,
-            FrameErrors_t &err_result);
-
-    bool getDwarfReg(MachRegister reg,
-            Dwarf_Frame* frame, 
-            Dwarf_Half &dwarf_reg,
-            FrameErrors_t &err_result);
-
-/*    bool handleExpression(Address pc,
-            Dwarf_Sword registerNum,
-            MachRegister origReg,
-            Architecture arch,
-            DwarfResult &cons,
-            bool &done,
-            FrameErrors_t &err_result);*/
-
-    void setupFdeData();
+    void setupCFIData();
 
     struct frameParser_key
     {
@@ -139,7 +112,7 @@ private:
         {
             return (dbg < rhs.dbg)
                 || (dbg == rhs.dbg && eh_frame < rhs.eh_frame)
-                || (dbg == rhs.dbg && eh_frame == rhs.eh_frame && arch == rhs.arch);
+                || (dbg == rhs.dbg && eh_frame == rhs.eh_frame && arch < rhs.arch);
         }
 
     };

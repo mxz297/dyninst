@@ -1,61 +1,93 @@
-# - Try to find libelf
-# Once done this will define
+#========================================================================================
+# FindLibElf.cmake
 #
-#  LIBELF_FOUND - system has libelf
-#  LIBELF_INCLUDE_DIRS - the libelf include directory
-#  LIBELF_LIBRARIES - Link these to use libelf
-#  LIBELF_DEFINITIONS - Compiler switches required for using libelf
+# Find libelf include dirs and libraries
 #
-#  Copyright (c) 2008 Bernhard Walle <bernhard.walle@gmx.de>
+#		----------------------------------------
 #
-#  Redistribution and use is allowed according to the terms of the New
-#  BSD license.
-#  For details see the accompanying COPYING-CMAKE-SCRIPTS file.
+# Use this module by invoking find_package with the form::
 #
+#  find_package(LibElf
+#    [version] [EXACT]      # Minimum or EXACT version e.g. 0.173
+#    [REQUIRED]             # Fail with error if libelf is not found
+#  )
+#
+# This module reads hints about search locations from variables::
+#
+#	LibElf_ROOT_DIR		- Base directory the of libelf installation
+#	LibElf_INCLUDEDIR	- Hint directory that contains the libelf headers files
+#	LibElf_LIBRARYDIR	- Hint directory that contains the libelf library files
+#
+# and saves search results persistently in CMake cache entries::
+#
+#	LibElf_FOUND			- True if headers and requested libraries were found
+#	LibElf_INCLUDE_DIRS 	- libelf include directories
+#	LibElf_LIBRARY_DIRS		- Link directories for libelf libraries
+#	LibElf_LIBRARIES		- libelf library files
+#
+#
+# Based on the version by Bernhard Walle <bernhard.walle@gmx.de> Copyright (c) 2008
+#
+#========================================================================================
 
-if (LIBELF_LIBRARIES AND LIBELF_INCLUDE_DIRS)
-  set (LibElf_FIND_QUIETLY TRUE)
-endif (LIBELF_LIBRARIES AND LIBELF_INCLUDE_DIRS)
+include(DyninstSystemPaths)
 
-find_path (LIBELF_INCLUDE_DIR
-    NAMES
-      libelf.h
-    HINTS
-      ${LIBELF_INCLUDE_DIRS}
-    PATHS
-      /usr/include
-      /usr/include/libelf
-      /usr/local/include
-      /usr/local/include/libelfls 
-      /opt/local/include
-      /opt/local/include/libelf
-      /sw/include
-      /sw/include/libelf
-      ENV CPATH)
+# Non-standard subdirectories to search
+set(_path_suffixes libelf libelfls elfutils)
 
-find_library (LIBELF_LIBRARIES
-    NAMES
-      libelf.so.1
-    HINTS
-      ${LIBELF_LIBRARIES}
-    PATHS
-      /usr/lib
-      /usr/lib64
-      /usr/local/lib
-      /usr/local/lib64
-      /opt/local/lib
-      /opt/local/lib64
-      /sw/lib
-      ENV LIBRARY_PATH
-      ENV LD_LIBRARY_PATH)
+find_path(LibElf_INCLUDE_DIR
+          NAMES libelf.h
+          HINTS ${LibElf_ROOT_DIR}/include ${LibElf_ROOT_DIR} ${LibElf_INCLUDEDIR}
+          PATHS ${DYNINST_SYSTEM_INCLUDE_PATHS}
+          PATH_SUFFIXES ${_path_suffixes}
+          DOC "libelf include directories")
 
-include (FindPackageHandleStandardArgs)
+find_library(LibElf_LIBRARIES
+             NAMES libelf.so.1 libelf.so
+             HINTS ${LibElf_ROOT_DIR}/lib ${LibElf_ROOT_DIR} ${LibElf_LIBRARYDIR}
+             PATHS ${DYNINST_SYSTEM_LIBRARY_PATHS}
+             PATH_SUFFIXES ${_path_suffixes})
 
+# Find the library with the highest version
+set(_max_ver 0.0)
+set(_max_ver_lib)
+foreach(l ${LibElf_LIBRARIES})
+  get_filename_component(_elf_realpath ${LibElf_LIBRARIES} REALPATH)
+  string(REGEX MATCH
+               "libelf\\-(.+)\\.so\\.*$"
+               res
+               ${_elf_realpath})
 
-# handle the QUIETLY and REQUIRED arguments and set LIBELF_FOUND to TRUE if all listed variables are TRUE
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(LibElf DEFAULT_MSG
-    LIBELF_LIBRARIES
-    LIBELF_INCLUDE_DIR)
+  # The library version number is stored in CMAKE_MATCH_1
+  set(_cur_ver ${CMAKE_MATCH_1})
 
+  if(${_cur_ver} VERSION_GREATER ${_max_ver})
+    set(_max_ver ${_cur_ver})
+    set(_max_ver_lib ${l})
+  endif()
+endforeach()
 
-# mark_as_advanced(LIBELF_INCLUDE_DIRS LIBELF_LIBRARIES)
+# Set the exported variables to the best match
+set(LibElf_LIBRARIES ${_max_ver_lib})
+set(LibElf_VERSION ${_max_ver})
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(LibElf
+                                  FOUND_VAR
+                                  LibElf_FOUND
+                                  REQUIRED_VARS
+                                  LibElf_LIBRARIES
+                                  LibElf_INCLUDE_DIR
+                                  VERSION_VAR
+                                  LibElf_VERSION)
+
+# Export cache variables
+if(LibElf_FOUND)
+  set(LibElf_INCLUDE_DIRS ${LibElf_INCLUDE_DIR})
+  set(LibElf_LIBRARIES ${LibElf_LIBRARIES})
+
+  # Because we only report the library with the largest version, we are
+  # guaranteed there is only one file in LibElf_LIBRARIES
+  get_filename_component(_elf_dir ${LibElf_LIBRARIES} DIRECTORY)
+  set(LibElf_LIBRARY_DIRS ${_elf_dir})
+endif()

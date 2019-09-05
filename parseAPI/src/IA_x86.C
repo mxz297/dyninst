@@ -282,7 +282,6 @@ bool IA_x86::isTailCall(const Function *context, EdgeTypeEnum type, unsigned int
       parsing_printf("\tjump to 0x%lx in other regions, TAIL CALL\n", addr);
       tailCalls[type] = true;
       return true;
-    }
 
     if (curInsn().getCategory() == c_BranchInsn &&
             valid &&
