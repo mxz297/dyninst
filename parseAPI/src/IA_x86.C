@@ -282,6 +282,7 @@ bool IA_x86::isTailCall(const Function *context, EdgeTypeEnum type, unsigned int
       parsing_printf("\tjump to 0x%lx in other regions, TAIL CALL\n", addr);
       tailCalls[type] = true;
       return true;
+    }
 
     if (curInsn().getCategory() == c_BranchInsn &&
             valid &&
@@ -385,7 +386,6 @@ bool IA_x86::isTailCall(const Function *context, EdgeTypeEnum type, unsigned int
     context->obj()->cs()->incrementCounter(PARSE_TAILCALL_FAIL);
     return false;
 }
-
 bool IA_x86::savesFP() const
 {
 	std::vector<Instruction> insns;
