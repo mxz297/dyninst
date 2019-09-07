@@ -88,6 +88,10 @@ void ASTFactory::visit(Immediate* i)
 void ASTFactory::visit(RegisterAST* r)
 {
 #if defined(arch_x86) || defined(arch_x86_64)  
+    if (r->getID().isPC()) {
+        m_stack.push_back(AstNode::operandNode(AstNode::Constant,(void*)(curPC)));
+        return;
+    }
     bool unused;
     m_stack.push_back(AstNode::operandNode(AstNode::origRegister,
                       (void*)(intptr_t)(convertRegID(r, unused))));

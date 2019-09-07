@@ -2276,6 +2276,7 @@ bool AddressSpace::getDynamicCallSiteArgs(InstructionAPI::Instruction insn,
    using namespace Dyninst::InstructionAPI;        
    Expression::Ptr cft = insn.getControlFlowTarget();
    ASTFactory f;
+   f.curPC = addr + insn.size();
    cft->apply(&f);
    assert(f.m_stack.size() == 1);
    args.push_back(f.m_stack[0]);
