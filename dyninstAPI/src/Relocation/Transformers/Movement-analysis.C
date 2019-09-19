@@ -597,7 +597,6 @@ void PCSensitiveTransformer::emulateInsn(RelocBlock *reloc,
  * @return Whether or not the given address is exception senstive.
  */
 bool PCSensitiveTransformer::exceptionSensitive(Address a, const block_instance *bbl) {
-    return false;
     sensitivity_cerr << "Checking address 0x" << std::hex << a << std::dec 
         << " for exception sensitivity" << endl;
 
@@ -616,54 +615,7 @@ bool PCSensitiveTransformer::exceptionSensitive(Address a, const block_instance 
         return false;
     }
 
-    /* Get the function that owns this address */
-    Function* function = NULL;
-    if(!symtab->getContainingFunction(off, function))
-        return false;
-
-    /* If there is no function for this instruction, we can't do analysis */
-    if(!function)
-    {
-        sensitivity_cerr << "\tERROR: Cannot do sensitivity analysis " << 
-           "on instruction not in function." << endl;
-        return false;
-    }
-
-    /* Get the ranges for the function*/
-    const FuncRangeCollection& ranges = function->getRanges();
-
-    /* See if any try block intersect this function */
-    for(auto e_iter = exceptions.begin();e_iter != exceptions.end();e_iter++)
-    {
-        ExceptionBlock* exception = *e_iter;
-
-        Offset ts = exception->tryStart();
-        Offset te = exception->tryEnd();
-
-        sensitivity_cerr << "\tts: 0x" << hex << ts << "  te: 0x" << te << dec << endl;
-
-        /* Check to see if any of the ranges overlap with the try region */
-        for(auto r_iter = ranges.begin();r_iter != ranges.end();r_iter++)
-        {
-            const FuncRange& r = *r_iter;
-
-            sensitivity_cerr << "\t\tstart: 0x" << hex << r.low() 
-                << " end: 0x" << r.high() << dec << endl;
-
-            if((r.low() <= ts && r.high() >= ts)
-                    || (r.low() < te && r.high() >= te))
-            {
-                sensitivity_cerr << "\t\t\tWithin range <<<<<<<<<<<<<<" << endl;
-                return true;
-            } else {
-                sensitivity_cerr << "\t\t\tNot Within range." << endl;
-            }
-        }
-
-
-    }
-
-    return false;
+    return true;
 }
 
 void PCSensitiveTransformer::cacheAnalysis(const block_instance *bbl, Address addr, bool intSens, bool extSens) {
