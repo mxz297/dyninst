@@ -353,7 +353,7 @@ bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocate
    SpringboardInfo *lastState = state;
    springboard_cerr << "Conflict called for " << hex << start << "->" << end << dec << endl;
    
-   while (end > working) {
+//   while (end > working) {
         springboard_cerr << "\t looking for " << hex << working << dec << endl;
        if (!validRanges_.find(working, LB, UB, state)) {
          springboard_cerr << "\t Conflict: unable to find entry for " << hex << working << dec << endl;
@@ -421,7 +421,7 @@ bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocate
 
       working = UB;
       lastState = state;
-   }
+//   }
 
    if (UB < end) {
        return true;
