@@ -122,7 +122,31 @@ bool CFWidget::generateIndirect(CodeBuffer &buffer,
    // TODO: don't ignore reg...
    // Indirect branches don't use the PC and so are
    // easy - we just copy 'em.
-   buffer.addPIC(raw, tracker(trace));
+   NS_x86::instruction ugly_insn(insn.ptr(), (buffer.gen().width() == 8));
+   if (ugly_insn.type() & REL_D_DATA) {
+      // This was an IP-relative call that we moved to a new location.
+      assert(origTarget_);
+      unsigned char* raw_bytes = (unsigned char*) insn.ptr();
+      for (unsigned i = 0; i < insn.size(); ++i)
+          raw_bytes[i] = raw[i];
+
+      CFPatch *newPatch = new CFPatch(CFPatch::Data, insn, 
+                                      new Target<Address>(origTarget_),
+                                      trace->func(),
+                                      addr_);
+      buffer.addPatch(newPatch, tracker(trace));
+   }
+   else {
+       if (raw[0] == 0xFF && raw[1] == 0xA4 && raw[2] == 0x24) {
+           if (raw[3] >= 8) {
+               raw[3] -= 8;
+           } else {
+               raw[4] -= 1;
+               raw[3] = raw[3] + (256 - 8);
+           }
+       }
+       buffer.addPIC(raw, tracker(trace));
+   }
 
    return true;
 }

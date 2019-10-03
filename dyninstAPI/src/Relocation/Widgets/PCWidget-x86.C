@@ -115,10 +115,9 @@ bool IPPatch::apply(codeGen &gen, CodeBuffer *) {
   newInsn += sizeof(uint32_t);
   SET_PTR(newInsn, gen);
 
-  // push rax
-  buf.push_back(0x50); 
-  // lahf
-  buf.push_back(0x9f);
+  // pushfq
+  buf.push_back(0x9c);
+
   // add $0x8, %rsp
   buf.push_back(0x48);
   buf.push_back(0x83);
@@ -146,10 +145,10 @@ bool IPPatch::apply(codeGen &gen, CodeBuffer *) {
   buf.push_back(0x83);
   buf.push_back(0xec);
   buf.push_back(0x08);
-  // sahf
-  buf.push_back(0x9e); 
-  // pop rax
-  buf.push_back(0x58);
+
+  // popfq
+  buf.push_back(0x9d);
+
   gen.copy(buf);
   buf.clear();
 
