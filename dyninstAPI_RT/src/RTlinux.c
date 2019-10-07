@@ -446,7 +446,11 @@ void dyninstTrapHandler(int sig, siginfo_t *sg, ucontext_t *context)
                                      &dyninstTrapTableIsSorted);
 
    }
-   UC_PC(context) = (long) trap_to;
+   if (trap_to == NULL) {
+       if (user_trap_handler != NULL) (*user_trap_handler)(SIGTRAP);
+   } else {
+       UC_PC(context) = (long) trap_to;
+   }
 }
 
 #if defined(cap_binary_rewriter)

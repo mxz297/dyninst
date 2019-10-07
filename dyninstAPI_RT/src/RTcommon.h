@@ -34,6 +34,7 @@
 #include "dyninstAPI_RT/h/dyninstAPI_RT.h"
 #include "RTthread.h"
 #include <stdarg.h>
+#include <signal.h>
 
 void DYNINSTbreakPoint();
 /* Use a signal that is safe if we're not attached. */
@@ -63,6 +64,9 @@ extern int unmap_region(void *addr, int len);
 extern void mark_heaps_exec(void);
 
 extern int DYNINSTdebugRTlib;
+
+typedef void (*dynsighandler_t)(int);
+extern dynsighandler_t user_trap_handler;
 
 DLLEXPORT extern int DYNINSTstaticMode;
 

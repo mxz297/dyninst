@@ -34,10 +34,11 @@
 
 #include <stdio.h>
 #include <signal.h>
+#include <dlfcn.h>
 
+#include "RTcommon.h"
 #include "dyninstAPI_RT/h/dyninstAPI_RT.h"
 
-typedef void (*dynsighandler_t)(int);
 
 DLLEXPORT int dyn_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
     if (signum != SIGTRAP) {
@@ -56,3 +57,52 @@ DLLEXPORT dynsighandler_t dyn_signal(int signum, dynsighandler_t handler) {
         return SIG_DFL;
     }
 }
+
+
+#undef signal
+typedef dynsighandler_t (*signal_type) (int signum, dynsighandler_t handler);
+static signal_type real_signal = NULL;
+dynsighandler_t user_trap_handler = NULL;
+DLLEXPORT dynsighandler_t signal(int signum, dynsighandler_t handler) {
+    if (!real_signal) {
+        void* libc_handle = dlopen("libc.so.6", RTLD_LAZY);
+        if (libc_handle == NULL) {
+            fprintf(stderr, "Cannot find libc handle in dyninst signal\n");
+        }
+        real_signal = (signal_type)dlsym(libc_handle, "signal");
+        if (real_signal == NULL) {
+            fprintf(stderr, "Cannot find signal\n");
+        }
+    }
+    if (signum == SIGTRAP) {
+        dynsighandler_t old_handler = user_trap_handler;
+        user_trap_handler = handler;
+        return old_handler;
+    } else {
+        return real_signal(signum, handler);
+    }
+}
+
+#undef __sysv_signal
+static signal_type real_sysv_signal = NULL;
+DLLEXPORT dynsighandler_t __sysv_signal(int signum, dynsighandler_t handler) {
+    if (!real_sysv_signal) {
+        void* libc_handle = dlopen("libc.so.6", RTLD_LAZY);
+        if (libc_handle == NULL) {
+            fprintf(stderr, "Cannot find libc handle in dyninst sys_signal\n");
+        }
+        real_sysv_signal = (signal_type)dlsym(libc_handle, "__sysv_signal");
+        if (real_sysv_signal == NULL) {
+            fprintf(stderr, "Cannot find __sysv_signal\n");
+        }
+    }
+    if (signum == SIGTRAP) {
+        dynsighandler_t old_handler = user_trap_handler;
+        user_trap_handler = handler;
+        return old_handler;
+    } else {
+        return real_sysv_signal(signum, handler);
+    }
+}
+
+
