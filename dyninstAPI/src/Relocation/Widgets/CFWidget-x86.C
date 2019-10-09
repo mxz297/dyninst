@@ -138,11 +138,11 @@ bool CFWidget::generateIndirect(CodeBuffer &buffer,
    }
    else {
        if (raw[0] == 0xFF && raw[1] == 0xA4 && raw[2] == 0x24) {
-           if (raw[3] >= 8) {
-               raw[3] -= 8;
+           if (raw[3] <= 256 - 8) {
+               raw[3] += 8;
            } else {
-               raw[4] -= 1;
-               raw[3] = raw[3] + (256 - 8);
+               raw[4] += 1;
+               raw[3] = raw[3] - (256 - 8);
            }
        }
        buffer.addPIC(raw, tracker(trace));
