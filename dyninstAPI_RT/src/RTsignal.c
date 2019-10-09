@@ -74,7 +74,7 @@ DLLEXPORT dynsighandler_t signal(int signum, dynsighandler_t handler) {
             fprintf(stderr, "Cannot find signal\n");
         }
     }
-    if (signum == SIGTRAP) {
+    if (signum == SIGILL) {
         dynsighandler_t old_handler = user_trap_handler;
         user_trap_handler = handler;
         return old_handler;
@@ -96,7 +96,7 @@ DLLEXPORT dynsighandler_t __sysv_signal(int signum, dynsighandler_t handler) {
             fprintf(stderr, "Cannot find __sysv_signal\n");
         }
     }
-    if (signum == SIGTRAP) {
+    if (signum == SIGILL) {
         dynsighandler_t old_handler = user_trap_handler;
         user_trap_handler = handler;
         return old_handler;

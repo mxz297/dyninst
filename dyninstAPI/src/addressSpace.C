@@ -1100,7 +1100,7 @@ void trampTrapMappings::addTrapMapping(Address from, Address to,
 {
 #if defined(arch_x86) || defined(arch_x86_64)
    //x86 traps occur at +1 addr
-   from++;
+   //from++;
 #endif
    tramp_mapping_t m;
    bool existing_trap = (mapping.count(from) != 0);

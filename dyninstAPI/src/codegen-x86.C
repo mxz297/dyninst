@@ -211,7 +211,7 @@ void insnCodeGen::generateIllegal(codeGen &gen) {
 
 void insnCodeGen::generateTrap(codeGen &gen) {
     GET_PTR(insn, gen);
-    *insn++ = 0xCC;
+    *insn++ = 0x62;
     SET_PTR(insn, gen);
 }
 

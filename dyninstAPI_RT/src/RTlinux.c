@@ -447,7 +447,7 @@ void dyninstTrapHandler(int sig, siginfo_t *sg, ucontext_t *context)
 
    }
    if (trap_to == NULL) {
-       if (user_trap_handler != NULL) (*user_trap_handler)(SIGTRAP);
+       if (user_trap_handler != NULL) (*user_trap_handler)(SIGILL);
    } else {
        UC_PC(context) = (long) trap_to;
    }

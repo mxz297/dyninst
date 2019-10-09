@@ -281,7 +281,7 @@ int DYNINSTinitializeTrapHandler()
    sigemptyset(&new_handler.sa_mask);
    new_handler.sa_flags = SA_SIGINFO | SA_NODEFER;
    
-   result = sigaction(SIGTRAP, &new_handler, NULL);
+   result = sigaction(SIGILL, &new_handler, NULL);
    return (result == 0) ? 1 /*Success*/ : 0 /*Fail*/ ;
 }
 
