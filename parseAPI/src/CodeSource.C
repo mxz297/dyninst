@@ -110,6 +110,7 @@ CodeSource::non_returning_funcs =
         ("_gfortran_exit_i4", true)
         ("for_stop_core", true)
         ("__sys_exit", true)
+        ("_exit", true)
 	("__libc_fatal", true);
 
 dyn_hash_map<int, bool>
