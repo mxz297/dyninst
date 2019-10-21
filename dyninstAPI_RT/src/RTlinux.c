@@ -415,6 +415,15 @@ extern volatile unsigned long dyninstTrapTableIsSorted;
  *      do a popf/ret to restore flags and go to instrumentation.  The 'retPoint'
  *      parameter is the address in dyninstTrapHandler the popf/ret can be found.
  **/
+static int handlerCalled = 0;
+static int num_entries = 0;
+
+__attribute__((destructor))
+void printStats() {
+    fprintf(stderr, "dyninstTrapHandler called %d times\n", handlerCalled);
+    fprintf(stderr, "\tThere are %d trap trampolines\n", num_entries);
+
+}
 
 void dyninstTrapHandler(int sig, siginfo_t *sg, ucontext_t *context)
 {
@@ -422,7 +431,7 @@ void dyninstTrapHandler(int sig, siginfo_t *sg, ucontext_t *context)
    void *trap_to;
    (void)sig; /* unused parameter */
    (void)sg; /* unused parameter */
-
+   handlerCalled++;
    orig_ip = (void *) UC_PC(context);
    assert(orig_ip);
    // Find the new IP we're going to and substitute. Leave everything else untouched.
@@ -430,6 +439,7 @@ void dyninstTrapHandler(int sig, siginfo_t *sg, ucontext_t *context)
       unsigned long zero = 0;
       unsigned long one = 1;
       struct trap_mapping_header *hdr = getStaticTrapMap((unsigned long) orig_ip);
+      num_entries = hdr->num_entries;
       assert(hdr);
       volatile trapMapping_t *mapping = &(hdr->traps[0]);
       trap_to = dyninstTrapTranslate(orig_ip,
@@ -495,7 +505,6 @@ static struct trap_mapping_header *getStaticTrapMap(unsigned long addr)
 #if !defined (arch_aarch64)
    struct trap_mapping_header *header;
    int i;
-
    tc_lock_lock(&trap_mapping_lock);
    parse_libs();
 
@@ -578,6 +587,7 @@ static int parse_link_map(struct link_map *l)
    {
       header->traps[i].source = (void *) (((unsigned long) header->traps[i].source) + l->l_addr);
       header->traps[i].target = (void *) (((unsigned long) header->traps[i].target) + l->l_addr);
+      fprintf(stderr, "trampoline from %p to %p\n", header->traps[i].source, header->traps[i].target);
       if (!header->low_entry || header->low_entry > (unsigned long) header->traps[i].source)
          header->low_entry = (unsigned long) header->traps[i].source;
       if (!header->high_entry || header->high_entry < (unsigned long) header->traps[i].source)

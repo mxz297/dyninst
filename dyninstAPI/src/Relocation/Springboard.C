@@ -189,13 +189,12 @@ bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, Bloc
     // Removal of the below code limits the size of range to the size of the block
     // Future fix is to actually do what the above comment ("int size" 
     //  suggest and look for noop's explicitly
-/*    while (isNoneContained(blocks) && cr->contains(end)) {
+    while (isNoneContained(blocks) && cr->contains(end)) {
         end++;
         size++;
         blocks.clear();
         co->findBlocks(cr, end, blocks);
     }
-*/
 
     SpringboardInfo* info = new SpringboardInfo(func->addr(), func);
 
