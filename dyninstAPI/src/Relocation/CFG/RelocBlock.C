@@ -644,8 +644,8 @@ bool RelocBlock::inlineCall(block_instance* block) {
     }
     if (call_target == NULL) return false;
 
-    // Step 2. Only inline calls to instrumented functions
-    if (!BPatch::bpatch->isInstrumentedFunctionEntry(call_target->start())) return false;
+    // Step 2. Only inline calls to functions that the user specifiess
+    if (!BPatch::bpatch->isInliningTarget(call_target->start())) return false;
 
     // Step 3. Only inline functions with one basic block ending with a return instruction
     block_instance::Insns insns;

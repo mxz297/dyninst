@@ -2004,11 +2004,11 @@ bool BPatch::shouldDeleteOpcode(entryID id) {
     return delInsnOpcodes.find(id) != delInsnOpcodes.end();
 }
 
-void BPatch::addInstrumentedFunctionEntry(Address addr) {
-    instrumentedAddresses.insert(addr);
+void BPatch::addInliningEntry(Address addr) {
+    inliningAddresses.insert(addr);
 }
 
-bool BPatch::isInstrumentedFunctionEntry(Address addr) {
-    return instrumentedAddresses.find(addr) != instrumentedAddresses.end();
+bool BPatch::isInliningTarget(Address addr) {
+    return inliningAddresses.find(addr) != inliningAddresses.end();
 }
 
