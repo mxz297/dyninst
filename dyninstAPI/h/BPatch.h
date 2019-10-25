@@ -207,6 +207,7 @@ class BPATCH_DLL_EXPORT BPatch {
    // data structures
    bool inDestructor;
    std::set<entryID> delInsnOpcodes;
+   std::set<Dyninst::Address> instrumentedAddresses;
 
    public:  
      
@@ -685,6 +686,8 @@ public:
 
     void  addDeleteInstructionOpcode(entryID);
     bool  shouldDeleteOpcode(entryID);
+    void  addInstrumentedFunctionEntry(Dyninst::Address);
+    bool  isInstrumentedFunctionEntry(Dyninst::Address);
 };
 
 #ifdef _MSC_VER

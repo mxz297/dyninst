@@ -74,6 +74,7 @@ RelocBlock *RelocBlock::createReloc(block_instance *block, func_instance *func) 
 
   relocation_cerr << "Creating new RelocBlock" << endl;
   RelocBlock *newRelocBlock = new RelocBlock(block, func);
+  newRelocBlock->inliningCall = false;
 
   // Get the list of instructions in the block
   block_instance::Insns insns;
@@ -86,7 +87,12 @@ RelocBlock *RelocBlock::createReloc(block_instance *block, func_instance *func) 
     relocation_cerr << "  Adding instruction @" 
 		    << std::hex << iter->first << std::dec
 		    << ": " << iter->second.format(iter->first) << endl;
-    if (BPatch::bpatch->shouldDeleteOpcode(iter->second.getOperation().getID())) continue;
+    entryID e = iter->second.getOperation().getID();
+    if (BPatch::bpatch->shouldDeleteOpcode(e)) continue;    
+    if ( (e == e_call || e == e_callq) && newRelocBlock->inlineCall(block)) {
+        newRelocBlock->inliningCall = true;
+        break;
+    }
     Widget::Ptr ptr = InsnWidget::create(iter->second, iter->first);
 
     if (!ptr) {
@@ -175,6 +181,17 @@ void RelocBlock::processEdge(EdgeDirection e, edge_instance *edge, RelocGraph *c
    // Maybe we want exception edges too?
    if (type == ParseAPI::RET || 
        type == ParseAPI::NOEDGE) return;
+
+   if (e == OutEdge && inliningCall && type == ParseAPI::CALL) {
+       return;
+   }
+   if (e == InEdge && type == ParseAPI::CALL) {
+       block_instance *block =  edge->src();
+       func_instance *f = block->entryOfFunc();
+       RelocBlock *t = cfg->find(block, f);
+       if (t && t->inliningCall) return;
+   }
+
    
    if (edge->sinkEdge()) {
       assert(e == OutEdge);
@@ -306,6 +323,9 @@ bool RelocBlock::determineSpringboards(PriorityMap &p) {
                p[std::make_pair(block_, func_)] = FuncEntry;
            }
        }
+   }
+   if (inliningCall) {
+       p[std::make_pair(block_, func_)] = FuncEntry;
    }
    return true;
 }
@@ -615,3 +635,36 @@ void RelocBlock::setCF(CFWidgetPtr cf) {
    cfWidget_ = cf;
 }
 
+bool RelocBlock::inlineCall(block_instance* block) {
+    // Step 1. We find the entry block of the callee
+    block_instance * call_target = NULL;
+    for (auto eit = block->targets().begin(); eit != block->targets().end(); ++eit) {
+        if ((*eit)->type() != ParseAPI::CALL) continue;
+        call_target = (block_instance*)((*eit)->trg());
+    }
+    if (call_target == NULL) return false;
+
+    // Step 2. Only inline calls to instrumented functions
+    if (!BPatch::bpatch->isInstrumentedFunctionEntry(call_target->start())) return false;
+
+    // Step 3. Only inline functions with one basic block ending with a return instruction
+    block_instance::Insns insns;
+    call_target->getInsns(insns);
+    entryID e = insns.rbegin()->second.getOperation().getID();
+    if (e != e_ret_near && e != e_ret_far) return false;
+
+    // Step 4. No need to inline large functions
+//    if (insns.size() > 10) return false;
+
+    fprintf(stderr, "Inline call at %lx to %lx\n", block->last(), call_target->start());
+
+    // Step 5. add every instruction into the caller, excluding the return instruction
+    auto it = insns.end(); 
+    --it;
+    insns.erase(it);
+    for (auto it = insns.begin(); it != insns.end(); ++it) {
+        Widget::Ptr ptr = InsnWidget::create(it->second, it->first);
+        elements_.push_back(ptr);
+    }
+    return true;
+}

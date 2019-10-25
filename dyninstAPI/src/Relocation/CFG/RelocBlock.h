@@ -66,6 +66,7 @@ class RelocBlock {
   friend class Transformer;
 
  public:
+   bool inliningCall;
    typedef int Label;
    static int RelocBlockID;
    typedef std::list<WidgetPtr> WidgetList;
@@ -120,6 +121,7 @@ class RelocBlock {
 
    RelocEdges *ins() { return &inEdges_; }
    RelocEdges *outs() { return &outEdges_; }
+   bool inlineCall(block_instance* block);
 
  private:
    
@@ -177,6 +179,7 @@ class RelocBlock {
 
    bool isNecessary(TargetInt *target,
                     ParseAPI::EdgeTypeEnum edgeType);
+
 
    Address origAddr_;
    block_instance *block_;

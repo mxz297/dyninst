@@ -2003,3 +2003,12 @@ void BPatch::addDeleteInstructionOpcode(entryID id) {
 bool BPatch::shouldDeleteOpcode(entryID id) {
     return delInsnOpcodes.find(id) != delInsnOpcodes.end();
 }
+
+void BPatch::addInstrumentedFunctionEntry(Address addr) {
+    instrumentedAddresses.insert(addr);
+}
+
+bool BPatch::isInstrumentedFunctionEntry(Address addr) {
+    return instrumentedAddresses.find(addr) != instrumentedAddresses.end();
+}
+
