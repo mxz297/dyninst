@@ -656,7 +656,7 @@ bool RelocBlock::inlineCall(block_instance* block) {
     // Step 4. No need to inline large functions
 //    if (insns.size() > 10) return false;
 
-    fprintf(stderr, "Inline call at %lx to %lx\n", block->last(), call_target->start());
+    relocation_cerr << "Inline call at " << std::hex << block->last() << " to " << call_target->start() << std::endl;
 
     // Step 5. add every instruction into the caller, excluding the return instruction
     auto it = insns.end(); 
