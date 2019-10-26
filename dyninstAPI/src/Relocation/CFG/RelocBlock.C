@@ -653,15 +653,21 @@ bool RelocBlock::inlineCall(block_instance* block) {
     entryID e = insns.rbegin()->second.getOperation().getID();
     if (e != e_ret_near && e != e_ret_far) return false;
 
-    // Step 4. No need to inline large functions
-//    if (insns.size() > 10) return false;
+    // Remove the return instruction at the end
+    auto it = insns.end(); 
+    --it;
+    insns.erase(it);
+
+    // Step 4. Do not inline functions that use SP because
+    // inlining changes the value of SP
+    static Expression::Ptr sp(new RegisterAST(x86_64::rsp));
+    for (auto it = insns.begin(); it != insns.end(); ++it) {
+        if (it->second.isRead(sp) || it->second.isWritten(sp)) return false;
+    }
 
     relocation_cerr << "Inline call at " << std::hex << block->last() << " to " << call_target->start() << std::endl;
 
     // Step 5. add every instruction into the caller, excluding the return instruction
-    auto it = insns.end(); 
-    --it;
-    insns.erase(it);
     for (auto it = insns.begin(); it != insns.end(); ++it) {
         Widget::Ptr ptr = InsnWidget::create(it->second, it->first);
         elements_.push_back(ptr);
