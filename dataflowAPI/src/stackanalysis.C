@@ -531,8 +531,8 @@ void StackAnalysis::summarize() {
             iter2 != xferFuncs.end(); ++iter2) {
             input[iter2->target] = iter2->apply(input);
             DefHeightSet &s = input[iter2->target];
-            const Definition &def = s.begin()->def;
-            const Height &h = s.begin()->height;
+            const Definition def = s.begin()->def;
+            const Height h = s.begin()->height;
             if (def.type == Definition::DEF && def.block == NULL) {
                // New definition
                STACKANALYSIS_ASSERT(iter2->target == def.origLoc);
@@ -555,8 +555,8 @@ void StackAnalysis::summarize() {
                const TransferFunc &tf = summaryIter->second;
                newInput[target] = tf.apply(input);
                DefHeightSet &s = newInput[target];
-               const Definition &def = s.begin()->def;
-               const Height &h = s.begin()->height;
+               const Definition def = s.begin()->def;
+               const Height h = s.begin()->height;
                if (def.type == Definition::DEF && def.block == NULL) {
                   // New definition
                   STACKANALYSIS_ASSERT(target == def.origLoc);
@@ -3343,8 +3343,8 @@ StackAnalysis::DefHeightSet StackAnalysis::TransferFunc::apply(
       // Copy the input value from whatever we're a copy of.
       AbslocState::const_iterator iter2 = inputs.find(from);
       if (iter2 != inputs.end()) {
-         const Definition &def = iter2->second.getDefSet();
-         const Height &h = iter2->second.getHeightSet();
+         const Definition def = iter2->second.getDefSet();
+         const Height h = iter2->second.getHeightSet();
          if (!h.isBottom() && !h.isTop()) {
             if ((from.isSP() || from.isFP()) &&
                (target.type() != Absloc::Register ||
@@ -3671,8 +3671,8 @@ void StackAnalysis::SummaryFunc::apply(Block *block, const AbslocState &in,
       STACKANALYSIS_ASSERT(iter->first.isValid());
       out[iter->first] = iter->second.apply(in);
       DefHeightSet &s = out[iter->first];
-      const Definition &def = s.begin()->def;
-      const Height &h = s.begin()->height;
+      const Definition def = s.begin()->def;
+      const Height h = s.begin()->height;
       if (def.type == Definition::DEF && def.block == NULL) {
          // New definition
          s.makeNewSet(block, 0, def.origLoc, h);
