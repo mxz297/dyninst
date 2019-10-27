@@ -125,13 +125,14 @@ class block_instance : public Dyninst::PatchAPI::PatchBlock {
     Address GetBlockStartingAddress();
     virtual void markModified();
 
+    void markInstrumented();
+    bool isInstrumented();
+
  private:
     void updateCallTarget(func_instance *func);
     func_instance *findFunction(ParseAPI::Function *);
 
-    // edges srcs_;
-    // edges trgs_;
-
+    bool _instrumented;
 };
 
 template <class OutputIterator>

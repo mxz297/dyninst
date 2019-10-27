@@ -286,13 +286,15 @@ bool RelocBlock::determineSpringboards(PriorityMap &p) {
    // 2) We are the target of an indirect branch;
    // 3) We are the target of an edge not from a trace. 
    if (func_ &&
-       func_->entryBlock() == block_) {
+       func_->entryBlock() == block_ &&
+       func_->isEntryInstrumented()) {
      relocation_cerr << "determineSpringboards (entry block): " << func_->symTabName()
 		     << " / " << hex << block_->start() << " is required" << dec << endl;
       p[std::make_pair(block_, func_)] = FuncEntry;
       return true;
    }
-   if (block_->isFuncExit()) {
+   if ( (block_->isFuncExit() && func_->isExitInstrumented()) ||
+        block_->isInstrumented() ) {
        if (inEdges_.contains(ParseAPI::INDIRECT) || 
            inEdges_.contains(ParseAPI::CATCH) ||
            inEdges_.contains(ParseAPI::CALL_FT) ||

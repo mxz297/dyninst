@@ -45,14 +45,20 @@ using namespace Dyninst::ParseAPI;
 
 block_instance::block_instance(ParseAPI::Block *ib,
                                mapped_object *obj)
-  : PatchBlock(ib, obj), _ignorePowerPreamble(false) {
+  : PatchBlock(ib, obj), 
+    _ignorePowerPreamble(false),
+    _instrumented(false)
+{
   // We create edges lazily
 };
 
 // Fork constructor
 block_instance::block_instance(const block_instance *parent,
                                mapped_object *childObj)
-  : PatchBlock(parent, childObj), _ignorePowerPreamble(parent->_ignorePowerPreamble) {
+  : PatchBlock(parent, childObj), 
+    _ignorePowerPreamble(parent->_ignorePowerPreamble),
+    _instrumented(parent->_instrumented)
+{
   // We also need to copy edges.
   // Thing is, those blocks may not exist yet...
   // So we wait, and do edges after all blocks have
@@ -176,4 +182,12 @@ void block_instance::markModified() {
    for (unsigned i = 0; i < funcs.size(); ++i) {
       funcs[i]->markModified();
    }
+}
+
+void block_instance::markInstrumented() {
+    _instrumented = true;
+}
+
+bool block_instance::isInstrumented() {
+    return _instrumented;
 }

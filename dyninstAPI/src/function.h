@@ -359,6 +359,11 @@ class func_instance : public patchTarget, public Dyninst::PatchAPI::PatchFunctio
       return addr() < rhs.addr();
   }
 
+  void markEntryInstrumented();
+  bool isEntryInstrumented();
+  void markExitInstrumented();
+  bool isExitInstrumented();
+
  private:
 
   // helper func for block_instance::setNotAbruptEnd(), do not call directly 
@@ -446,6 +451,9 @@ class func_instance : public patchTarget, public Dyninst::PatchAPI::PatchFunctio
 #endif
   func_instance* _noPowerPreambleFunc;
   func_instance* _powerPreambleFunc;
+
+  bool _entryInstrumented;
+  bool _exitInstrumented;
 };
 
 template <class OutputIterator>

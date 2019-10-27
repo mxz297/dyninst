@@ -46,6 +46,7 @@
 #include "BPatch_thread.h"
 #include "BPatch_function.h"
 #include "BPatch_point.h"
+#include "BPatch_basicBlock.h"
 
 #include "BPatch_private.h"
 
@@ -926,6 +927,19 @@ BPatchSnippetHandle *BPatch_addressSpace::insertSnippet(const BPatch_snippet &ex
 
    for (unsigned i = 0; i < points.size(); i++) {
       BPatch_point *bppoint = points[i];
+
+      BPatch_function* bfunc = bppoint->getFunction();
+      BPatch_basicBlock* bblock = bppoint->getBlock();
+
+      if (bfunc != NULL && bppoint->getPointType() == BPatch_locEntry) {
+          bfunc->lowlevel_func()->markEntryInstrumented();
+      }
+      if (bfunc != NULL && bppoint->getPointType() == BPatch_locExit) {
+          bfunc->lowlevel_func()->markExitInstrumented();
+      }
+      if (bblock != NULL ) {
+          bblock->block()->markInstrumented();
+      }
 
       if (bppoint->addSpace == NULL) {
          fprintf(stderr, "Error: attempt to use point with no process info\n");

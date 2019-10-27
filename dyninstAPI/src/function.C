@@ -70,7 +70,9 @@ func_instance::func_instance(parse_func *f,
 #endif
    , wrapperSym_(NULL),
      _noPowerPreambleFunc(NULL),
-     _powerPreambleFunc(NULL)
+     _powerPreambleFunc(NULL),
+     _entryInstrumented(false),
+     _exitInstrumented(false)
 {
   assert(f);
 #if defined(ROUGH_MEMORY_PROFILE)
@@ -122,7 +124,9 @@ func_instance::func_instance(const func_instance *parFunc,
 #endif
    , wrapperSym_(NULL),
      _noPowerPreambleFunc(parFunc->_noPowerPreambleFunc),
-     _powerPreambleFunc(parFunc->_powerPreambleFunc)
+     _powerPreambleFunc(parFunc->_powerPreambleFunc),
+     _entryInstrumented(parFunc->_entryInstrumented),
+     _exitInstrumented(parFunc->_exitInstrumented)
 
 {
    assert(ifunc());
@@ -1737,3 +1741,19 @@ void func_instance::freeStackMod() {
     if (ce != NULL) delete ce;
 }
 #endif
+
+void func_instance::markEntryInstrumented() {
+    _entryInstrumented = true;
+}
+
+bool func_instance::isEntryInstrumented() {
+    return _entryInstrumented;
+}
+
+void func_instance::markExitInstrumented() {
+    _exitInstrumented = true;
+}
+
+bool func_instance::isExitInstrumented() {
+    return _exitInstrumented;
+}
