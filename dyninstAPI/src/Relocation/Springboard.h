@@ -241,6 +241,8 @@ class InstalledSpringboards
   {
     return relocTraps_.find(a) != relocTraps_.end();
   }
+  bool findPaddingSpace(Address s, int neg, int pos, int size, Address &lb, Address &ub);
+
 
     
   
@@ -311,6 +313,7 @@ class SpringboardBuilder {
   void addMultiNeeded(const SpringboardReq &p);
 
   void generateBranch(Address from, Address to, codeGen &input);
+  void generateShortBranch(Address from, Address to, codeGen &input);
   void generateTrap(Address from, Address to, codeGen &input);
 
   bool conflict(Address start, Address end, bool inRelocatedCode, func_instance* func, Priority p) { return installed_springboards_->conflict(start, end, inRelocatedCode, func, p); }

@@ -295,14 +295,19 @@ bool RelocBlock::determineSpringboards(PriorityMap &p) {
    }
    if ( (block_->isFuncExit() && func_->isExitInstrumented()) ||
         block_->isInstrumented() ) {
+       if (block_->isInstrumented()) {
+           relocation_cerr << "determineSpringboards (block instrumented): " << func_->symTabName()
+               << " / " << hex << block_->start() << " is required" << dec << endl;
+       } else {
+           relocation_cerr << "determineSpringboards (exit block): " << func_->symTabName()
+               << " / " << hex << block_->start() << " is required" << dec << endl;
+       }
        if (inEdges_.contains(ParseAPI::INDIRECT) || 
            inEdges_.contains(ParseAPI::CATCH) ||
            inEdges_.contains(ParseAPI::CALL_FT) ||
            inEdges_.contains(ParseAPI::RET) ||
            inEdges_.contains(ParseAPI::CALL) ||
            (block_->end() - block_->start() >= 5)) {
-           relocation_cerr << "determineSpringboards (exit block): " << func_->symTabName()
-               << " / " << hex << block_->start() << " is required" << dec << endl;
            p[std::make_pair(block_, func_)] = FuncEntry;
            return true;
        } else {
@@ -319,6 +324,9 @@ bool RelocBlock::determineSpringboards(PriorityMap &p) {
                for (auto eit = block_->sources().begin(); eit != block_->sources().end(); ++eit) {
                    if ((*eit)->type() == ParseAPI::CALL) continue;
                    block_instance* srcBlock = (block_instance*) ((*eit)->src());
+           relocation_cerr << "determineSpringboards (move trampolines): " << func_->symTabName()
+               << " / " << hex << srcBlock->start() << " is required" << dec << endl;
+
                    p[std::make_pair(srcBlock, func_)] = FuncEntry;
                }
            } else {

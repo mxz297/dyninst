@@ -201,6 +201,7 @@ bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, Bloc
     // If we extended the block, remember that range
     if (end > bbl->end()) {
       paddingRanges_.insert(bbl->end(), end, info);
+      springboard_cerr << "find padding [" << hex << bbl->end() << "," << end << ")" << endl;
     }
 
     for (Address lookup = start; lookup < end; ) 
@@ -268,6 +269,12 @@ SpringboardBuilder::generateSpringboard(std::list<codeGen> &springboards,
    generateBranch(r.from, r.destinations.begin()->second, tmpGen);
    unsigned size = tmpGen.used();
    if (r.useTrap || conflict(r.from, r.from + tmpGen.used(), r.fromRelocatedCode, r.func, r.priority)) {
+      // We cannot fit a normal branch, let's try multiple branches:
+      // we first use a short branch to jump to a free area,
+      // and then use a full branch to jump to the actual targets
+      if (generateMultiSpringboard(springboards, r)) {
+          return Succeeded;
+      }
       // Errr...
       // Fine. Let's do the trap thing. 
       springboard_cerr << "\t Attempting a springboard trap for springboard at addr: 0x" << std::hex << r.from << std::endl;
@@ -303,13 +310,74 @@ SpringboardBuilder::generateSpringboard(std::list<codeGen> &springboards,
    }
    return Succeeded;
 }
+#define NEG_BOUND -128
+#define POS_BOUND 128
+#define SHORT_BRANCH_LEN 2
+#define FULL_BRANCH_LEN 5
 
-bool SpringboardBuilder::generateMultiSpringboard(std::list<codeGen> &,
-						  const SpringboardReq &) {
-   //debugRanges();
-   //if (false) cerr << "Request to generate multi-branch springboard skipped @ " << hex << r.from << dec << endl;
-   // For now we give up and hope it all works out for the best. 
-   return true;
+bool SpringboardBuilder::generateMultiSpringboard(std::list<codeGen> &springboards,
+						  const SpringboardReq &r) {
+    if (conflict(r.from, r.from + SHORT_BRANCH_LEN, r.fromRelocatedCode, r.func, r.priority)) return false;
+
+   Address s = r.from + SHORT_BRANCH_LEN;
+   Address lower_bound;
+   Address upper_bound;
+   // Find a padding area [lower_bound, upper_bound) that can hold a full branch
+   if (installed_springboards_->findPaddingSpace(s, NEG_BOUND, POS_BOUND, FULL_BRANCH_LEN, lower_bound, upper_bound)) {
+       springboard_cerr << "Multi-branch trampolines: from " << std::hex << r.from
+           << ", a short branch to [" << lower_bound << "," << upper_bound
+           << "), then normal branch to " << r.destinations.begin()->second << dec << endl;
+       // Generate and register the full branch
+       codeGen gen;
+       generateBranch(lower_bound, r.destinations.begin()->second, gen);
+       if (gen.used() > upper_bound - lower_bound) return false;
+       springboards.push_back(gen);
+       registerBranch(lower_bound, lower_bound + gen.used(), r.destinations, r.fromRelocatedCode, r.func, r.priority);
+
+       // Generate and register the short branch
+       codeGen shortBranch;
+       generateShortBranch(r.from, lower_bound, shortBranch);
+       springboards.push_back(shortBranch);
+       registerBranch(r.from, r.from + shortBranch.used(), r.destinations, r.fromRelocatedCode, r.func, r.priority);
+       return true;
+   } else {
+       springboard_cerr << "Multi-branch trampolines: cannot find padding space for " << std::hex << r.from << dec << endl;
+   }
+   return false;
+}
+
+bool InstalledSpringboards::findPaddingSpace(Address s,
+        int neg,
+        int pos,
+        int size,
+        Address &lb,
+        Address &ub) {
+    /* This function tries to find a padding area that
+     * is wihtin [neg + s, pos + s).
+     * The padding area is returned as [lb, ub)
+     */
+    Address cur = s + pos - 1;
+    Address lower_bound = s + neg;
+    springboard_cerr << "Attempt to find padding space in [" << hex << lower_bound << "," << cur+1 << ")" << dec << endl;
+    Address x, y;
+    SpringboardInfo* val = NULL;
+    while (cur >= lower_bound) {
+        if (!paddingRanges_.findContainOrSmaller(cur, x , y, val) || y <= lower_bound) {
+            springboard_cerr << "\tdo not find padding space for " << hex << cur << dec << endl;
+            break;
+        }
+        springboard_cerr << "\tfind [" << hex << x << "," << y << ")" << dec << endl;
+        Address cur_lower_bound = x;
+        if (cur_lower_bound < lower_bound) cur_lower_bound = lower_bound;
+        if (cur_lower_bound + size <= y) {
+            lb = cur_lower_bound;
+            ub = y;
+            // Return the first found  
+            return true;
+        }
+        cur = x - 1;
+    }
+    return false;
 }
 
 bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocated, func_instance* func, Priority p) {
@@ -530,6 +598,21 @@ void InstalledSpringboards::registerBranch
         springboard_cerr << "\tInserting post space " << hex << end << " -> " << UB << " /w/ range " << idToUse << dec << endl;
       validRanges_.insert(end, UB, info);
    }
+
+   // Update the padding ranges for multi-branch trampolines
+   SpringboardInfo* state = NULL;
+   if (paddingRanges_.find(end - 1, lb, ub, state)) {
+       paddingRanges_.remove(lb);
+       springboard_cerr << "\tRemove padding range [" << hex << lb << "," << ub << ")" << dec << endl;
+       if (end < ub) {
+           springboard_cerr << "\tInsert padding range [" << hex << end << "," << ub << ")" << dec << endl;
+           paddingRanges_.insert(end, ub, info);
+       }
+       if (lb < start) {
+           springboard_cerr << "\tInsert padding range [" << hex << lb << "," << start << ")" << dec << endl;
+           paddingRanges_.insert(lb, start, info);
+       }
+   }
 }
 
 void InstalledSpringboards::registerBranchInRelocated(Address start, Address end, func_instance* func, Priority p) {
@@ -579,6 +662,22 @@ void SpringboardBuilder::generateBranch(Address from, Address to, codeGen &gen) 
         insn = deco.decode();
     }
 #endif
+}
+
+void SpringboardBuilder::generateShortBranch(Address from, Address to, codeGen &gen) {
+  gen.invalidate();
+  // On ppc, the spring board can be a long branch,
+  // which can takes more than 5 instructions
+  gen.allocate(64);
+
+  gen.setAddrSpace(addrSpace_);
+  gen.setAddr(from);
+
+  std::vector<unsigned char> code;
+  code.push_back(0xEB);
+  code.push_back( (unsigned char) (to - (from + 2)) );
+  gen.copy(code);
+  springboard_cerr << "Generated springboard short branch " << hex << from << "->" << to << dec << endl;
 }
 
 void SpringboardBuilder::generateTrap(Address from, Address to, codeGen &gen) {

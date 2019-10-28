@@ -82,11 +82,6 @@ bool CodeMover::addFunctions(FuncSet::const_iterator begin,
       if (!addRelocBlocks(func->blocks().begin(), func->blocks().end(), func)) {
          return false;
       }
-    
-      // Add the function entry as FuncEntry in the priority map
-      block_instance *entry = func->entryBlock();
-      priorityMap_[std::make_pair(entry, func)] = FuncEntry;
-      relocation_cerr << "\t Added FuncEntry for " << func->symTabName() << " / " << hex << entry->start() << dec << endl;
    }
 
    return true;

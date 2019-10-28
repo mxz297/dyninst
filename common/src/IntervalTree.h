@@ -104,6 +104,23 @@ class IntervalTree {
     return true;
   }
 
+  bool findContainOrSmaller(K key, K &l, K &u, V &v) const {
+      if (tree_.empty()) return false;
+      c_iter iter = tree_.lower_bound(key);
+      if ((iter == tree_.end()) ||(iter->first != key)) {
+          if (iter == tree_.begin()) {
+              return false;
+          }
+          --iter;
+      }
+      if (iter->first > key) return false;
+
+      l = iter->first;
+      u = iter->second.first;
+      v = iter->second.second;
+      return true;
+  }
+
   bool precessor(K key, Entry &e) const {
     if (tree_.empty()) return false;
     c_iter iter = tree_.lower_bound(key);
