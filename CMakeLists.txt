@@ -23,6 +23,7 @@ include(Boost)
 include(ThreadingBuildingBlocks)
 include(ElfUtils)
 include(LibIberty)
+include(Capstone)
 include (${DYNINST_ROOT}/cmake/shared.cmake)
 
 configure_file(cmake/version.h.in common/h/dyninstversion.h)

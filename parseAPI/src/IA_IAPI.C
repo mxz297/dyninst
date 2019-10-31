@@ -273,7 +273,6 @@ bool IA_IAPI::retreat()
 
 size_t IA_IAPI::getSize() const
 {
-    assert(curInsn().isValid());
     return curInsn().size();
 }
 
