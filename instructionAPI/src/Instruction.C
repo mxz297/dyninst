@@ -565,7 +565,7 @@ memAccessors.begin()));
               return true;
       default:
       {
-	decodeOperands();
+          if(m_Operands.empty()) decodeOperands();
           for(cftConstIter targ = m_Successors.begin();
               targ != m_Successors.end();
               ++targ)
