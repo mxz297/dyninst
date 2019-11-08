@@ -202,6 +202,20 @@ bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, Bloc
     if (end > bbl->end()) {
       paddingRanges_.insert(bbl->end(), end, info);
       springboard_cerr << "find padding [" << hex << bbl->end() << "," << end << ")" << endl;
+    } else {
+        set<block_instance*>& safeBlocks = func->getSafeBlocks();
+        while (end - start < 5) {
+            block_instance* nextBlock = NULL;
+            for (auto bit = safeBlocks.begin(); bit != safeBlocks.end(); ++bit) {
+                if ((*bit)->start() == end) {
+                    nextBlock = *bit;
+                    break;
+                }
+            }
+            if (nextBlock == NULL) break;
+            end = nextBlock->end();
+            safeBlocks.erase(nextBlock);
+        }
     }
 
     for (Address lookup = start; lookup < end; ) 
@@ -372,7 +386,6 @@ bool InstalledSpringboards::findPaddingSpace(Address s,
         if (cur_lower_bound + size <= y) {
             lb = cur_lower_bound;
             ub = y;
-            // Return the first found  
             return true;
         }
         cur = x - 1;

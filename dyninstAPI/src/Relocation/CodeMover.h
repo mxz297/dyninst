@@ -138,6 +138,23 @@ class CodeMover {
   bool addRelocBlock(block_instance *block, func_instance *f);
 
   void finalizeRelocBlocks();
+  void OptimizeSpringboards();
+  bool canRemoveTrampoline(block_instance*, std::set<block_instance*>&);
+  bool ReverseDFS(block_instance*,
+                  block_instance*,
+                  std::set<block_instance*>&,
+                  std::set<block_instance*>&);
+  bool canMoveTrampoline(block_instance*,
+                  block_instance*,
+                  std::set<block_instance*>&,
+                  std::set<block_instance*>&,
+                  std::set<block_instance*>&);
+  bool findSafeBlocks(block_instance*,
+                  std::set<block_instance*>&,
+                  std::set<block_instance*>&,
+                  std::set<block_instance*>&);
+
+
 
   RelocGraph *cfg_;
 
@@ -154,6 +171,8 @@ class CodeMover {
   CodeBuffer buffer_;
 
   bool finalized_;
+
+  bool needCallEmulation_;
   
 };
 

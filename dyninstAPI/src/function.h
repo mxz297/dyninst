@@ -364,6 +364,9 @@ class func_instance : public patchTarget, public Dyninst::PatchAPI::PatchFunctio
   void markExitInstrumented();
   bool isExitInstrumented();
 
+  void setSafeBlocks(std::set<block_instance*>& s) { safeBlocks = s; }
+  std::set<block_instance*>& getSafeBlocks() { return safeBlocks; }
+
  private:
 
   // helper func for block_instance::setNotAbruptEnd(), do not call directly 
@@ -454,6 +457,7 @@ class func_instance : public patchTarget, public Dyninst::PatchAPI::PatchFunctio
 
   bool _entryInstrumented;
   bool _exitInstrumented;
+  std::set<block_instance*> safeBlocks;
 };
 
 template <class OutputIterator>
