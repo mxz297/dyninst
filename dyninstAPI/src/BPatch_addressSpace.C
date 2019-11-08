@@ -47,6 +47,7 @@
 #include "BPatch_function.h"
 #include "BPatch_point.h"
 #include "BPatch_basicBlock.h"
+#include "BPatch_edge.h"
 
 #include "BPatch_private.h"
 
@@ -930,6 +931,7 @@ BPatchSnippetHandle *BPatch_addressSpace::insertSnippet(const BPatch_snippet &ex
 
       BPatch_function* bfunc = bppoint->getFunction();
       BPatch_basicBlock* bblock = bppoint->getBlock();
+      BPatch_edge* bedge = bppoint->edge(); 
 
       if (bfunc != NULL && bppoint->getPointType() == BPatch_locEntry) {
           bfunc->lowlevel_func()->markEntryInstrumented();
@@ -939,6 +941,9 @@ BPatchSnippetHandle *BPatch_addressSpace::insertSnippet(const BPatch_snippet &ex
       }
       if (bblock != NULL ) {
           bblock->block()->markInstrumented();
+      }
+      if (bedge != NULL) {
+          bedge->getSource()->block()->markInstrumented();
       }
 
       if (bppoint->addSpace == NULL) {
