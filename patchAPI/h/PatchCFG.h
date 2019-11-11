@@ -53,6 +53,7 @@ class PATCHAPI_EXPORT PatchEdge {
    friend class PatchObject;
    friend class Callback;
    friend class PatchParseCallback;
+   friend class PatchModifier;
 
   public:
    static PatchEdge *create(ParseAPI::Edge *,
@@ -61,13 +62,14 @@ class PATCHAPI_EXPORT PatchEdge {
    PatchEdge(ParseAPI::Edge *internalEdge,
              PatchBlock *source,
              PatchBlock *target);
-   PatchEdge(const PatchEdge *parent,
+   PatchEdge(PatchEdge *parent,
              PatchBlock *child_src,
              PatchBlock *child_trg);
    virtual ~PatchEdge();
 
    // Getters
    ParseAPI::Edge *edge() const;
+   PatchEdge *original_edge() const;
    PatchBlock *src();
    PatchBlock *trg();
    ParseAPI::EdgeTypeEnum type() const;
@@ -84,6 +86,7 @@ class PATCHAPI_EXPORT PatchEdge {
 
  protected:
     ParseAPI::Edge *edge_;
+    PatchEdge* original_edge_;
     PatchBlock *src_;
     PatchBlock *trg_;
 
@@ -94,7 +97,8 @@ class PATCHAPI_EXPORT PatchBlock {
   friend class PatchEdge;
   friend class PatchFunction;
   friend class PatchObject;
-   friend class PatchParseCallback;
+  friend class CFGMaker;
+  friend class PatchParseCallback;
 
   public:
    typedef std::map<Address, InstructionAPI::Instruction> Insns;
@@ -145,6 +149,11 @@ class PATCHAPI_EXPORT PatchBlock {
    bool wasUserAdded() const;
 
    virtual void markModified()  {};
+   void addSourceEdge(PatchEdge *e, bool addIfEmpty = true);
+   void addTargetEdge(PatchEdge *e, bool addIfEmpty = true);
+   void setIsCloned(bool);
+   bool isClone() { return isCloned_; }
+
 
   protected:
     typedef enum {
@@ -154,9 +163,6 @@ class PATCHAPI_EXPORT PatchBlock {
     void removeSourceEdge(PatchEdge *e);
     void removeTargetEdge(PatchEdge *e);
     void destroyPoints();
-
-    void addSourceEdge(PatchEdge *e, bool addIfEmpty = true);
-    void addTargetEdge(PatchEdge *e, bool addIfEmpty = true);
 
     void splitBlock(PatchBlock *succ);
     int numRetEdges() const;
@@ -168,6 +174,7 @@ class PATCHAPI_EXPORT PatchBlock {
     PatchObject* obj_;
 
     BlockPoints points_;
+    bool isCloned_; 
 };
 
 class PatchLoop;
@@ -184,13 +191,12 @@ class PATCHAPI_EXPORT PatchFunction {
      struct compare {
        bool operator()(PatchBlock * const &b1,
                        PatchBlock * const &b2) const {
-         if(b1->start() < b2->start())
-           return true;
-         else
-           return false;
+         if ((int)b1->isClone() == (int)b2->isClone())
+             return b1->start() < b2->start();
+         return (int)b1->isClone() < (int)b2->isClone();
        }
      };
-     typedef std::set<PatchBlock *, compare> Blockset;
+     typedef std::set<PatchBlock*, compare> Blockset;
 
      static PatchFunction *create(ParseAPI::Function *, PatchObject*);
      PatchFunction(ParseAPI::Function *f, PatchObject* o);

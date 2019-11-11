@@ -54,7 +54,8 @@ class edge_instance : public Dyninst::PatchAPI::PatchEdge {
     block_instance *trg() const;
     AddressSpace *proc();
     edge_instance(ParseAPI::Edge *edge, block_instance *src, block_instance *trg);
-    edge_instance(const edge_instance *parent, mapped_object *child);
+    edge_instance(edge_instance *parent, mapped_object *child);
+    edge_instance(edge_instance* original, block_instance *src, block_instance* trg);
     ~edge_instance();
 };
 

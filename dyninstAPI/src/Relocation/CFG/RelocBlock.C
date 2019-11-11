@@ -83,7 +83,9 @@ RelocBlock *RelocBlock::createReloc(block_instance *block, func_instance *func) 
 
   for (block_instance::Insns::iterator iter = insns.begin();
        iter != insns.end(); ++iter, ++cnt) {
-    if (block->_ignorePowerPreamble && cnt < 2) continue;
+    if (block->_ignorePowerPreamble && cnt < 2) {
+        continue;
+    }
     relocation_cerr << "  Adding instruction @" 
 		    << std::hex << iter->first << std::dec
 		    << ": " << iter->second.format(iter->first) << endl;

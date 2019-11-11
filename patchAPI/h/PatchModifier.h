@@ -90,6 +90,8 @@ class PATCHAPI_EXPORT PatchModifier {
    static InsertedCode::Ptr insert(PatchObject *, SnippetPtr snip, Point *point);
    static InsertedCode::Ptr insert(PatchObject *, void *start, unsigned size);
 
+   static bool addBlockToFunction(PatchFunction *, PatchBlock *);
+
   private:
    static InsertedCode::Ptr insert(PatchObject *, void *start, unsigned size, Address base);
 };

@@ -112,7 +112,7 @@ void CodeMover::finalizeRelocBlocks() {
       iter->determineSpringboards(priorityMap_);
    }
 
-   OptimizeSpringboards();
+   //OptimizeSpringboards();
 }
    
 

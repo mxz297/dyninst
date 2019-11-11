@@ -45,11 +45,11 @@ PatchEdge::create(ParseAPI::Edge *ie, PatchBlock *src, PatchBlock *trg) {
 PatchEdge::PatchEdge(ParseAPI::Edge *internalEdge,
                      PatchBlock *source,
                      PatchBlock *target)
-  : edge_(internalEdge), src_(source), trg_(target) {
+  : edge_(internalEdge), original_edge_(NULL), src_(source), trg_(target) {
 }
 
-PatchEdge::PatchEdge(const PatchEdge *parent, PatchBlock *src, PatchBlock *trg)
-  : edge_(parent->edge_), src_(src), trg_(trg) {
+PatchEdge::PatchEdge(PatchEdge *parent, PatchBlock *src, PatchBlock *trg)
+  : edge_(NULL), original_edge_(parent), src_(src), trg_(trg) {
 }
 
 PatchBlock*
@@ -84,21 +84,28 @@ PatchEdge::edge() const {
   return edge_;
 }
 
+PatchEdge* PatchEdge::original_edge() const { return original_edge_; }
+
 ParseAPI::EdgeTypeEnum
 PatchEdge::type() const {
-  return edge_->type();
+    if (edge_ != NULL) return edge_->type();
+    return original_edge_->type();
 }
 
 bool
 PatchEdge::sinkEdge() const {
-  return edge_->sinkEdge();
+    if (edge_ != NULL) return edge_->sinkEdge();
+    return original_edge_->sinkEdge();
 }
 
 bool
 PatchEdge::interproc() const {
+    if (edge_ != NULL) {
   return edge_->interproc() ||
          (edge_->type() == ParseAPI::CALL) ||
          (edge_->type() == ParseAPI::RET);
+    }
+    return original_edge_->interproc();
 }
 
 void PatchEdge::remove(Point *p) {
@@ -111,6 +118,7 @@ PatchCallback *PatchEdge::cb() const {
 }
 
 bool PatchEdge::consistency() const { 
+   fprintf(stderr, "PatchEdge::consistency() implementation is currently wrong\n");
    if (src_) {
       if (src_->block() != edge_->src()) CONSIST_FAIL;
    }

@@ -53,7 +53,11 @@ bool PatchModifier::redirect(PatchEdge *edge, PatchBlock *target) {
    if (edge->type() == ParseAPI::INDIRECT || 
        edge->type() == ParseAPI::CATCH ||
        edge->type() == ParseAPI::RET) return false;
-   
+
+   edge->trg_ = target;
+   return true;
+
+
    // I think this is all we do...
    PatchBlock *src = edge->src();
    PatchBlock *oldTrg = edge->trg();
@@ -225,4 +229,8 @@ bool PatchModifier::remove(PatchFunction *func)
     //    assert(obj);
     //}
     //return success;
+}
+
+bool PatchModifier::addBlockToFunction(PatchFunction *f, PatchBlock* b) {
+    f->addBlock(b);
 }

@@ -55,7 +55,7 @@ typedef std::list<WidgetPtr> WidgetList;
 
 class RelocGraph {
   public:
-   typedef std::map<func_instance *, RelocBlock *> SubMap;
+   typedef std::map<std::pair<func_instance*, block_instance*>, RelocBlock *> SubMap;
    typedef std::map<Address, SubMap> InstanceMap;
    typedef std::map<std::pair<block_instance *, func_instance *>,
       RelocBlock *> Map;

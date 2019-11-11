@@ -111,7 +111,8 @@ CodeSource::non_returning_funcs =
         ("for_stop_core", true)
         ("__sys_exit", true)
         ("_exit", true)
-	("__libc_fatal", true);
+	("__libc_fatal", true)
+    ("__cxa_throw_bad_array_new_length", true);
 
 dyn_hash_map<int, bool>
 CodeSource::non_returning_syscalls_x86 =

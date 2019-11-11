@@ -66,11 +66,13 @@ class PATCHAPI_EXPORT CFGMaker {
     virtual PatchBlock* makeBlock(ParseAPI::Block*,
                                                   PatchObject*);
     virtual PatchBlock* copyBlock(PatchBlock*, PatchObject*);
+    virtual PatchBlock* cloneBlock(PatchBlock*, PatchObject*);
 
     // Make edge
     virtual PatchEdge* makeEdge(ParseAPI::Edge*, PatchBlock*,
                                 PatchBlock*, PatchObject*);
     virtual PatchEdge* copyEdge(PatchEdge*, PatchObject*);
+    virtual PatchEdge* cloneEdge(PatchEdge*, PatchBlock*);
 };
 
 }

@@ -42,6 +42,8 @@
 #include "BPatch_callbacks.h"
 #include <set>
 
+#include "CFGMaker.h"
+
 #include "dyninstversion.h"
 
 class BPatch_typeCollection;
@@ -688,6 +690,8 @@ public:
     bool  shouldDeleteOpcode(entryID);
     void  addInliningEntry(Dyninst::Address);
     bool  isInliningTarget(Dyninst::Address);
+
+    Dyninst::PatchAPI::CFGMaker* getCFGMaker();
 };
 
 #ifdef _MSC_VER

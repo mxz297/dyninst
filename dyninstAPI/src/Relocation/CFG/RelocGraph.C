@@ -61,7 +61,7 @@ RelocGraph::~RelocGraph() {
 void RelocGraph::addRelocBlock(RelocBlock *t) {
    if (t->type() == RelocBlock::Relocated) {
       springboards[std::make_pair(t->block(), t->func())] = t;
-      reloc[t->block()->start()][t->func()] = t;
+      reloc[t->block()->start()][make_pair(t->func(), t->block())] = t;
    }
 
    if (head == NULL) {
@@ -80,7 +80,7 @@ void RelocGraph::addRelocBlock(RelocBlock *t) {
 void RelocGraph::addRelocBlockBefore(RelocBlock *cur, RelocBlock *t) {
    if (t->type() == RelocBlock::Relocated) {
       springboards[std::make_pair(t->block(), t->func())] = t;
-      reloc[t->block()->start()][t->func()] = t;
+      reloc[t->block()->start()][make_pair(t->func(),t->block())] = t;
    }
    size++;
    if (cur == head) {
@@ -96,7 +96,7 @@ void RelocGraph::addRelocBlockBefore(RelocBlock *cur, RelocBlock *t) {
 void RelocGraph::addRelocBlockAfter(RelocBlock *cur, RelocBlock *t) {
    if (t->type() == RelocBlock::Relocated) {
       springboards[std::make_pair(t->block(), t->func())] = t;
-      reloc[t->block()->start()][t->func()] = t;
+      reloc[t->block()->start()][make_pair(t->func(), t->block())] = t;
    }
    size++;
   if (cur == tail) {
@@ -113,7 +113,7 @@ void RelocGraph::addRelocBlockAfter(RelocBlock *cur, RelocBlock *t) {
 RelocBlock *RelocGraph::find(block_instance *b, func_instance *f) const {
    InstanceMap::const_iterator iter = reloc.find(b->start());
    if (iter == reloc.end()) return NULL;
-   SubMap::const_iterator iter2 = iter->second.find(f);
+   SubMap::const_iterator iter2 = iter->second.find(make_pair(f,b));
    if (iter2 == iter->second.end()) return NULL;
 
    return iter2->second;

@@ -2012,3 +2012,8 @@ bool BPatch::isInliningTarget(Address addr) {
     return inliningAddresses.find(addr) != inliningAddresses.end();
 }
 
+#include "dyninstAPI/src/Relocation/DynObject.h"
+
+Dyninst::PatchAPI::CFGMaker* BPatch::getCFGMaker() {
+    return new Dyninst::PatchAPI::DynCFGMaker();
+}

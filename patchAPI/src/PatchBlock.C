@@ -49,11 +49,11 @@ PatchBlock::create(ParseAPI::Block *ib, PatchFunction *f) {
 }
 
 PatchBlock::PatchBlock(ParseAPI::Block *blk, PatchObject *obj)
-  : block_(blk),   obj_(obj) {
+  : block_(blk),   obj_(obj), isCloned_(false) {
 }
 
 PatchBlock::PatchBlock(const PatchBlock *parent, PatchObject *child)
-  : block_(parent->block_), obj_(child) {
+  : block_(parent->block_), obj_(child), isCloned_(false) {
 }
 
 void
@@ -67,7 +67,7 @@ PatchBlock::getInsns(Insns &insns) const {
 
 const PatchBlock::edgelist&
 PatchBlock::sources() {
-  if (srclist_.empty()) {
+  if (srclist_.empty() && !isCloned_) {
     for (ParseAPI::Block::edgelist::const_iterator iter = block_->sources().begin();
          iter != block_->sources().end(); ++iter) 
     {
@@ -631,4 +631,8 @@ bool BlockPoints::consistency(const PatchBlock *b, const PatchFunction *f) const
 
 bool PatchBlock::wasUserAdded() const {
    return block_->wasUserAdded();
+}
+
+void PatchBlock::setIsCloned(bool is) {
+    isCloned_ = is;
 }

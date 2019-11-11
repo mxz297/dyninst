@@ -64,7 +64,6 @@ const PatchFunction::Blockset&
 PatchFunction::blocks() {
   if (all_blocks_.size() == func_->num_blocks()) 
       return all_blocks_;
-
   if (!all_blocks_.empty()) { // recompute other block lists if block list grew
       if (!call_blocks_.empty()) call_blocks_.clear();
       if (!exit_blocks_.empty()) exit_blocks_.clear();
@@ -75,6 +74,7 @@ PatchFunction::blocks() {
        iter != func_->blocks().end(); ++iter) {
     all_blocks_.insert(obj()->getBlock(*iter));
   }
+
   return all_blocks_;
 }
 
@@ -126,7 +126,6 @@ PatchFunction::~PatchFunction() {
 
 void PatchFunction::removeBlock(PatchBlock *b) {
    if (all_blocks_.empty() && exit_blocks_.empty() && call_blocks_.empty()) return;
-
    // Otherwise pull b from all_blocks_, exit_blocks_, and call_blocks_.
    all_blocks_.erase(b);
    exit_blocks_.erase(b);
@@ -154,7 +153,6 @@ static bool hasSingleIndirectSinkEdge(PatchBlock *b)
 
 void PatchFunction::addBlock(PatchBlock *b) {
    if (all_blocks_.empty() && exit_blocks_.empty() && call_blocks_.empty()) return;
-
    all_blocks_.insert(b);
 
    if (!call_blocks_.empty()) {
@@ -184,13 +182,19 @@ Point *PatchFunction::findPoint(Location loc, Point::Type type, bool create) {
    }
    Point *ret = NULL;
    if ((type & Point::BlockTypes) || (type & Point::InsnTypes)) {
-      if (!loc.block) return NULL;
+      if (!loc.block) {
+          return NULL;
+      }
       std::map<PatchBlock *, BlockPoints>::iterator iter = blockPoints_.find(loc.block);
       if (iter == blockPoints_.end()) {
-         if (!create) return NULL;
+         if (!create) {
+             return NULL;
+         }
          BlockPoints bp;
-         iter = blockPoints_.insert(blockPoints_.begin(), std::make_pair(loc.block, bp));
+         blockPoints_.insert(std::make_pair(loc.block, bp));
+         iter = blockPoints_.find(loc.block);
       }
+      assert(iter != blockPoints_.end());
       switch (type) {
          case Point::BlockEntry:
             if (!iter->second.entry && create) {
@@ -335,6 +339,7 @@ bool PatchFunction::findInsnPoints(Point::Type type,
 // remove block points from points_ and blockPoints_
 void PatchFunction::destroyBlockPoints(PatchBlock *block)
 {
+    fprintf(stderr, "Enter destroyBlockPoints %p\n", block);
     PatchCallback *cb = obj()->cb();
 
     // remove from points_
@@ -403,6 +408,7 @@ void PatchFunction::destroyBlockPoints(PatchBlock *block)
 
 void PatchFunction::destroyPoints() 
 {
+    fprintf(stderr, "Enter destroyPoints\n");
     PatchCallback *cb = obj()->cb();
     // 1) clear blockPoints_ (remove from block as well)
     // 2) clear edgePoints_ (remove from edge as well)

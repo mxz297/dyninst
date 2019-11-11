@@ -79,3 +79,22 @@ CFGMaker::copyEdge(PatchEdge* e, PatchObject* o) {
                         o->getBlock(e->src()->block()),
                         o->getBlock(e->trg()->block())));
 }
+
+// This functions copies the original_edge, and changes its source to newSrc.
+// The edge target stays the same, and can be changed by calling redirect
+PatchEdge*
+CFGMaker::cloneEdge(PatchEdge* original_edge, PatchBlock* newSrc) {
+    PatchEdge* newEdge = new PatchEdge(original_edge, newSrc, original_edge->trg()); 
+    return newEdge;
+}
+
+PatchBlock*
+CFGMaker::cloneBlock(PatchBlock* b, PatchObject* o) {
+    PatchBlock* newB = new PatchBlock(b, o);
+    newB->setIsCloned(true);
+    for (auto eit = b->targets().begin(); eit != b->targets().end(); ++eit) {
+        PatchEdge *newE = cloneEdge(*eit, newB);
+        newB->addTargetEdge(newE);
+    }
+    return newB;
+}
