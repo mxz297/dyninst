@@ -295,6 +295,12 @@ bool RelocBlock::determineSpringboards(PriorityMap &p) {
       p[std::make_pair(block_, func_)] = FuncEntry;
       return true;
    }
+   if (block_->isInstrumented()) {
+       relocation_cerr << "determineSpringboards (block instrumented): " << func_->symTabName()
+               << " / " << hex << block_->start() << " is required" << dec << endl;
+       p[std::make_pair(block_, func_)] = FuncEntry;
+       return true;
+   }
    if ( (block_->isFuncExit() && func_->isExitInstrumented()) ||
         block_->isInstrumented() ) {
        if (block_->isInstrumented()) {

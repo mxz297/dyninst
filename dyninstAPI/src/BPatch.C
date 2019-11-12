@@ -2017,3 +2017,28 @@ bool BPatch::isInliningTarget(Address addr) {
 Dyninst::PatchAPI::CFGMaker* BPatch::getCFGMaker() {
     return new Dyninst::PatchAPI::DynCFGMaker();
 }
+
+#include "dyninstAPI/src/block.h"
+
+bool BPatch::markPatchBlockInstrumented(Dyninst::PatchAPI::PatchBlock* b) {
+    block_instance* bi = dynamic_cast<block_instance*>(b);
+    if (bi == NULL) return false;
+    bi->markInstrumented();
+    return true;
+}
+
+#include "dyninstAPI/src/function.h"
+
+bool BPatch::markPatchFunctionEntryInstrumented(Dyninst::PatchAPI::PatchFunction* f) {
+    func_instance * fi = dynamic_cast<func_instance*>(f);
+    if (fi == NULL) return false;
+    fi->markEntryInstrumented();
+    return true;
+}
+
+bool BPatch::markPatchFunctionExitInstrumented(Dyninst::PatchAPI::PatchFunction* f) {
+    func_instance * fi = dynamic_cast<func_instance*>(f);
+    if (fi == NULL) return false;
+    fi->markExitInstrumented();
+    return true;
+}

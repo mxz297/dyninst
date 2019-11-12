@@ -692,6 +692,10 @@ public:
     bool  isInliningTarget(Dyninst::Address);
 
     Dyninst::PatchAPI::CFGMaker* getCFGMaker();
+
+    bool markPatchFunctionEntryInstrumented(Dyninst::PatchAPI::PatchFunction*);
+    bool markPatchFunctionExitInstrumented(Dyninst::PatchAPI::PatchFunction*);
+    bool markPatchBlockInstrumented(Dyninst::PatchAPI::PatchBlock*);
 };
 
 #ifdef _MSC_VER
