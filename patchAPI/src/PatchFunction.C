@@ -64,10 +64,8 @@ const PatchFunction::Blockset&
 PatchFunction::blocks() {
   if (all_blocks_.size() == func_->num_blocks()) 
       return all_blocks_;
-  if (!all_blocks_.empty()) { // recompute other block lists if block list grew
-      if (!call_blocks_.empty()) call_blocks_.clear();
-      if (!exit_blocks_.empty()) exit_blocks_.clear();
-  }
+  else if (all_blocks_.size() > func_->num_blocks())
+      return all_blocks_;
 
   // Otherwise we need to create them
   for (ParseAPI::Function::blocklist::iterator iter = func_->blocks().begin();

@@ -614,6 +614,10 @@ bool PCSensitiveTransformer::exceptionSensitive(Address a, const block_instance 
         sensitivity_cerr << "\tWarning: There aren't any exceptions in this symtab!" << endl;
         return false;
     }
+    if (bbl->isExceptionSafe()) {
+        sensitivity_cerr << "\tWarning: block does not call any functions that throw exceptions!" << endl;
+        return false;
+    }
 
     return true;
 }

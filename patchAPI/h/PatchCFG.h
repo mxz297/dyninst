@@ -153,6 +153,8 @@ class PATCHAPI_EXPORT PatchBlock {
    void addTargetEdge(PatchEdge *e, bool addIfEmpty = true);
    void setIsCloned(bool);
    bool isClone() { return isCloned_; }
+   void markExceptionSafe() { isExceptionSafe_ = true; }
+   bool isExceptionSafe() const { return isExceptionSafe_; }
 
 
   protected:
@@ -175,6 +177,7 @@ class PATCHAPI_EXPORT PatchBlock {
 
     BlockPoints points_;
     bool isCloned_; 
+    bool isExceptionSafe_;
 };
 
 class PatchLoop;

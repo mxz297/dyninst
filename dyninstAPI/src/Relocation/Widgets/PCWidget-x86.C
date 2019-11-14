@@ -116,8 +116,8 @@ bool IPPatch::apply(codeGen &gen, CodeBuffer *) {
   SET_PTR(newInsn, gen);
 
   // pushfq
-  buf.push_back(0x9c);
-  gen.copy(buf);
+//  buf.push_back(0x9c);
+//  gen.copy(buf);
 
   // Compensating PC on stack to the original location
   Address offset = addr - gen.currAddr() + insn.size() + buf.size();
@@ -131,7 +131,7 @@ bool IPPatch::apply(codeGen &gen, CodeBuffer *) {
   newInsn++;
   *newInsn = 0x24;
   newInsn++;
-  *newInsn = 0x08;
+  *newInsn = 0x00;
   newInsn++;
   temp =  (uint32_t *) newInsn;
   *temp = offset;
@@ -139,9 +139,9 @@ bool IPPatch::apply(codeGen &gen, CodeBuffer *) {
   SET_PTR(newInsn, gen);
 
   // popfq
-  buf.push_back(0x9d);
-  gen.copy(buf);
-  buf.clear();
+//  buf.push_back(0x9d);
+//  gen.copy(buf);
+//  buf.clear();
 
   if (type == Reg) {
     assert(reg != (Register) -1);

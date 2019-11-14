@@ -54,6 +54,7 @@ PatchBlock::PatchBlock(ParseAPI::Block *blk, PatchObject *obj)
 
 PatchBlock::PatchBlock(const PatchBlock *parent, PatchObject *child)
   : block_(parent->block_), obj_(child), isCloned_(false) {
+   isExceptionSafe_ = parent->isExceptionSafe_;
 }
 
 void
