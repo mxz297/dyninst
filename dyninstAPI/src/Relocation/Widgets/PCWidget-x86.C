@@ -107,36 +107,16 @@ bool IPPatch::apply(codeGen &gen, CodeBuffer *) {
 
   // Emit a call to the next instruction to get current PC
   // This is necessary for PIC code
+  Address offset = addr + insn.size();
+
   GET_PTR(newInsn, gen);
-  *newInsn = 0xE8;
+  *newInsn = 0x68;
   newInsn++;
   unsigned int *temp = (uint32_t *) newInsn;
-  *temp = 0;
+  *temp = offset;
   newInsn += sizeof(uint32_t);
   SET_PTR(newInsn, gen);
 
-  // pushfq
-//  buf.push_back(0x9c);
-//  gen.copy(buf);
-
-  // Compensating PC on stack to the original location
-  Address offset = addr - gen.currAddr() + insn.size() + buf.size();
-  buf.clear();
-  REGET_PTR(newInsn, gen);
-  *newInsn = 0x48;
-  newInsn++;
-  *newInsn = 0x81;
-  newInsn++;
-  *newInsn = 0x44;
-  newInsn++;
-  *newInsn = 0x24;
-  newInsn++;
-  *newInsn = 0x00;
-  newInsn++;
-  temp =  (uint32_t *) newInsn;
-  *temp = offset;
-  newInsn += sizeof(uint32_t);	  
-  SET_PTR(newInsn, gen);
 
   // popfq
 //  buf.push_back(0x9d);

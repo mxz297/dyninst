@@ -113,7 +113,8 @@ void InstructionDecoder_Capstone::decodeOperands_x86(const Instruction* insn, cs
                 bool isRead = ((operand->access & CS_AC_READ) != 0);
                 bool isWritten = ((operand->access & CS_AC_WRITE) != 0);
                 if (!isRead && !isWritten) {
-                    isRead = isWritten = true;
+                    if (i == 0) isWritten = true; else isRead = true;
+                    //isRead = isWritten = true;
                 }
                 insn->appendOperand(memAST, isRead, isWritten, false); 
              }
