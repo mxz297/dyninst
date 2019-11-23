@@ -235,6 +235,7 @@ class BinaryEdit : public AddressSpace {
     // Symbols that other people (e.g., functions) want us to add
     std::vector<SymtabAPI::Symbol *> newDyninstSyms_;
 
+    void buildRAMapping();
 };
 
 class depRelocation {

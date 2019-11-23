@@ -1078,6 +1078,7 @@ Dyninst::PatchAPI::PatchFunction *Dyninst::PatchAPI::convert(const BPatch_functi
 void BPatch_function::relocateFunction()
 {
      lowlevel_func()->proc()->addModifiedFunction(lowlevel_func());
+     lowlevel_func()->markEntryInstrumented();
      if (getAddSpace()->pendingInsertions == NULL) {
         // Trigger it now
         bool tmp;

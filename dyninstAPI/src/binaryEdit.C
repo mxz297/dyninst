@@ -535,6 +535,8 @@ bool BinaryEdit::writeFile(const std::string &newFileName)
          trapMapping.flush();
       }
 
+      buildRAMapping();
+
       // Now, we need to copy in the memory of the new segments
       for (unsigned i = 0; i < oldSegs.size(); i++) {
          codeRange *segRange = NULL;
@@ -1041,3 +1043,61 @@ void BinaryEdit::addTrap(Address from, Address to, codeGen &gen) {
    springboard_cerr << "Generated springboard trap " << hex << from << "->" << to << dec << endl;
 }
 
+
+void BinaryEdit::buildRAMapping() {
+   Symtab *symtab = getMappedObject()->parse_img()->getObject();
+   vector<SymtabAPI::ExceptionBlock*> ex;
+   if (!symtab->getAllExceptions(ex)) return;
+   std::map<Address, Address> RAMap;
+   for (CodeTrackers::iterator i = relocatedCode_.begin();
+        i != relocatedCode_.end(); ++i) {
+      Relocation::CodeTracker *CT = *i;
+      
+      for (Relocation::CodeTracker::TrackerList::const_iterator iter = CT->trackers().begin();
+           iter != CT->trackers().end(); ++iter) {
+         const Relocation::TrackerElement *tracker = *iter;
+         
+         func_instance *tfunc = tracker->func();
+         block_instance *tblock = tracker->block();
+         if (tracker->orig() != tblock->block()->last()) continue;
+         InstructionAPI::Instruction i = tblock->getInsn(tracker->orig());
+         if (i.getCategory() != InstructionAPI::c_CallInsn) continue;
+         RAMap[tracker->reloc() + i.size()] = tracker->orig() + i.size();
+      }
+   }
+
+   // Calculate return address mapping table size:
+   // 1: total entry
+   // 2: minimal address
+   // 3: maximal address
+   // 4: each entry mapping
+   unsigned long RATableSize = sizeof(unsigned long) + sizeof(Address) * 2 + sizeof(Address) * 2 * RAMap.size();
+   Address table_header = inferiorMalloc(RATableSize); 
+   unsigned long offset = 0;
+
+   // Write the total entry
+   unsigned long entryCount = RAMap.size();
+   bool result = writeDataSpace((void *) (table_header + offset), sizeof(unsigned long), &entryCount);
+   assert(result);   
+   offset += sizeof(unsigned long);
+
+   // Write the minimal and maximal address
+   result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(RAMap.begin()->first));
+   offset += sizeof(Address);
+   result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(RAMap.rbegin()->first));
+   offset += sizeof(Address);
+
+   // Write each entry
+   for (auto it = RAMap.begin(); it != RAMap.end(); ++it) {
+       result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(it->first));
+       offset += sizeof(Address);
+       result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(it->second));
+       offset += sizeof(Address);
+   }
+
+   // Create a dynamic tag in the dynamic section
+   // to help DyninstRT to find the table
+   if( !symtab->isStaticBinary() ) {
+       symtab->addSysVDynamic(DT_DYNINST_RAMAP, table_header);
+   }
+}

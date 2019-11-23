@@ -10,7 +10,10 @@ include_directories (
     ${DYNINST_ROOT}/dyninstAPI_RT/src
     ${DYNINST_ROOT}/dyninstAPI_RT/h
     ${DYNINST_ROOT}
+    ${Libunwind_ROOT_DIR}/include
   )
+
+link_directories(${Libunwind_ROOT_DIR}/lib)
 
 set (SRC_LIST
     src/RTcommon.c 
@@ -38,6 +41,7 @@ set (SRC_LIST ${SRC_LIST}
     src/RTsignal.c
     src/RTstatic_ctors_dtors_begin.c 
     src/RTstatic_ctors_dtors_end.c 
+    src/RTunwind.c
 )
 elseif (PLATFORM MATCHES nt OR PLATFORM MATCHES windows)
 set (SRC_LIST ${SRC_LIST}
@@ -123,6 +127,8 @@ add_library (dyninstAPI_RT_static STATIC ${SRC_LIST})
 if(TARGET TBB)
     add_dependencies(dyninstAPI_RT_static TBB)
 endif()
+
+target_link_libraries(dyninstAPI_RT "libunwind.so" "libunwind-x86_64.so")
 
 # this should carry over from CMakeLists.txt
 set_target_properties (dyninstAPI_RT

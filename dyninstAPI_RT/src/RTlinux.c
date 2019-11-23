@@ -36,6 +36,7 @@
 #include "dyninstAPI_RT/h/dyninstAPI_RT.h"
 #include "dyninstAPI_RT/src/RTthread.h"
 #include "dyninstAPI_RT/src/RTcommon.h"
+#include "dyninstAPI_RT/src/RTlinux.h"
 #include <assert.h>
 #include <stdio.h>
 #include <errno.h>
@@ -465,9 +466,6 @@ void dyninstTrapHandler(int sig, siginfo_t *sg, ucontext_t *context)
 
 #if defined(cap_binary_rewriter)
 
-extern struct r_debug _r_debug;
-DLLEXPORT struct r_debug _r_debug __attribute__ ((weak));
-
 /* Verify that the r_debug variable is visible */
 void r_debugCheck() { assert(_r_debug.r_map); }
 
@@ -479,12 +477,6 @@ struct trap_mapping_header *all_headers[NUM_LIBRARIES];
 
 static unsigned all_headers_current[NUM_LIBRARIES_BITMASK_SIZE];
 static unsigned all_headers_last[NUM_LIBRARIES_BITMASK_SIZE];
-
-#if !defined(arch_x86_64) || defined(MUTATEE_32)
-typedef Elf32_Dyn ElfX_Dyn;
-#else
-typedef Elf64_Dyn ElfX_Dyn;
-#endif
 
 struct trap_mapping_header *getStaticTrapMap(unsigned long addr);
 
