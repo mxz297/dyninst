@@ -29,6 +29,7 @@ typedef struct {
 } RAMappingInBinary;
 
 RAMappingTable* ra_table = NULL;
+int parsed = 0;
 
 RAMappingTable* ParseAModule(struct link_map *l) {
    ElfX_Dyn *dynamic_ptr;
@@ -67,12 +68,12 @@ RAMappingTable* ExtractRAMapping() {
 }
 
 unw_word_t DyninstRATranslation(unw_word_t ip) {
-    if (ra_table == NULL) {
-        fprintf(stderr, "Parse RA Map\n");
+    if (parsed == 0) {
         ra_table = ExtractRAMapping();
-        fprintf(stderr, "RA map max %lx, RA map min %lx\n", ra_table->min, ra_table->max);
-        assert(ra_table);
+	parsed = 1;
+	
     }
+    if (ra_table == NULL) return ip;
     Address a = (Address)ip;
     if (ra_table->min <= a && a <= ra_table->max) {
         if (ra_table->entries[a - ra_table->min] != 0) {
