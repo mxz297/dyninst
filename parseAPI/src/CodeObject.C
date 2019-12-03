@@ -416,3 +416,28 @@ Address CodeObject::getFreeAddr() const {
 }
 
 ParseData *CodeObject::parse_data() { return parser->parse_data(); }
+
+void CodeObject::adjustJumpTableRange() {
+    set<Address> jumpTableStart;
+    for (auto fit = funcs().begin(); fit != funcs().end(); ++fit) {
+        Function* f = *fit;
+        for (auto jit = f->getJumpTables().begin(); jit != f->getJumpTables().end(); ++jit) {
+            jumpTableStart.insert(jit->second.tableStart);
+        }
+    }
+
+    for (auto fit = funcs().begin(); fit != funcs().end(); ++fit) {
+        Function* f = *fit;
+        for (auto jit = f->getJumpTables().begin(); jit != f->getJumpTables().end(); ++jit) {
+            // If the jump table end is beyond the next jump table start,
+            // then rejust the jump table end
+            auto start_it = jumpTableStart.find(jit->second.tableStart);
+            ++start_it;
+            if (start_it == jumpTableStart.end()) continue;
+            if (*start_it < jit->second.tableEnd) {
+                jit->second.tableEnd = *start_it;
+            }
+        }
+    }
+
+}

@@ -50,6 +50,7 @@
 #include <boost/atomic.hpp>
 #include <list>
 #include "race-detector-annotations.h"
+#include "DynAST.h"
 
 namespace Dyninst {
 
@@ -495,6 +496,17 @@ class PARSER_EXPORT Function : public allocatable, public AnnotatableSparse, pub
  protected:
     Function(); 
  public:
+    
+    struct JumpTableInstance {
+        AST::Ptr jumpTargetExpr;
+        Address tableStart;
+        Address tableEnd;
+        int indexStride;
+        int memoryReadSize;
+        bool isZeroExtend;
+    };
+    std::map<Address, JumpTableInstance> & getJumpTables() { return jumptables; }
+
     bool _is_leaf_function;
     Address _ret_addr; // return address of a function stored in stack at function entry
     typedef std::map<Address, Block*> blockmap;
@@ -686,6 +698,9 @@ class PARSER_EXPORT Function : public allocatable, public AnnotatableSparse, pub
     mutable bool _loop_analyzed; // true if loops in the function have been found and stored in _loops
     mutable std::set<Loop*> _loops;
     mutable LoopTreeNode *_loop_root; // NULL if the tree structure has not be calculated
+    std::map<Address, JumpTableInstance> jumptables;
+
+
     void getLoopsByNestingLevel(std::vector<Loop*>& lbb, bool outerMostOnly) const;
 
 

@@ -1811,10 +1811,16 @@ bool AddressSpace::relocateInt(FuncSet::const_iterator begin, FuncSet::const_ite
       relocation_cerr << "Error: patching in jumps failed, ret false!" << endl;
     return false;
   }
-
+  
   // Build the address mapping index
   relocatedCode_.back()->createIndices();
     
+  JumpTableMover::Ptr jtm = JumpTableMover::create(begin, end, this);
+  if (!relocateJumpTables(jtm)) {
+      relocation_cerr << "Error: moving jump tables failed, ret false!" << endl;
+      return false;
+  }
+
   // Kevin's stuff
   cm->extractDefensivePads(this);
 
@@ -2296,6 +2302,17 @@ AddressSpace::getStubs(const std::list<block_instance *> &owBlocks,
         }
     }
     return stubs;
+}
+
+bool AddressSpace::relocateJumpTables(JumpTableMover::Ptr jtm) {
+    for (auto codegen_it = jtm->newTables.begin(); codegen_it != jtm->newTables.end(); ++codegen_it) {
+        codeGen& c = *codegen_it;
+        if (!writeTextSpace((void*)c.startAddr(), c.used(), c.start_ptr())) {
+            relocation_cerr << "\t failed to write jump table at " << hex << c.startAddr() << endl;
+            return false;
+        }    
+    }
+    return true;
 }
 
 /* PatchAPI Stuffs */

@@ -140,14 +140,29 @@ boost::make_lock_guard(*func);
         b = StridedInterval(1, 0, 8);
     }
     std::vector<std::pair< Address, Dyninst::ParseAPI::EdgeTypeEnum > > jumpTableOutEdges;
+
+    Function::JumpTableInstance inst;
+    inst.jumpTargetExpr = jtfp.jumpTargetExpr;
+    inst.memoryReadSize = GetMemoryReadSize(jtfp.memLoc);
+    inst.isZeroExtend = IsZeroExtend(jtfp.memLoc);
+    inst.tableStart = inst.tableEnd = 0;
+    inst.indexStride = 0;
     ReadTable(jtfp.jumpTargetExpr,
               jtfp.index,
-	      b,
-	      GetMemoryReadSize(jtfp.memLoc),
-	      IsZeroExtend(jtfp.memLoc),
-	      scanTable,
-	      jtfp.constAddr,
-	      jumpTableOutEdges);
+              b,
+              inst.memoryReadSize,
+              inst.isZeroExtend,
+              scanTable,
+              jtfp.constAddr,
+              jumpTableOutEdges,
+              inst.tableStart,
+              inst.tableEnd,
+              inst.indexStride);
+
+    inst.tableEnd += inst.indexStride;
+    if (jumpTableOutEdges.size() > 0 && inst.indexStride > 0)
+        func->getJumpTables()[block->last()] = inst;
+
     parsing_printf(", find %d edges\n", jumpTableOutEdges.size());
     outEdges.insert(outEdges.end(), jumpTableOutEdges.begin(), jumpTableOutEdges.end());
     return !jumpTableOutEdges.empty();
@@ -247,33 +262,41 @@ void IndirectControlFlowAnalyzer::FindAllThunks() {
 
 void IndirectControlFlowAnalyzer::ReadTable(AST::Ptr jumpTargetExpr,
                                             AbsRegion index,
-					    StridedInterval &indexBound,
-					    int memoryReadSize,
-					    bool isZeroExtend,
-					    bool scanTable,
-					    set<Address> &constAddr,
-					    std::vector<std::pair<Address, Dyninst::ParseAPI::EdgeTypeEnum> > &targetEdges) {
+                                            StridedInterval &indexBound,
+                                            int memoryReadSize,
+                                            bool isZeroExtend,
+                                            bool scanTable,
+                                            set<Address> &constAddr,
+                                            std::vector<std::pair<Address, Dyninst::ParseAPI::EdgeTypeEnum> > &targetEdges,
+                                            Address &minReadAddress,
+                                            Address &maxReadAddress,
+                                            int &indexStride) {
     CodeSource *cs = block->obj()->cs();
     set<Address> jumpTargets;
     int start = 0;
+    Address prevReadAddress = 0;
     if (indexBound.low > 0) start = indexBound.low = start;
     for (int v = start; v <= indexBound.high; v += indexBound.stride) {
         JumpTableReadVisitor jtrv(index, v, cs, block->region(), isZeroExtend, memoryReadSize);
-	jumpTargetExpr->accept(&jtrv);
-	if (jtrv.valid && cs->isCode(jtrv.targetAddress)) {
-        if (cs->getArch() == Arch_x86_64 && FindJunkInstruction(jtrv.targetAddress)) {
-            parsing_printf("WARNING: resolving jump tables leads to junk instruction from %lx\n", jtrv.targetAddress);
+        jumpTargetExpr->accept(&jtrv);
+       if (jtrv.valid && cs->isCode(jtrv.targetAddress)) {
+            if (cs->getArch() == Arch_x86_64 && FindJunkInstruction(jtrv.targetAddress)) {
+                parsing_printf("WARNING: resolving jump tables leads to junk instruction from %lx\n", jtrv.targetAddress);
+                break;
+            }
+            if (jtrv.readAddress < minReadAddress || minReadAddress == 0) minReadAddress = jtrv.readAddress;
+            if (jtrv.readAddress > maxReadAddress) maxReadAddress = jtrv.readAddress;
+            if (prevReadAddress > 0) indexStride = jtrv.readAddress - prevReadAddress;
+            prevReadAddress = jtrv.readAddress;
+            parsing_printf("\t index %d, target %lx\n", v, jtrv.targetAddress);
+            jumpTargets.insert(jtrv.targetAddress);
+        } else {
+            // We have a bad entry. We stop here, as we have wrong information
+            // In this case, we keep the good entries
+            parsing_printf("WARNING: resolving jump tables leads to a bad address %lx\n", jtrv.targetAddress);
             break;
         }
-        parsing_printf("\t index %d, target %lx\n", v, jtrv.targetAddress);
-	    jumpTargets.insert(jtrv.targetAddress);
-	} else {
-	    // We have a bad entry. We stop here, as we have wrong information
-	    // In this case, we keep the good entries
-	    parsing_printf("WARNING: resolving jump tables leads to a bad address %lx\n", jtrv.targetAddress);
-	    break;
-	}
-	if (indexBound.stride == 0) break;
+        if (indexBound.stride == 0) break;
     }
     for (auto ait = constAddr.begin(); ait != constAddr.end(); ++ait) {
         if (block->region()->isCode(*ait)) {

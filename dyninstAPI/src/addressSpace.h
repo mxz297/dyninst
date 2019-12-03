@@ -47,6 +47,7 @@
 #include "Relocation/Relocation.h"
 #include "Relocation/CodeTracker.h"
 #include "Relocation/Springboard.h"
+#include "Relocation/JumpTableMover.h"
 #include "Patching.h"
 
 #include "PatchMgr.h"
@@ -525,6 +526,7 @@ class AddressSpace : public InstructionSource {
     bool patchCode(Dyninst::Relocation::CodeMoverPtr cm,
 		   Dyninst::Relocation::SpringboardBuilderPtr spb);
 
+    bool relocateJumpTables(Dyninst::Relocation::JumpTableMover::Ptr jtm);
     typedef std::set<func_instance *> FuncSet;
     std::map<mapped_object *, FuncSet> modifiedFunctions_;
 

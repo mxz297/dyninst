@@ -160,6 +160,8 @@ class CodeObject {
      * Hacky "for insertion" method
      */
     PARSER_EXPORT Address getFreeAddr() const;
+
+    PARSER_EXPORT void adjustJumpTableRange();
     ParseData* parse_data();
 
  private:

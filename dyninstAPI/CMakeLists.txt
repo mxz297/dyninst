@@ -90,6 +90,7 @@ set (SRC_LIST
      src/Relocation/DynPointMaker.C 
      src/Relocation/DynCFGMaker.C 
      src/Relocation/DynInstrumenter.C 
+     src/Relocation/JumpTableMover.C
      src/Patching.C
      src/frameChecker.C
      src/BPatch_memoryAccessAdapter.C

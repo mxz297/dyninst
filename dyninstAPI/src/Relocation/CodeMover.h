@@ -106,11 +106,6 @@ class CodeMover {
 
   void extractDefensivePads(AddressSpace *);
 
-  // Get a map from original addresses to new addresses
-  // for all blocks
-  typedef std::map<Address, Address> EntryMap;
-  const EntryMap &entryMap() { return entryMap_; }
-
   // Not const so we can add others to it. 
   SpringboardMap &sBoardMap(AddressSpace *as);
   // Not const so that Transformers can modify it...
@@ -159,8 +154,6 @@ class CodeMover {
   RelocGraph *cfg_;
 
   Address addr_;
-
-  EntryMap entryMap_;
 
   PriorityMap priorityMap_;
   
