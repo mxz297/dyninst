@@ -188,10 +188,11 @@ void CodeTracker::createIndices() {
          origToReloc_[e->block()->start()][e->func() ? e->func()->addr() : 0][e->orig()].pad = e->reloc();
       }
       else {
-         origToReloc_[e->block()->start()][e->func() ? e->func()->addr() : 0][e->orig()].instruction = e->reloc();
+         if (!e->block()->isClone()) {
+             origToReloc_[e->block()->start()][e->func() ? e->func()->addr() : 0][e->orig()].instruction = e->reloc();
+         }
       }
    }
-
 }
 
 void CodeTracker::debug() {

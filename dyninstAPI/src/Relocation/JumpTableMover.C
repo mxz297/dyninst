@@ -23,6 +23,7 @@ JumpTableMover::Ptr JumpTableMover::create(FuncSet::const_iterator begin,
         }
         ret->moveJumpTableInFunction(func);
     }
+
     return ret;
 }
 
@@ -267,55 +268,4 @@ AST::Ptr NewTableEntryVisitor::visit(DataflowAPI::ConstantAST *ast) {
     return AST::Ptr();
 }
 
-/*
-   for (auto mit = as->mappedObjects().begin(); mit != as->mappedObjects().end(); ++mit) {
-       mapped_object* mo = *mit;
-       SymtabAPI::Region* dataReg;
-       mo->parse_img()->getObject()->findRegion(dataReg, ".data");
-       Address start = dataReg->getMemOffset();
-       int size = dataReg->getMemSize();
-       datasection = (uint64_t*) malloc(size);
-       as->readTextSpace( (void*)start, size, (void*)datasection);      
-       for (unsigned off = 0; off < size; off+=8) {
-           Address value = datasection[off / 8];
-           auto mapIt = cm->entryMap().find(value);
-           if (mapIt != cm->entryMap().end()) {        
-               Address newValue = mapIt->second;
-               codeGen gen;
-               gen.invalidate();
-               gen.allocate(8);
-               gen.setAddrSpace(as);
-               gen.setAddr(start + off);
-               GET_PTR(insn, gen);
-               *((Address*)insn) = newValue;
-               insn += sizeof(Address);
-               SET_PTR(insn,gen);
-               ret->newTables.push_back(gen);
-           }
-       }
-       free(datasection);
-       mo->parse_img()->getObject()->findRegion(dataReg, ".rodata");
-       start = dataReg->getMemOffset();
-       size = dataReg->getMemSize();
-       datasection = (uint64_t*) malloc(size);
-       as->readTextSpace( (void*)start, size, (void*)datasection);      
-       for (unsigned off = 0; off < size; off+=8) {
-           Address value = datasection[off / 8];
-           auto mapIt = cm->entryMap().find(value);
-           if (mapIt != cm->entryMap().end()) {
-               Address newValue = mapIt->second;
-               codeGen gen;            
-               gen.invalidate();
-               gen.allocate(8);
-               gen.setAddrSpace(as);
-               gen.setAddr(start + off);
-               GET_PTR(insn, gen);
-               *((Address*)insn) = newValue;
-               insn += sizeof(Address);
-               SET_PTR(insn,gen);
-               ret->newTables.push_back(gen);
-           }
-       }
-       free(datasection);     
-    }
-    */
+

@@ -1821,6 +1821,9 @@ bool AddressSpace::relocateInt(FuncSet::const_iterator begin, FuncSet::const_ite
       return false;
   }
 
+  FunctionPointerMover::Ptr fpm = FunctionPointerMover::create(this);
+  relocateFunctionPointers(fpm);
+
   // Kevin's stuff
   cm->extractDefensivePads(this);
 
@@ -2314,6 +2317,18 @@ bool AddressSpace::relocateJumpTables(JumpTableMover::Ptr jtm) {
     }
     return true;
 }
+
+bool AddressSpace::relocateFunctionPointers(FunctionPointerMover::Ptr fpm) {
+    for (auto codegen_it = fpm->newPointers.begin(); codegen_it != fpm->newPointers.end(); ++codegen_it) {
+        codeGen& c = *codegen_it;
+        if (!writeTextSpace((void*)c.startAddr(), c.used(), c.start_ptr())) {
+            relocation_cerr << "\t failed to write jump table at " << hex << c.startAddr() << endl;
+            return false;
+        }    
+    }
+    return true;
+}
+
 
 /* PatchAPI Stuffs */
 void AddressSpace::initPatchAPI() {

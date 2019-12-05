@@ -48,6 +48,7 @@
 #include "Relocation/CodeTracker.h"
 #include "Relocation/Springboard.h"
 #include "Relocation/JumpTableMover.h"
+#include "Relocation/FunctionPointerMover.h"
 #include "Patching.h"
 
 #include "PatchMgr.h"
@@ -527,6 +528,7 @@ class AddressSpace : public InstructionSource {
 		   Dyninst::Relocation::SpringboardBuilderPtr spb);
 
     bool relocateJumpTables(Dyninst::Relocation::JumpTableMover::Ptr jtm);
+    bool relocateFunctionPointers(Dyninst::Relocation::FunctionPointerMover::Ptr fpm);
     typedef std::set<func_instance *> FuncSet;
     std::map<mapped_object *, FuncSet> modifiedFunctions_;
 

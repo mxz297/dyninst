@@ -429,7 +429,7 @@ void printStats() {
 void dyninstTrapHandler(int sig, siginfo_t *sg, ucontext_t *context)
 {
    void *orig_ip;
-   void *trap_to;
+   void *trap_to = NULL;
    (void)sig; /* unused parameter */
    (void)sg; /* unused parameter */
    handlerCalled++;
@@ -440,6 +440,7 @@ void dyninstTrapHandler(int sig, siginfo_t *sg, ucontext_t *context)
       unsigned long zero = 0;
       unsigned long one = 1;
       struct trap_mapping_header *hdr = getStaticTrapMap((unsigned long) orig_ip);
+      if (hdr) {
       num_entries = hdr->num_entries;
       assert(hdr);
       volatile trapMapping_t *mapping = &(hdr->traps[0]);
@@ -448,6 +449,7 @@ void dyninstTrapHandler(int sig, siginfo_t *sg, ucontext_t *context)
                                      &zero,
                                      &mapping,
                                      &one);
+      }
    }
    else {
       trap_to = dyninstTrapTranslate(orig_ip,

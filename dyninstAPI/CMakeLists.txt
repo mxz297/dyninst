@@ -91,6 +91,7 @@ set (SRC_LIST
      src/Relocation/DynCFGMaker.C 
      src/Relocation/DynInstrumenter.C 
      src/Relocation/JumpTableMover.C
+     src/Relocation/FunctionPointerMover.C
      src/Patching.C
      src/frameChecker.C
      src/BPatch_memoryAccessAdapter.C
