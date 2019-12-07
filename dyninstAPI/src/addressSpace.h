@@ -518,9 +518,6 @@ class AddressSpace : public InstructionSource {
 
     Address costAddr_;
 
-    /////// New instrumentation system
-    typedef std::list<Relocation::CodeTracker *> CodeTrackers;
-    CodeTrackers relocatedCode_;
 
     bool transform(Dyninst::Relocation::CodeMoverPtr cm);
     Address generateCode(Dyninst::Relocation::CodeMoverPtr cm, Address near);
@@ -539,6 +536,9 @@ class AddressSpace : public InstructionSource {
     {
       return installedSpringboards_;
     }
+    typedef std::list<Relocation::CodeTracker *> CodeTrackers;
+    CodeTrackers relocatedCode_;
+
  protected:
     // defensive mode code
     typedef std::pair<Address, unsigned> DefensivePad;
