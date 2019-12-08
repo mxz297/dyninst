@@ -70,6 +70,7 @@ set (SRC_LIST
      src/Relocation/CFG/RelocTarget.C 
      src/Relocation/Springboard.C 
      src/Relocation/Widgets/ASTWidget.C 
+     src/Relocation/Widgets/AlignmentPatch.C
      src/Relocation/Widgets/CFWidget.C 
      src/Relocation/Widgets/CallbackWidget.C 
      src/Relocation/Widgets/InsnWidget.C 

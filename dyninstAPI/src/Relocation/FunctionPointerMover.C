@@ -119,7 +119,7 @@ void FunctionPointerMover::movePointersInCodeSection() {
                     curAddr += ins.size();
                     continue;
                 }
-                fprintf(stderr, "Change imm for instruction %s at %lx, from %lx to %lx\n", ins.format().c_str(), curAddr, orig, newValue);
+                //fprintf(stderr, "Change imm for instruction %s at %lx, from %lx to %lx\n", ins.format().c_str(), curAddr, orig, newValue);
                 codeGen gen;
                 gen.invalidate();
                 gen.allocate(ins.size());

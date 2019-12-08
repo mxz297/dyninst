@@ -31,6 +31,7 @@
 #include "Relocation.h"
 #include "CodeMover.h"
 #include "Widgets/Widget.h"
+#include "Widgets/AlignmentPatch.h"
 #include "CFG/RelocBlock.h"
 
 #include "instructionAPI/h/InstructionDecoder.h" // for debug
@@ -141,6 +142,13 @@ bool CodeMover::initialize(const codeGen &templ) {
    // Tell all the blocks to do their generation thang...
    for (RelocBlock *iter = cfg_->begin(); iter != cfg_->end(); iter = iter->next()) {
       if (!iter->finalizeCF()) return false;
+      RelocBlock* rb = iter;
+      // GNU member function pointer implementation requires
+      // a function starting at an even address. This is needed 
+      // for relocating function pointers in code and data sections
+      if (static_cast<block_instance*>(rb->func()->entry()) == rb->block()) {
+          buffer_.addPatch(new AlignmentPatch(1), NULL);
+      }
       
       if (!iter->generate(templ, buffer_)) {
          cerr << "ERROR: failed to generate RelocBlock!" << endl;
