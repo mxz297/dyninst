@@ -55,44 +55,7 @@ bool PatchModifier::redirect(PatchEdge *edge, PatchBlock *target) {
        edge->type() == ParseAPI::RET) return false;
 
    edge->trg_ = target;
-   return true;
-
-
-   // I think this is all we do...
-   PatchBlock *src = edge->src();
-   PatchBlock *oldTrg = edge->trg();
-   ParseAPI::Block *llTrg = (target == NULL) ? NULL : target->block();
-   if (!ParseAPI::CFGModifier::redirect(edge->edge(), llTrg)) return false;
-
-   std::vector<PatchFunction *> funcs;
-   src->getFuncs(std::back_inserter(funcs));
-   // Someday...
-   /*
-   for (auto f_iter = funcs.begin();
-        f_iter != funcs.end(); ++f_iter) {
-      (*f_iter)->invalidateBlocks();
-   }
-   */
-   for (std::vector<PatchFunction *>::iterator f_iter = funcs.begin();
-        f_iter != funcs.end(); ++f_iter) {
-      (*f_iter)->invalidateBlocks();
-   }
-
-   assert(src->consistency());
-   if(oldTrg) {
-     assert(oldTrg->start() == numeric_limits<Address>::max() || // don't check sink block's consistency
-	    oldTrg->consistency());
-   }
-   
-   if (target) { // otherwise we're redirecting to a sink edge and deleted
-                 // the edge if there already was another one of the same type
-      assert(edge->consistency());
-      assert(target->consistency());
-   }
-
-   edge->src()->markModified();
-   edge->trg()->markModified();
-
+   target->addSourceEdge(edge);
    return true;
 }
    
