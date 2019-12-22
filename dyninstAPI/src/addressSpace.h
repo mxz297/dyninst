@@ -455,6 +455,13 @@ class AddressSpace : public InstructionSource {
                        bool getInstrumentationAddrs) const;
 
 
+    // Get the address in the relocated code correpsonding
+    // to the given original address. This function returns
+    // the address used for jump table relocation.
+    // So, the returned address should return pre-address 
+    // instrumentation address if there is  or instruction address.
+    Address getRelocPreAddr(Address, block_instance*, func_instance*);
+
     bool getAddrInfo(Address relocAddr,//input
                      Address &origAddr,
                      std::vector<func_instance *> &origFuncs,

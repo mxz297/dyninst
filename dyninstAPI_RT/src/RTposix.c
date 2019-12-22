@@ -267,22 +267,3 @@ int unmap_region(void *addr, int len) {
         return 0;
     return 1;
 }
-
-#if defined(cap_mutatee_traps)
-extern void dyninstTrapHandler(int sig, siginfo_t *info, void *context);
-
-int DYNINSTinitializeTrapHandler()
-{
-   int result;
-   struct sigaction new_handler;
-
-   new_handler.sa_sigaction = dyninstTrapHandler;
-   //new_handler.sa_restorer = NULL; obsolete
-   sigemptyset(&new_handler.sa_mask);
-   new_handler.sa_flags = SA_SIGINFO | SA_NODEFER;
-   
-   result = sigaction(SIGILL, &new_handler, NULL);
-   return (result == 0) ? 1 /*Success*/ : 0 /*Fail*/ ;
-}
-
-#endif

@@ -67,15 +67,18 @@ void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
             //       so the offset can change and may not necessarilly
             //       fit in the original table entry. This can be fixed
             //       by copying the whole table to a new location
+            GET_PTR(insn,gen);
             if (jt.indexStride == 8) {
-                GET_PTR(insn,gen);
                 *((int64_t*)insn) = newEntry;
                 insn += sizeof(int64_t);
-                SET_PTR(insn,gen);
+            } else if (jt.indexStride == 4) {
+                *((int32_t*)insn) = (int32_t)newEntry;
+                insn += sizeof(int32_t);
             } else {
                 fprintf(stderr, "Unhandled jump table stride %d for indirect jump %lx\n", jt.indexStride, jit->first);
                 assert(0);
             }
+            SET_PTR(insn,gen);
         }
         newTables.push_back(gen);
     }    
@@ -84,10 +87,7 @@ void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
 Address JumpTableMover::findRelocatedAddress(func_instance* func, Address orig) {
     block_instance* block = func->getBlock(orig);
     if (block == NULL) return 0;
-    std::list<Address> relocs;
-    as->getRelocAddrs(orig, block, func, relocs, true);
-    assert(relocs.size() == 1);
-    return *(relocs.begin());
+    return as->getRelocPreAddr(orig, block, func);
 }
 
 JumpTableEntryVisitor::JumpTableEntryVisitor(AddressSpace* s, Address mem, bool ze, int m) {

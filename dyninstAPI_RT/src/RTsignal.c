@@ -105,4 +105,41 @@ DLLEXPORT dynsighandler_t __sysv_signal(int signum, dynsighandler_t handler) {
     }
 }
 
+#if defined(cap_mutatee_traps)
+typedef int (*sigaction_type) (int, const struct sigaction*, struct sigaction*);
+static sigaction_type real_sigaction = NULL;
 
+DLLEXPORT int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact) {
+    if (signum == SIGILL) {
+        return 0;
+    } else {
+        return real_sigaction(signum, act, oldact);
+    }
+}
+
+extern void dyninstTrapHandler(int sig, siginfo_t *info, void *context);
+
+int DYNINSTinitializeTrapHandler()
+{
+    void* libc_handle = dlopen("libc.so.6", RTLD_LAZY);
+    if (libc_handle == NULL) {
+        fprintf(stderr, "Cannot find libc handle for sigaction\n");
+    }
+    real_sigaction = (sigaction_type)dlsym(libc_handle, "sigaction");
+    if (real_sigaction == NULL) {
+        fprintf(stderr, "Cannot find sigaction\n");
+    }
+
+   int result;
+   struct sigaction new_handler;
+
+   new_handler.sa_sigaction = dyninstTrapHandler;
+   //new_handler.sa_restorer = NULL; obsolete
+   sigemptyset(&new_handler.sa_mask);
+   new_handler.sa_flags = SA_SIGINFO | SA_NODEFER;
+   
+   result = real_sigaction(SIGILL, &new_handler, NULL);
+   return (result == 0) ? 1 /*Success*/ : 0 /*Fail*/ ;
+}
+
+#endif

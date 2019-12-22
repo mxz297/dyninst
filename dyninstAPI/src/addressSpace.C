@@ -1814,7 +1814,7 @@ bool AddressSpace::relocateInt(FuncSet::const_iterator begin, FuncSet::const_ite
   
   // Build the address mapping index
   relocatedCode_.back()->createIndices();
-    
+
   JumpTableMover::Ptr jtm = JumpTableMover::create(begin, end, this);
   if (!relocateJumpTables(jtm)) {
       relocation_cerr << "Error: moving jump tables failed, ret false!" << endl;
@@ -2078,6 +2078,27 @@ void AddressSpace::getRelocAddrs(Address orig,
     }
   }
 }      
+
+Address AddressSpace::getRelocPreAddr(Address orig, block_instance* block, func_instance* func) {
+  for (CodeTrackers::const_iterator iter = relocatedCode_.begin();
+       iter != relocatedCode_.end(); ++iter) {
+    Relocation::CodeTracker::RelocatedElements reloc;
+    if ((*iter)->origToReloc(orig, block, func, reloc)) {
+        Address preAddrInst = 0;
+        for (std::map<instPoint *, Address>::iterator iter2 = reloc.instrumentation.begin();
+               iter2 != reloc.instrumentation.end(); ++iter2) {
+            PatchAPI::Point::Type t = iter2->first->type();
+            if (t == PatchAPI::Point::BlockEntry ||
+                    t == PatchAPI::Point::PreInsn)
+                preAddrInst = iter2->second;
+        }
+        if (preAddrInst) return preAddrInst;        
+        return reloc.instruction;
+    }
+  }
+  return 0;
+}
+
 
 bool AddressSpace::getAddrInfo(Address relocAddr,
                                Address &origAddr,
