@@ -958,6 +958,7 @@ Parser::finalize(Function *f)
         return true;
     }
 
+    std::set<Block*> blockSet;
     auto bit = blocks.begin();
     FuncExtent * ext = NULL;
     Address ext_s = (*bit)->start();
@@ -965,6 +966,7 @@ Parser::finalize(Function *f)
 
     for( ; bit != blocks.end(); ++bit) {
         Block * b = *bit;
+        blockSet.insert(b);
         if(b->start() > ext_e) {
             ext = new FuncExtent(f,ext_s,ext_e);
 
@@ -980,6 +982,19 @@ Parser::finalize(Function *f)
     f->_extents.push_back(ext);
 
     f->_cache_valid = cache_value; // see comment at function entry
+
+    // Finalize jump table ownership
+    for (auto it = f->jumptables.begin(); it != f->jumptables.end(); ) {
+        // A jump table that belongs to this function during parsing time
+        // may not necessarily still belong to this function as function boundary
+        // has changed.
+        if (blockSet.find(it->second.block) == blockSet.end()) {
+            auto next_it = it;
+            ++next_it;
+            f->jumptables.erase(it);
+            it = next_it;
+        } else ++it;
+    }
 
     if (unlikely( f->obj()->defensiveMode())) {
         // add fallthrough edges for calls assumed not to be returning

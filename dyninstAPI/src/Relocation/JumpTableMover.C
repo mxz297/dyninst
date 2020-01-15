@@ -53,7 +53,7 @@ void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
             // 2. Lookup the relocated address
             Address reloc = findRelocatedAddress(func, orig);
             if (reloc == 0) {
-                fprintf(stderr, "Cannot find relocated address for %lx for jump table at %lx\n", orig, jit->first);
+                fprintf(stderr, "Cannot find relocated address for %lx for jump table at %lx for function %s at %lx\n", orig, jit->first, func->name().c_str(), func->addr());
             }
             assert(reloc);
 
