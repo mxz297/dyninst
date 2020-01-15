@@ -441,3 +441,90 @@ void CodeObject::adjustJumpTableRange() {
     }
 
 }
+
+void CodeObject::getAddressTakenFunctions(std::set<Function*>&at) {
+    at.clear();
+
+    std::map<Address, Function*> funcsMap;
+    for (auto fit = funcs().begin(); fit != funcs().end(); ++fit) {
+        Function* f = *fit;
+        funcsMap.insert(make_pair(f->addr(), f));
+    }
+
+    getATFunctionsInDataSection(".data", at, funcsMap);
+    fprintf(stderr, "address taken after .data %lu\n", at.size());
+    getATFunctionsInDataSection(".rodata", at, funcsMap);
+    fprintf(stderr, "address taken after .rodata %lu\n", at.size());
+    getATFunctionsInCodeSection(at, funcsMap);
+    fprintf(stderr, "address taken after .text %lu\n", at.size());
+}
+
+#define PTR_SIZE (sizeof(void*))
+
+void CodeObject::getATFunctionsInDataSection(const char *secName, 
+        std::set<Function*>&at,
+        std::map<Address, Function*>& funcsMap) {
+    SymtabCodeSource *scs = dynamic_cast<SymtabCodeSource*>(_cs);
+    if (scs == NULL) return;
+    SymtabAPI::Region* dataReg = NULL;
+    scs->getSymtabObject()->findRegion(dataReg, secName);
+    if (dataReg == NULL) return;
+
+    char* buf = (char*)dataReg->getPtrToRawData();
+    unsigned size = dataReg->getMemSize();
+    for (unsigned off = 0; off < size; off += PTR_SIZE) {
+        Address* locToRead = (Address*)(buf + off);
+        Address value = locToRead[0];
+        auto it = funcsMap.find(value);
+        if (it == funcsMap.end()) continue;
+        at.insert(it->second);
+    }
+}
+
+void CodeObject::getATFunctionsInCodeSection(std::set<Function*> &at, std::map<Address, Function*>& funcsMap) {
+    for (auto fit = funcs().begin(); fit != funcs().end(); ++fit) {
+        Function* f = *fit;
+        for (auto bit = f->blocks().begin(); bit != f->blocks().end(); ++bit) {
+            Block::Insns insns;
+            (*bit)->getInsns(insns);
+            for (auto iit = insns.begin(); iit != insns.end(); ++iit) {
+                Address point_to = 0;
+                if (iit->second.getOperation().getID() == e_lea) {
+                    point_to = getTargetPCAddress(iit->second, iit->first);
+                } else {
+                    point_to = getImmediateOperand(iit->second);
+                }
+                auto it = funcsMap.find(point_to);
+                if (it == funcsMap.end()) continue;
+                at.insert(it->second);
+            }
+        }
+    }
+}
+
+Address CodeObject::getTargetPCAddress(InstructionAPI::Instruction &ins, Address curAddr) {
+    InstructionAPI::Expression::Ptr op = ins.getOperand(1).getValue();
+    InstructionAPI::Expression::Ptr thePC(new InstructionAPI::RegisterAST(MachRegister::getPC(ins.getArch())));
+    op->bind(thePC.get(), InstructionAPI::Result(InstructionAPI::u64, curAddr + ins.size()));
+    InstructionAPI::Result res = op->eval();
+    if (res.defined) {
+        return res.convert<Address>();
+    }
+    return 0;
+}
+
+
+
+Address CodeObject::getImmediateOperand(InstructionAPI::Instruction &ins) {
+    vector<InstructionAPI::Operand> operands;
+    ins.getOperands(operands);
+    for (auto oit = operands.begin(); oit != operands.end(); ++oit) {
+        InstructionAPI::Expression::Ptr op = oit->getValue();
+        InstructionAPI::Result res = op->eval();
+        if (res.defined) {
+            return res.convert<Address>();
+        }
+    }
+    return 0;
+
+}

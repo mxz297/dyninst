@@ -162,6 +162,7 @@ class CodeObject {
     PARSER_EXPORT Address getFreeAddr() const;
 
     PARSER_EXPORT void adjustJumpTableRange();
+    PARSER_EXPORT void getAddressTakenFunctions(std::set<Function*>&);
     ParseData* parse_data();
 
  private:
@@ -173,6 +174,12 @@ class CodeObject {
     friend void Function::finalize();
     // allows Function entry blocks to be moved to new regions
     friend void Function::setEntryBlock(Block *);
+
+    void getATFunctionsInDataSection(const char*, std::set<Function*>&, std::map<Address, Function*>&);
+    void getATFunctionsInCodeSection(std::set<Function*>&at, std::map<Address, Function*>&);
+    Address getTargetPCAddress(InstructionAPI::Instruction&, Address);
+    Address getImmediateOperand(InstructionAPI::Instruction&);
+
 
   private:
     CodeSource * _cs;
