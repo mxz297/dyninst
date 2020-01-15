@@ -28,12 +28,16 @@
 #
 #======================================================================================
 
+if(LibElf_FOUND AND LibDwarf_FOUND)
+  return()
+endif()
+
 if(NOT UNIX)
   return()
 endif()
 
 # Minimum acceptable version of elfutils
-set(_min_version 0.173)
+set(_min_version 0.178)
 set(ElfUtils_MIN_VERSION ${_min_version}
     CACHE STRING "Minimum acceptable elfutils version")
 if(${ElfUtils_MIN_VERSION} VERSION_LESS ${_min_version})
@@ -80,6 +84,8 @@ if(LibElf_FOUND AND LibDwarf_FOUND)
   set(_eu_lib_dirs ${LibElf_LIBRARY_DIRS} ${LibDwarf_LIBRARY_DIRS})
   set(_eu_libs ${LibElf_LIBRARIES} ${LibDwarf_LIBRARIES})
   add_library(ElfUtils SHARED IMPORTED)
+elseif(NOT (LibElf_FOUND AND LibDwarf_FOUND) AND STERILE_BUILD)
+  message(FATAL_ERROR "Elfutils not found and cannot be downloaded because build is sterile.")
 else()
   # If we didn't find a suitable version on the system, then download one from the web
   # NB: When building from source, we need at least elfutils-0.176 in order to use
@@ -95,6 +101,10 @@ else()
   message(STATUS "${ElfUtils_ERROR_REASON}")
   message( STATUS "Attempting to build elfutils(${_elfutils_download_version}) as external project")
   
+  if(NOT (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU") OR NOT (${CMAKE_C_COMPILER_ID} STREQUAL "GNU"))
+    message(FATAL_ERROR "ElfUtils will only build with the GNU compiler")
+  endif()
+  
   include(ExternalProject)
   externalproject_add(
     ElfUtils
@@ -103,9 +113,11 @@ else()
     BUILD_IN_SOURCE 1
     CONFIGURE_COMMAND
       CFLAGS=-g
+      CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER}
       <SOURCE_DIR>/configure
       --enable-install-elfh
       --prefix=${CMAKE_INSTALL_PREFIX}
+      --disable-debuginfod
     BUILD_COMMAND make install
     INSTALL_COMMAND ""
   )

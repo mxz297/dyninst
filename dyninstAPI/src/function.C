@@ -1285,7 +1285,7 @@ bool func_instance::createOffsetVector_Symbols()
             continue;
         }
 
-        stackmods_printf("\t\t\t Found %s (type %s) @ %ld, size = %d\n", var->getName().c_str(), var->getType()->getName().c_str(), offset, var->getType()->getSize());
+        stackmods_printf("\t\t\t Found %s (type %s) @ %ld, size = %d\n", var->getName().c_str(), var->getType(Type::share)->getName().c_str(), offset, var->getType(Type::share)->getSize());
         for (auto locIter = locs.begin(); locIter != locs.end(); ++locIter) {
             VariableLocation curLoc = *locIter;
             if (curLoc.mr_reg == MachRegister::getFramePointer(arch)) {
@@ -1296,10 +1296,10 @@ bool func_instance::createOffsetVector_Symbols()
         }
 
         StackAccess::StackAccessType sat = StackAccess::DEBUGINFO_LOCAL;
-        if (var->getType()->getSize() == 0) {
+        if (var->getType(Type::share)->getSize() == 0) {
             _tmpObjects->insert(tmpObject(offset, 4, sat, valid));
         } else {
-            _tmpObjects->insert(tmpObject(offset, var->getType()->getSize(), sat, valid));
+            _tmpObjects->insert(tmpObject(offset, var->getType(Type::share)->getSize(), sat, valid));
         }
     }
 
@@ -1327,7 +1327,7 @@ bool func_instance::createOffsetVector_Symbols()
             continue;
         }
 
-        stackmods_printf("\t\t\t Found %s (type %s) @ %ld, size = %d\n", var->getName().c_str(), var->getType()->getName().c_str(), offset, var->getType()->getSize());
+        stackmods_printf("\t\t\t Found %s (type %s) @ %ld, size = %d\n", var->getName().c_str(), var->getType(Type::share)->getName().c_str(), offset, var->getType(Type::share)->getSize());
 
         for (auto locIter = locs.begin(); locIter != locs.end(); ++locIter) {
             VariableLocation curLoc = *locIter;
@@ -1339,10 +1339,10 @@ bool func_instance::createOffsetVector_Symbols()
         }
 
         StackAccess::StackAccessType sat = StackAccess::DEBUGINFO_PARAM;
-        if (var->getType()->getSize() == 0) {
+        if (var->getType(Type::share)->getSize() == 0) {
             _tmpObjects->insert(tmpObject(offset, 4, sat, valid));
         } else {
-            _tmpObjects->insert(tmpObject(offset, var->getType()->getSize(), sat, valid));
+            _tmpObjects->insert(tmpObject(offset, var->getType(Type::share)->getSize(), sat, valid));
         }
     }
 

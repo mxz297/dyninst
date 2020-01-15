@@ -58,7 +58,7 @@ static bool IsVariableArgumentFormat(AST::Ptr t, AbsRegion &index) {
 }
 
 bool IndirectControlFlowAnalyzer::NewJumpTableAnalysis(std::vector<std::pair< Address, Dyninst::ParseAPI::EdgeTypeEnum > >& outEdges) {
-    parsing_printf("Apply indirect control flow analysis at %lx\n", block->last());
+    parsing_printf("Apply indirect control flow analysis at %lx for function %s\n", block->last(), func->name().c_str());
     parsing_printf("Looking for thunk\n");
 boost::make_lock_guard(*func);
 //  Find all blocks that reach the block containing the indirect jump
@@ -147,6 +147,7 @@ boost::make_lock_guard(*func);
     inst.isZeroExtend = IsZeroExtend(jtfp.memLoc);
     inst.tableStart = inst.tableEnd = 0;
     inst.indexStride = 0;
+    inst.block = block;
     ReadTable(jtfp.jumpTargetExpr,
               jtfp.index,
               b,
@@ -157,7 +158,8 @@ boost::make_lock_guard(*func);
               jumpTableOutEdges,
               inst.tableStart,
               inst.tableEnd,
-              inst.indexStride);
+              inst.indexStride,
+              inst.tableEntryMap);
 
     inst.tableEnd += inst.indexStride;
     if (jumpTableOutEdges.size() > 0 && inst.indexStride > 0)
@@ -270,7 +272,8 @@ void IndirectControlFlowAnalyzer::ReadTable(AST::Ptr jumpTargetExpr,
                                             std::vector<std::pair<Address, Dyninst::ParseAPI::EdgeTypeEnum> > &targetEdges,
                                             Address &minReadAddress,
                                             Address &maxReadAddress,
-                                            int &indexStride) {
+                                            int &indexStride,
+                                            std::map<Address, Address>& entries) {
     CodeSource *cs = block->obj()->cs();
     set<Address> jumpTargets;
     int start = 0;
@@ -288,8 +291,9 @@ void IndirectControlFlowAnalyzer::ReadTable(AST::Ptr jumpTargetExpr,
             if (jtrv.readAddress > maxReadAddress) maxReadAddress = jtrv.readAddress;
             if (prevReadAddress > 0) indexStride = jtrv.readAddress - prevReadAddress;
             prevReadAddress = jtrv.readAddress;
-            parsing_printf("\t index %d, target %lx\n", v, jtrv.targetAddress);
+            parsing_printf("\t index %d, table address %lx, target address %lx\n", v, jtrv.readAddress, jtrv.targetAddress);
             jumpTargets.insert(jtrv.targetAddress);
+            entries[jtrv.readAddress] = jtrv.targetAddress;
         } else {
             // We have a bad entry. We stop here, as we have wrong information
             // In this case, we keep the good entries

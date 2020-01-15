@@ -36,6 +36,7 @@
 #include <stdarg.h>
 #include <signal.h>
 
+void DYNINSTtrapFunction();
 void DYNINSTbreakPoint();
 /* Use a signal that is safe if we're not attached. */
 void DYNINSTsafeBreakPoint();

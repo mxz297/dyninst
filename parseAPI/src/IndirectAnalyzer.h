@@ -27,7 +27,8 @@ class IndirectControlFlowAnalyzer {
                    std::vector<std::pair<Address, Dyninst::ParseAPI::EdgeTypeEnum> > &,
                    Address &,
                    Address &,
-                   int &);
+                   int &,
+                   std::map<Address, Address>&);
     int GetMemoryReadSize(Assignment::Ptr loc);
     bool IsZeroExtend(Assignment::Ptr loc);
     bool FindJunkInstruction(Address);
