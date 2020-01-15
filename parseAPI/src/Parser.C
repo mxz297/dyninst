@@ -1116,7 +1116,7 @@ Parser::delete_bogus_blocks(Edge* e)
     Block::edgelist sources;
     cur->copy_sources(sources);
     for (auto eit = sources.begin(); eit != sources.end(); ++eit)
-        if ((*eit)->type() != INDIRECT && (*eit)->src() != e->src()) 
+        if ((*eit)->src() != e->src()) 
             return;
 
     Block::edgelist targets;
