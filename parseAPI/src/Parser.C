@@ -1109,6 +1109,7 @@ Parser::finalize_jump_tables()
                 Edge * e = edgeMap[jti->tableEntryMap[addr]];
                 delete_bogus_blocks(e);
             }
+            jti->tableEnd = *start_it;
         }
     }
 }
