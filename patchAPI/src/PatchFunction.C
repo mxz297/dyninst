@@ -47,14 +47,14 @@ PatchFunction::create(ParseAPI::Function *f, PatchObject* obj) {
 PatchFunction::PatchFunction(ParseAPI::Function *f,
                              PatchObject* o) : 
    func_(f), obj_(o), addr_((obj_->codeBase() + func_->addr()) & obj_->addrMask()),
-   _loop_analyzed(false), _loop_root(NULL),
+   _loop_analyzed(false), containClonedBlocks_(false), _loop_root(NULL),
    isDominatorInfoReady(false),	isPostDominatorInfoReady(false)
 {
 }
 
 PatchFunction::PatchFunction(const PatchFunction *parFunc, PatchObject* child)
   : func_(parFunc->func_), obj_(child), addr_(obj_->codeBase() + func_->addr()),
-    _loop_analyzed(false), _loop_root(NULL),
+    _loop_analyzed(false), containClonedBlocks_(parFunc->containClonedBlocks_), _loop_root(NULL),
    isDominatorInfoReady(false),	isPostDominatorInfoReady(false)
 {
 }
@@ -1002,4 +1002,8 @@ void PatchFunction::getAllPostDominates(PatchBlock *A, set<PatchBlock*> &d) {
 
     for (auto bit = immediatePostDominates[A]->begin(); bit != immediatePostDominates[A]->end(); ++bit)
         getAllPostDominates(*bit, d);
+}
+
+void PatchFunction::setContainsClonedBlocks(bool c) {
+    containClonedBlocks_ = c;
 }

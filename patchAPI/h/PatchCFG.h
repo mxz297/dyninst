@@ -267,6 +267,9 @@ class PATCHAPI_EXPORT PatchFunction {
     void getImmediatePostDominates(PatchBlock *A, set<PatchBlock*> &);
     void getAllPostDominates(PatchBlock *A, set<PatchBlock*> &);
 
+   void setContainsClonedBlocks(bool);
+   bool containClonedBlocks() { return containClonedBlocks_; }
+
    protected:
      // For callbacks from ParseAPI to PatchAPI
      void removeBlock(PatchBlock *);
@@ -292,6 +295,7 @@ class PATCHAPI_EXPORT PatchFunction {
 
     /* Loop details*/
     bool _loop_analyzed; // true if loops in the function have been found and stored in _loops
+    bool containClonedBlocks_; 
     std::set<PatchLoop*> _loops;
     map<ParseAPI::Loop*, PatchLoop*> _loop_map;
     PatchLoopTreeNode *_loop_root; // NULL if the tree structure has not be calculated    
@@ -311,6 +315,7 @@ class PATCHAPI_EXPORT PatchFunction {
     /** same as previous two fields, but for postdominator tree */
     std::map<PatchBlock*, std::set<PatchBlock*>*> immediatePostDominates;
     std::map<PatchBlock*, PatchBlock*> immediatePostDominator;
+
 
 };
 
