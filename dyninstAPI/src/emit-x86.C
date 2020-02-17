@@ -2455,7 +2455,6 @@ void EmitterAMD64::emitStackAlign(int offset, codeGen &gen)
 
 bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
 {
-    return true;
    gen.setInInstrumentation(true);
    InstSpec* s = bt->instP()->instSpec();
    if (s) {
@@ -2731,7 +2730,6 @@ bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
 
 bool EmitterAMD64::emitBTRestores(baseTramp* bt, codeGen &gen)
 {
-    return true;
    InstSpec* s = bt->instP()->instSpec();
    if (s) {
        for (auto rit = s->saveRegs.rbegin(); rit != s->saveRegs.rend(); ++rit) {
