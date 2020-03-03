@@ -2277,6 +2277,7 @@ bool AddressSpace::getDynamicCallSiteArgs(InstructionAPI::Instruction insn,
    Expression::Ptr cft = insn.getControlFlowTarget();
    ASTFactory f;
    f.curPC = addr + insn.size();
+   f.defensiveMode = (BPatch_defensiveMode == getAOut()->hybridMode());
    cft->apply(&f);
    assert(f.m_stack.size() == 1);
    args.push_back(f.m_stack[0]);
