@@ -73,8 +73,10 @@ void InstructionDecoder_Capstone::decodeOperands_x86(const Instruction* insn, cs
                 insn->appendOperand(immAST, false, false, false);
             }
         } else if (operand->type == X86_OP_MEM) {
+	     bool usePC = false;
              Expression::Ptr effectiveAddr;
              x86_op_mem * mem = &(operand->mem);
+	     if (mem->base == X86_REG_RIP || mem->base == X86_REG_IP) usePC = true;
              // TODO: handle segment registers
              if (mem->base != X86_REG_INVALID) {
                  effectiveAddr = makeRegisterExpression((this->*regTrans)(mem->base));
@@ -89,8 +91,10 @@ void InstructionDecoder_Capstone::decodeOperands_x86(const Instruction* insn, cs
                  else
                      effectiveAddr = indexAST;
              }
-             // Displacement for addressing memory. So it is unsigned
-             Expression::Ptr immAST = Immediate::makeImmediate(Result(u32, mem->disp));
+	     // Capstone does not adjust displacement for PC in this case.
+	     // It is a good idea to let InstructionAPI to maintain pre-PC calcualtion 
+	     // so that users of InstructionAPI does not need to consider which architecture it is
+             Expression::Ptr immAST = Immediate::makeImmediate(Result(s32, mem->disp + (usePC ? insn->size() : 0)));
              if (effectiveAddr)
                  effectiveAddr = makeAddExpression(effectiveAddr, immAST , u64);
              else
