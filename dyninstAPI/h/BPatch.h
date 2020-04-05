@@ -213,6 +213,7 @@ class BPATCH_DLL_EXPORT BPatch {
 
    bool relocJumpTable;
    bool relocFuncPointer;
+   const char* mappingFilePath;
 
    public:  
      
@@ -704,6 +705,9 @@ public:
     void setRelocateJumpTable(bool);
     bool relocateFunctionPointer();
     void setRelocateFunctionPointer(bool);
+
+    void setMappingFilePath(const char*);
+    const char* getMappingFilePath();
 };
 
 #ifdef _MSC_VER

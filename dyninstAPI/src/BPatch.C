@@ -133,7 +133,8 @@ BPatch::BPatch()
     type_Error(NULL),
     type_Untyped(NULL),
     relocJumpTable(false),
-    relocFuncPointer(false)
+    relocFuncPointer(false),
+    mappingFilePath(NULL)
 {
     init_debug();
     init_stats();
@@ -2059,4 +2060,11 @@ bool BPatch::relocateFunctionPointer() {
 
 void BPatch::setRelocateFunctionPointer(bool r) {
     relocFuncPointer = r;
+}
+
+void BPatch::setMappingFilePath(const char *f) {
+    mappingFilePath = f;
+}
+const char* BPatch::getMappingFilePath() {
+    return mappingFilePath;
 }

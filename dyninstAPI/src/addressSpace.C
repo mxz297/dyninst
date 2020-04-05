@@ -1814,6 +1814,7 @@ bool AddressSpace::relocateInt(FuncSet::const_iterator begin, FuncSet::const_ite
   
   // Build the address mapping index
   relocatedCode_.back()->createIndices();
+  relocatedCode_.back()->debug();
 
   if (BPatch::getBPatch()->relocateJumpTable()) {
     JumpTableMover::Ptr jtm = JumpTableMover::create(begin, end, this);
