@@ -239,6 +239,7 @@ void CodeTracker::debug() {
      } 
      fprintf(f,"\n");
   }
+  fclose(f);
 }
 
 namespace Dyninst
