@@ -973,8 +973,8 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 	}
 
     } else {
-        fprintf(stderr, "Instruction %s\n", insn.format().c_str());
-	fprintf(stderr, "type should be either COND_TAKEN or COND_NOT_TAKEN, but it is %d\n", type);
+        parsing_printf("Instruction %s\n", insn.format().c_str());
+	parsing_printf("type should be either COND_TAKEN or COND_NOT_TAKEN, but it is %d\n", type);
 	return false;
     }
 
