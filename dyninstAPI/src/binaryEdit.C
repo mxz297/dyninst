@@ -1082,10 +1082,12 @@ void BinaryEdit::buildRAMapping() {
    offset += sizeof(unsigned long);
 
    // Write the minimal and maximal address
-   result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(RAMap.begin()->first));
-   offset += sizeof(Address);
-   result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(RAMap.rbegin()->first));
-   offset += sizeof(Address);
+   if (entryCount > 0) {
+      result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(RAMap.begin()->first));
+      offset += sizeof(Address);
+      result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(RAMap.rbegin()->first));
+      offset += sizeof(Address);
+   }
 
    // Write each entry
    for (auto it = RAMap.begin(); it != RAMap.end(); ++it) {

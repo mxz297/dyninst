@@ -90,7 +90,7 @@ void InstructionDecoder_Capstone::decodeOperands_x86(const Instruction* insn, cs
                      effectiveAddr = indexAST;
              }
              // Displacement for addressing memory. So it is unsigned
-             Expression::Ptr immAST = Immediate::makeImmediate(Result(u32, mem->disp));
+             Expression::Ptr immAST = Immediate::makeImmediate(Result(s32, mem->disp));
              if (effectiveAddr)
                  effectiveAddr = makeAddExpression(effectiveAddr, immAST , u64);
              else

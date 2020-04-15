@@ -59,7 +59,11 @@ void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
 
             // 3. Calculate the new table entry
             NewTableEntryVisitor ntev(reloc);
+            jt.jumpTargetExpr->accept(&ntev);
             int64_t newEntry = ntev.newValue;
+            //fprintf(stderr, "Relocation jump table entry from %lx to %lx for jump table at %lx for function %s at %lx, new entry value %lx, %d %d\n",
+            //        orig, reloc, jit->first, func->name().c_str(), func->addr(), newEntry, jt.indexStride, jt.memoryReadSize);
+            //fprintf(stderr, "\t%s\n", jt.jumpTargetExpr->format().c_str());
 
             // 4. Put the new table entry to a codegen object
             // TODO: assume the new entry fits in the table.
@@ -216,7 +220,7 @@ AST::Ptr NewTableEntryVisitor::visit(DataflowAPI::RoseAST *ast) {
     for (unsigned i = 0; i < totalChildren; ++i) {
         AST::Ptr child = ast->child(i);
         if (child->getID() == AST::V_ConstantAST) {
-            isImmValue[0] = true;
+            isImmValue[i] = true;
             child->accept(this);
             immValue[i] = curImmValue;
         }

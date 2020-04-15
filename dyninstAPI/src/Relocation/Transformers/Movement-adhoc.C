@@ -310,7 +310,7 @@ bool adhocMovementTransformer::isPCRelData(Widget::Ptr ptr,
   for (set<Expression::Ptr>::const_iterator iter = mems.begin();
        iter != mems.end(); ++iter) {
     Expression::Ptr exp = *iter;
-    if (exp->bind(thePC.get(), Result(u64, PCValue(ptr->addr(), insn)))) {
+    if (exp->bind(thePC.get(), Result(s64, PCValue(ptr->addr(), insn)))) {
       // Bind succeeded, eval to get target address
       Result res = exp->eval();
       if (!res.defined) {
@@ -333,7 +333,7 @@ bool adhocMovementTransformer::isPCRelData(Widget::Ptr ptr,
     // If we can bind the PC, then we're in the operand
     // we want.
     Expression::Ptr exp = iter->getValue();
-    if (exp->bind(thePC.get(), Result(u64, PCValue(ptr->addr(), insn)))) {
+    if (exp->bind(thePC.get(), Result(s64, PCValue(ptr->addr(), insn)))) {
       // Bind succeeded, eval to get target address
       Result res = exp->eval();
       assert(res.defined);

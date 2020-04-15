@@ -1814,16 +1814,13 @@ bool AddressSpace::relocateInt(FuncSet::const_iterator begin, FuncSet::const_ite
   
   // Build the address mapping index
   relocatedCode_.back()->createIndices();
-
   JumpTableMover::Ptr jtm = JumpTableMover::create(begin, end, this);
   if (!relocateJumpTables(jtm)) {
       relocation_cerr << "Error: moving jump tables failed, ret false!" << endl;
       return false;
   }
-
   FunctionPointerMover::Ptr fpm = FunctionPointerMover::create(this);
   relocateFunctionPointers(fpm);
-
   // Kevin's stuff
   cm->extractDefensivePads(this);
 
