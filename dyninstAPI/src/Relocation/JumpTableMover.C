@@ -27,7 +27,7 @@ JumpTableMover::Ptr JumpTableMover::create(FuncSet::const_iterator begin,
     return ret;
 }
 
-static std::set<Address> overwritten;
+static std::map<Address, int64_t> overwritten;
 
 void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
     parse_func * f = func->ifunc();
@@ -41,10 +41,6 @@ void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
         gen.setAddr(jt.tableStart);
 
         for (Address addr = jt.tableStart; addr < jt.tableEnd; addr += jt.indexStride) {
-            if (overwritten.find(addr) != overwritten.end()) {
-                fprintf(stderr, "ERROR: jump table relocation twice for address %lx\n", addr);
-            }
-            overwritten.insert(addr);
             // 1. Calculate the original target
             JumpTableEntryVisitor jtev(as, addr, jt.isZeroExtend, jt.memoryReadSize);
             jt.jumpTargetExpr->accept(&jtev);
@@ -83,6 +79,13 @@ void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
                 assert(0);
             }
             SET_PTR(insn,gen);
+
+            auto it = overwritten.find(addr);
+            if (it != overwritten.end() && it->second != newEntry) {
+                fprintf(stderr, "ERROR: jump table relocation twice for address %lx\n", addr);
+            } else {
+                overwritten.insert(make_pair(addr, newEntry));
+            }
         }
         newTables.push_back(gen);
     }    

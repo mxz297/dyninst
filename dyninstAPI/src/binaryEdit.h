@@ -192,6 +192,7 @@ class BinaryEdit : public AddressSpace {
    virtual void addTrap(Address from, Address to, codeGen &gen);
    virtual void removeTrap(Address /*from*/) {};
     static bool getResolvedLibraryPath(const std::string &filename, std::vector<std::string> &paths);
+    Address allocateStaticMemoryRegion(unsigned);
 
  private:
     Address highWaterMark_;

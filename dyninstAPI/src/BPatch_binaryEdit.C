@@ -380,3 +380,13 @@ void BPatch_binaryEdit::memoryWriteSanitizing(int bits) {
     //for (auto llit = llBinEdits.begin(); llit != llBinEdits.end(); ++llit)
     //    llit->second->memoryWriteSanitizing(bits);
 }
+
+Address BPatch_binaryEdit::allocateStaticMemoryRegion(unsigned size, std::string& name) {
+    auto it = llBinEdits.find(name);
+    BinaryEdit * edit = NULL;
+    if (it == llBinEdits.end())
+        edit = origBinEdit;
+    else
+        edit = it->second;
+    return edit->allocateStaticMemoryRegion(size);
+}

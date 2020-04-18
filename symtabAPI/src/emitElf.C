@@ -685,7 +685,10 @@ bool emitElf<ElfTypes>::driver(std::string fName) {
             newshdr->sh_type = SHT_PROGBITS;
         }
 
-        if (library_adjust > 0 && (strcmp(name, ".init_array") == 0 || strcmp(name, ".fini_array") == 0)) {
+        if (library_adjust > 0 && 
+                (strcmp(name, ".init_array") == 0 || strcmp(name, ".fini_array") == 0 ||
+                 strcmp(name, "__libc_subfreeres") == 0 || strcmp(name, "__libc_atexit") == 0 ||
+                 strcmp(name, "__libc_thread_subfreeres") == 0 || strcmp(name, "__libc_IO_vtables") == 0)) {
             for (int off = 0; off < newdata->d_size; off += sizeof(void*)) {
                 char* loc = ((char*)newdata->d_buf) + off;
                 uint64_t* loc_ptr = (uint64_t*) loc;

@@ -371,6 +371,7 @@ BinaryEdit *BinaryEdit::openFile(const std::string &file,
     base += (1024*1024);
     base -= (base & (1024*1024-1));
 
+
     newBinaryEdit->highWaterMark_ = base;
     newBinaryEdit->lowWaterMark_ = newBinaryEdit->highWaterMark_;
 
@@ -513,7 +514,7 @@ bool BinaryEdit::writeFile(const std::string &newFileName)
       // link to the runtime library if tramp guards are currently enabled
       if ( !symObj->isStaticBinary() && !BPatch::bpatch->isTrampRecursive() ) {
           assert(!runtime_lib.empty());
-          symObj->addLibraryPrereq((*runtime_lib.begin())->fileName());
+          //symObj->addLibraryPrereq((*runtime_lib.begin())->fileName());
       }
 
       if( symObj->isStaticBinary() && isDirty() ) {
@@ -747,6 +748,22 @@ bool BinaryEdit::inferiorMallocStatic(unsigned size) {
     highWaterMark_ += size;
 
     return true;
+}
+
+Address BinaryEdit::allocateStaticMemoryRegion(unsigned size) {
+    // Should be set by now
+    assert(highWaterMark_ != 0);
+
+#if defined(USE_ADDRESS_MAPS)
+    void *buf = malloc(size);
+    if (!buf) return 0;
+#endif
+
+    Address newStart = highWaterMark_;
+
+    highWaterMark_ += size;
+
+    return newStart;
 }
 
 
