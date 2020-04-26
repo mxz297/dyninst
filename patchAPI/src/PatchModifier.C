@@ -195,4 +195,5 @@ bool PatchModifier::remove(PatchFunction *func)
 
 bool PatchModifier::addBlockToFunction(PatchFunction *f, PatchBlock* b) {
     f->addBlock(b);
+    return true;
 }
