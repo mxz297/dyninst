@@ -2996,14 +2996,6 @@ Parser::process_nonreturning_call_frame(NonreturningCallFrame *frame) {
             continue;
         }
 
-        // We do not have return edges until when we 
-        // traverse the CFG to determine function boundary 
-        Instruction i = cur->getInsn(cur->last());
-        if (i.getCategory() == c_ReturnInsn) {
-            parsing_printf("\t\tfind return instructions\n");
-            frame->f->set_retstatus(RETURN);
-            continue;
-        }
         Edge* call_edge = NULL;
         Edge* call_ft_edge = NULL;
         Edge* tailcall_edge = NULL;
@@ -3011,6 +3003,11 @@ Parser::process_nonreturning_call_frame(NonreturningCallFrame *frame) {
             Edge* e = *eit;
             if (e->type() == CALL) call_edge = e;
             else if (e->type() == CALL_FT) call_ft_edge = e;
+            else if (e->type() == RET) {
+                parsing_printf("\t\tfind return instructions\n");
+                frame->f->set_retstatus(RETURN);
+                break;
+            }
             else if (e->sinkEdge() && e->type() == INDIRECT && e->interproc()) {
                 parsing_printf("\t\tfind indirect tail call\n");
                 frame->f->set_retstatus(RETURN);
