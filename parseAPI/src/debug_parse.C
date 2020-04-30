@@ -39,6 +39,7 @@ int Dyninst::ParseAPI::dyn_debug_parsing = 0;
 int Dyninst::ParseAPI::dyn_debug_malware = 0;
 int Dyninst::ParseAPI::dyn_debug_indirect_collect = 0;
 int Dyninst::ParseAPI::dyn_debug_initialized = 0;
+int Dyninst::ParseAPI::dyn_opportunistic_parsing = 0;
 
 #if defined(_MSC_VER)
 #pragma warning(push)
@@ -139,6 +140,17 @@ const std::string PARSE_TAILCALL_FAIL("isTailcallFail");
 
 const std::string PARSE_TOTAL_TIME("parseTotalTime");
 const std::string PARSE_JUMPTABLE_TIME("parseJumpTableTime");
+
+bool Dyninst::ParseAPI::do_opportunistic_parsing()
+{
+    if (dyn_opportunistic_parsing == 0) {
+        if(getenv("DO_OPPORTUNISTIC_PARSING"))
+            dyn_opportunistic_parsing = 1;
+        else
+            dyn_opportunistic_parsing = -1;
+    }
+    return dyn_opportunistic_parsing > 0;
+}
 
 #if defined(_MSC_VER)
 #pragma warning(pop)    

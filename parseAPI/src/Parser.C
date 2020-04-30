@@ -605,21 +605,6 @@ LockFreeQueueItem<ParseFrame *> *Parser::postProcessFrame(ParseFrame *pf, bool r
     return work.steal();
 }
 
-
-static void
-InsertFrames
-(
- LockFreeQueueItem<ParseFrame *> *frames,
- LockFreeQueue<ParseFrame *> *q
-)
-{
-  if (frames) {
-    LockFreeQueue<ParseFrame *> myq(frames);
-    q->splice(myq);
-  }
-}
-
-
 void
 Parser::LaunchWork
 (
@@ -683,8 +668,9 @@ Parser::parse_frames(LockFreeQueue<ParseFrame *> &work, bool recursive)
 {
     delayed_frames_changed.store(false);
     ProcessFrames(&work, recursive);
+if (!do_opportunistic_parsing()) {    
     bool done = false, cycle = false;
-    {
+    {        
         // Check if we can resume any frames yet
         vector<Function *> updated;
         for (auto iter = delayed_frames.begin();
@@ -719,7 +705,7 @@ Parser::parse_frames(LockFreeQueue<ParseFrame *> &work, bool recursive)
             processFixedPoint(work, recursive);
         }
     }
-
+}
     cleanup_frames();
 }
 
@@ -1025,6 +1011,8 @@ Parser::finalize()
 {
     if(_parse_state < FINALIZED) {
         finalize_jump_tables();
+        if (do_opportunistic_parsing())
+            nonreturning_analysis();
         std::vector<region_data*> rd;
         _parse_data->getAllRegionData(rd);
         int totalBlock = 0;
@@ -1168,7 +1156,7 @@ Parser::delete_bogus_blocks(Edge* e)
     Block::edgelist sources;
     cur->copy_sources(sources);
     for (auto eit = sources.begin(); eit != sources.end(); ++eit)
-        if ((*eit)->type() != INDIRECT && (*eit)->src() != e->src()) 
+        if ((*eit)->src() != e->src()) 
             return;
 
     // If an indirect edge points a function entry,
@@ -1401,7 +1389,9 @@ Parser::parse_frame(ParseFrame & frame, bool recursive) {
             frame.func->set_retstatus(RETURN);
         }
     } else if (frame.func->retstatus() == UNSET) {
+if (!do_opportunistic_parsing()) {
         frame.func->set_retstatus(NORETURN);
+}
     }
 
     frame.set_status(ParseFrame::PARSED);
@@ -1490,9 +1480,11 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
             } else if (ct && work->tailcall()) {
                 // If func's return status is RETURN, 
                 // then this tail callee does not impact the func's return status
+if (!do_opportunistic_parsing()) {
                 if (func->retstatus() != RETURN) {
                     update_function_ret_status(frame, ct, work);
                 }
+}
             }
 
             continue;
@@ -1548,7 +1540,8 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
                     bool is_plt = false;
 
                     // check if associated call edge's return status is still unknown
-                    if (ct && (ct->retstatus() == UNSET) ) {
+if (!do_opportunistic_parsing()) {
+                    if (ct && (ct->retstatus() == UNSET)) {
                         // Delay parsing until we've finished the corresponding call edge
                         parsing_printf("[%s] Parsing FT edge %lx, corresponding callee (%s) return status unknown; delaying work\n",
                                        __FILE__,
@@ -1561,6 +1554,7 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
                         // Continue other work for this frame
                         continue;
                     }
+}
 
                     is_plt = HASHDEF(plt_entries,target);
 
@@ -1575,6 +1569,7 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
                             parsing_printf("\t Disallowing FT edge: CodeSource reports PLT nonreturning\n");
                         }
                     }
+if (!do_opportunistic_parsing()) {
                     // Parsed return status tests
                     if (!is_nonret && !is_plt && ct) {
                         is_nonret |= (ct->retstatus() == NORETURN);
@@ -1582,6 +1577,7 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
                             parsing_printf("\t Disallowing FT edge: function is non-returning\n");
                         }
                     }
+}
                     // Call-stack tampering tests
                     if (unlikely(!is_nonret && frame.func->obj()->defensiveMode() && ct)) {
                         is_nonret |= (ct->retstatus() == UNKNOWN);
@@ -1640,6 +1636,7 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
                                FILE__,work->edge()->src()->lastInsnAddr());
             }
         } else if (work->order() == ParseWorkElem::func_shared_code) {
+if (!do_opportunistic_parsing()) {
             if (func->retstatus() != RETURN) {
                 // The current function shares code with another function.
                 // current function on this control flow path is the same
@@ -1648,6 +1645,7 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
                 update_function_ret_status(frame, work->shared_func(), work);
             }
             func->_cache_valid = false;
+}
             continue;
 
         }
@@ -1689,6 +1687,7 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
         } else if (cur->createdByFunc() != frame.func) {
             parsing_printf("[%s] deferring parse of shared block %lx\n",
                            FILE__,cur->start());
+if (!do_opportunistic_parsing()) {
             if (func->retstatus() < UNKNOWN) {
                 // The current function shares code with the function
                 // that created the block. So, the return status of the
@@ -1702,6 +1701,7 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
                 Function * other_func = cur->createdByFunc(); 
                 update_function_ret_status(frame, other_func, frame.mkWork(NULL, other_func));
             }
+}            
             // The edge to this shared block is changed from
             // "going to sink" to going to this shared block.
             // This changes the function boundary, so we need to
@@ -2846,6 +2846,291 @@ Parser::update_function_ret_status(ParseFrame &frame, Function * other_func, Par
         frame.func->set_retstatus(RETURN);
     } else {
         parsing_printf("\t other_func is NORETURN, this path does not impact the return status of this function\n");
+    }
+}
+
+void
+Parser::nonreturning_analysis() {
+    vector<NonreturningCallFrame *> work;
+    // We will not find any more functions,
+    // so we can just allocate the frames in one batch.
+    int total_funcs = hint_funcs.size() + discover_funcs.size();
+    NonreturningCallFrame * frames = new NonreturningCallFrame[total_funcs];
+    frame_func_map.clear();
+
+    int i = 0;
+    for (auto fit = hint_funcs.begin(); fit != hint_funcs.end(); ++fit) {
+        frames[i].initializeFrame(*fit);
+        work.push_back(&(frames[i]));
+        i += 1;
+        frame_func_map[*fit] = &(frames[i]);
+    }
+    for (auto fit = discover_funcs.begin(); fit != discover_funcs.end(); ++fit) {
+        frames[i].initializeFrame(*fit);
+        work.push_back(&(frames[i]));
+        i += 1;
+        frame_func_map[*fit] = &(frames[i]);
+    }
+    delayed_nonreturning_frames_changed.store(true);
+
+    i = 0;
+    while (delayed_nonreturning_frames_changed.load()) {
+        i++;
+        delayed_nonreturning_frames_changed.store(false);
+        parsing_printf("Non-returning analysis iteration %d with %d funcitons\n", i, work.size());
+        #pragma omp parallel for schedule(dynamic)
+        for (size_t i = 0; i < work.size(); ++i) {
+            NonreturningCallFrame *f = work[i];
+            process_nonreturning_call_frame(f);
+        }
+
+        work.clear();
+
+        // Clear up missed return status during parallel traversal
+        vector<Function *> updated;
+        for (auto iter = delayed_nonreturning_frames.begin();
+             iter != delayed_nonreturning_frames.end();
+             ++iter) {
+            if (iter->first->retstatus() != UNSET) {
+                updated.push_back(iter->first);
+            }
+        }
+        if (updated.size()) {
+            for (auto uIter = updated.begin();
+                 uIter != updated.end();
+                 ++uIter) {
+                resume_nonreturning_call_frames(*uIter, work);
+            }
+        }
+
+        if(work.empty() && delayed_nonreturning_frames.size() > 0 && !delayed_nonreturning_frames_changed.load()) {
+            process_nonreturning_call_cycle(work);            
+        }
+    }
+
+    delete[] frames;
+}
+
+void
+Parser::process_nonreturning_call_cycle(vector<NonreturningCallFrame*> &work) {
+    vector<Function *> updated;
+    
+    parsing_printf("[%s] Fixed point reached (%d funcs with unknown return status)\n", __FILE__, delayed_nonreturning_frames.size());
+    
+    for (auto iter = delayed_nonreturning_frames.begin(); iter != delayed_nonreturning_frames.end(); ++iter) {
+        Function * func = iter->first;
+        if (func->retstatus() == UNSET) {
+            //if(recursive)
+            if (true)
+            {
+                func->set_retstatus(NORETURN);
+                func->obj()->cs()->incrementCounter(PARSE_NORETURN_HEURISTIC);
+                }
+            else
+            {
+                func->set_retstatus(RETURN);
+            }
+            updated.push_back(func);
+        }
+        
+        set<NonreturningCallFrame *> vec = iter->second;
+        for (auto vIter = vec.begin(); vIter != vec.end(); ++vIter) {
+            Function * delayed = (*vIter)->f;
+            if (delayed->retstatus() == UNSET) {
+                delayed->set_retstatus(NORETURN);
+                delayed->obj()->cs()->incrementCounter(PARSE_NORETURN_HEURISTIC);
+                updated.push_back(func);
+            }
+        }
+    }
+
+
+    // We should have updated the return status of one or more frames; recurse
+    if (updated.size()) {
+        delayed_nonreturning_frames_changed.store(true);
+        for (auto uIter = updated.begin();
+             uIter != updated.end();
+             ++uIter) {
+            resume_nonreturning_call_frames(*uIter, work);
+        }
+    } else {
+        // We shouldn't get here
+        parsing_printf("[%s] No more work can be done (%d funcs with unknown return status)\n",
+                       __FILE__,
+                       delayed_frames.size());
+        assert(0);
+    }
+}
+
+void
+Parser::process_nonreturning_call_frame(NonreturningCallFrame *frame) {
+    boost::lock_guard<NonreturningCallFrame> g(*frame);
+    // The goal are two-fold:
+    // 1. Determine the return status of the function
+    // 2. Determine whether a call site in this function should
+    //    have call-ft edge.
+    parsing_printf("Analyze non-returning status for function %s at %lx\n", frame->f->name().c_str(), frame->f->addr());
+
+    // We move delayed blocks to work list
+    for (auto bit = frame->delayed_blocks.begin(); bit != frame->delayed_blocks.end(); ++bit) {
+        frame->work_item.push(*bit);
+    }
+    frame->delayed_blocks.clear();
+
+    // Do a BFS to determine function's returning status 
+    while (!frame->work_item.empty()) {
+        Block* cur = frame->work_item.front();
+        parsing_printf("\t consider block [%lx, %lx)\n", cur->start(), cur->end());
+        frame->work_item.pop();
+        if (cur->createdByFunc() != frame->f) {
+            Function* other_func = cur->createdByFunc();
+            parsing_printf("\t\t block created by %s at %lx\n", other_func->name().c_str(), other_func->addr());
+            if (frame->f->retstatus() == RETURN) continue;
+            if (other_func->retstatus() == UNSET) {
+                parsing_printf("\t\t\tshared block with function that has unknown ret status\n");
+                insert_nonreturning_delayed_frames(frame, other_func, cur);
+            } else if (other_func->retstatus() == RETURN) {
+                parsing_printf("\t\t\tshared block with function that has RETURN status\n");
+                frame->f->set_retstatus(RETURN);
+            }
+            continue;
+        }
+
+        // We do not have return edges until when we 
+        // traverse the CFG to determine function boundary 
+        Instruction i = cur->getInsn(cur->last());
+        if (i.getCategory() == c_ReturnInsn) {
+            parsing_printf("\t\tfind return instructions\n");
+            frame->f->set_retstatus(RETURN);
+            continue;
+        }
+        Edge* call_edge = NULL;
+        Edge* call_ft_edge = NULL;
+        Edge* tailcall_edge = NULL;
+        for (auto eit = cur->targets().begin(); eit != cur->targets().end(); ++eit) {
+            Edge* e = *eit;
+            if (e->type() == CALL) call_edge = e;
+            else if (e->type() == CALL_FT) call_ft_edge = e;
+            else if (e->sinkEdge() && e->type() == INDIRECT && e->interproc()) {
+                parsing_printf("\t\tfind indirect tail call\n");
+                frame->f->set_retstatus(RETURN);
+                break;
+            } else if (!e->sinkEdge()) {
+                if (e->type() == DIRECT && e->interproc()) {
+                    tailcall_edge = e;
+                    break;
+                }
+                parsing_printf("\t\tprocess edge type %d, target to [%lx, %lx)\n", e->type(), e->trg()->start(), e->trg()->end());
+                frame->addWorkItem(e->trg());
+            }
+        }
+        if (tailcall_edge) {
+            // For a direct tail call,
+            // if the tail callee returns, the caller will return.
+            // If the tail callee does not return, it does not
+            // impact caller's retstatus
+            Function * callee = _parse_data->findFunc(cur->region(), tailcall_edge->trg()->start());
+            FuncReturnStatus ret = NORETURN;
+            assert(callee);
+            parsing_printf("\t\tprocess tail call to function %s at %lx\n", callee->name().c_str(), callee->addr());
+            if (callee) ret = callee->retstatus();
+            if (ret == RETURN) {
+                parsing_printf("\t\t\ttail callee returns\n");
+                frame->f->set_retstatus(RETURN);
+                continue;
+            }
+            // if the function status is already set,
+            // there is no need to wait for the tail callee
+            if (frame->f->retstatus() == UNSET && ret == UNSET) {
+                parsing_printf("\t\t\ttail callee with unknown ret status\n");
+                insert_nonreturning_delayed_frames(frame, callee, cur);
+                continue;
+            }
+        }
+        if (call_ft_edge) {
+            // For a call ft edge, if it is created by 
+            // an indirect call, the call ft edge is real;
+            // if the callee has known return status, 
+            // we hanlde it accordingly.
+            Function * callee = NULL;
+            if (call_edge && !call_edge->sinkEdge())
+                callee = _parse_data->findFunc(cur->region(),call_edge->trg()->start());
+            if (!callee)
+                assert(!call_edge || call_edge->sinkEdge());
+            if (callee) {
+                parsing_printf("\t\tprocess function call to function %s at %lx\n", callee->name().c_str(), callee->addr());
+            } else {
+                parsing_printf("\t\tprocess indirect function call\n");
+            }
+            FuncReturnStatus ret = RETURN;
+            if (callee) ret = callee->retstatus();
+            if (ret == UNSET) {
+                parsing_printf("\t\t\tfunction callee with unknown ret status\n");
+                insert_nonreturning_delayed_frames(frame, callee, cur);
+                continue;
+            }
+            // The callee is nonreturning,
+            // so we should correct control flow along
+            // the call ft edge
+            if (ret == NORETURN) {
+                parsing_printf("\t\t\tfunction callee is NORETURN\n");
+                delete_bogus_blocks(call_ft_edge);
+                continue;
+            }
+            parsing_printf("\t\tprocess call ft edge, target to [%lx, %lx)\n", call_ft_edge->trg()->start(), call_ft_edge->trg()->end());
+            frame->addWorkItem(call_ft_edge->trg());
+        }
+    }
+    if (frame->f->retstatus() == UNSET && frame->delayed_blocks.empty()) {
+        frame->f->set_retstatus(NORETURN);
+    }
+}
+
+void
+Parser::insert_nonreturning_delayed_frames(NonreturningCallFrame *frame, Function * callee, Block* cur) {
+    frame->delayed_blocks.insert(cur);
+    dyn_c_hash_map<Function*, std::set<NonreturningCallFrame*> >::accessor a;
+    set<NonreturningCallFrame *> waiters;
+    delayed_nonreturning_frames.insert(a, std::make_pair(callee, waiters));
+    a->second.insert(frame);
+    delayed_nonreturning_frames_changed.exchange(true, boost::memory_order_relaxed);
+}
+
+void
+Parser::resume_nonreturning_call_frames(Function *func, vector<NonreturningCallFrame*> &work) {
+    if (func->retstatus() == UNSET) {
+        parsing_printf("[%s] %s return status unknown, cannot resume waiters\n",
+                       __FILE__,
+                       func->name().c_str());
+        return;
+    }
+
+    // When a function's return status is set, all waiting frames back into the worklist
+    dyn_c_hash_map<Function*, std::set<NonreturningCallFrame*> >::accessor a;
+    if (!delayed_nonreturning_frames.find(a, func)) {
+        // There were no frames waiting, ignore
+        parsing_printf("[%s] %s return status %d, no waiters\n",
+                       __FILE__,
+                       func->name().c_str(),
+                       func->retstatus());
+        return;
+    } else {
+        parsing_printf("[%s] %s return status %d, undelaying waiting functions\n",
+                       __FILE__,
+                       func->name().c_str(),
+                       func->retstatus());
+        // Add each waiting frame back to the worklist
+        set<NonreturningCallFrame *> vec = a->second;
+        for (set<NonreturningCallFrame *>::iterator fIter = vec.begin();
+             fIter != vec.end();
+             ++fIter) {
+            work.push_back(*fIter);
+            Function *f = (*fIter)->f;
+            parsing_printf("\t undelay function %s at %lx, frame delay work size %d\n", f->name().c_str(), f->addr(), (*fIter)->delayed_blocks.size()); 
+        }
+        // remove func from delayedFrames map
+        delayed_nonreturning_frames.erase(a);
+        delayed_nonreturning_frames_changed.exchange(true, boost::memory_order_relaxed);
     }
 
 }

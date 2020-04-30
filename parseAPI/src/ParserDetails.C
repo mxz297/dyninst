@@ -482,8 +482,10 @@ bool Parser::ProcessCFInsn(
         // such as unresolve jump tables or indirect tail calls.
         // In such cases, we do not have concrete evidence that
         // the function cannot not return, so we mark this function as RETURN.
+if (!do_opportunistic_parsing()) {
         frame.func->set_retstatus(RETURN);
         set_func_to_return = true;
+}
     }
 
     // Return instructions need extra processing

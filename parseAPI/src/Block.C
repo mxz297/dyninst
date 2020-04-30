@@ -328,7 +328,7 @@ void Block::removeSource(Edge * e) {
     boost::lock_guard<Block> g(*this);
     for (auto it = _srclist.begin(); it != _srclist.end(); ++it)
         if ((*it)->src()->last() == e->src()->last()) {
-            parsing_printf("removeSource %p from %p\n", *it, this);
+            parsing_printf("removeSource %p from %p with %d total sources\n", *it, this, _srclist.size());
             _srclist.erase(it);
             break;
         }

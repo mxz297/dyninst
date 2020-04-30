@@ -63,6 +63,25 @@ namespace Dyninst {
 
         class CFGModifier;
 
+        class NonreturningCallFrame  : public boost::lockable_adapter<boost::recursive_mutex> {
+            public:
+            Function* f;
+            set<Block*> delayed_blocks;
+            queue<Block*> work_item;
+            set<Block*> visited;
+
+            void initializeFrame(Function *func) {
+                f = func;
+                addWorkItem(f->entry());
+            }
+
+            void addWorkItem(Block* cur) {
+                if (visited.find(cur) != visited.end()) return;
+                visited.insert(cur);
+                work_item.push(cur);
+            }
+        };
+
 /** This is the internal parser **/
         class Parser {
             // The CFG modifier needs to manipulate the lookup structures,
@@ -305,6 +324,15 @@ namespace Dyninst {
             vector<Function*> funcs_to_ranges;            
 
             dyn_c_hash_map<Block*, std::set<Function* > > funcsByBlockMap;
+
+            dyn_c_hash_map<Function*, std::set<NonreturningCallFrame*> > delayed_nonreturning_frames;
+            boost::atomic<bool> delayed_nonreturning_frames_changed;
+            std::map<Function*, NonreturningCallFrame*> frame_func_map;
+            void nonreturning_analysis();
+            void process_nonreturning_call_cycle(std::vector<NonreturningCallFrame*>&);
+            void process_nonreturning_call_frame(NonreturningCallFrame* frame);
+            void insert_nonreturning_delayed_frames(NonreturningCallFrame*, Function*, Block*);
+            void resume_nonreturning_call_frames(Function*, vector<NonreturningCallFrame*>&);
         };
 
     }

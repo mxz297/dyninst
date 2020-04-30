@@ -40,10 +40,12 @@ namespace ParseAPI {
     extern int PARSER_EXPORT parsing_printf_int(const char *format, ...);
     extern int PARSER_EXPORT malware_printf_int(const char *format, ...);
     extern int PARSER_EXPORT indirect_collect_printf_int(const char *format, ...);
+    extern bool PARSER_EXPORT do_opportunistic_parsing();
     extern int dyn_debug_parsing;
     extern int dyn_debug_malware;
     extern int dyn_debug_indirect_collect;
     extern int dyn_debug_initialized;
+    extern int dyn_opportunistic_parsing;
 
 #define parsing_cerr if (dyn_debug_parsing) cerr
 #define malware_cerr if (dyn_debug_malware) cerr
