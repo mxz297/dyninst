@@ -754,7 +754,7 @@ void Parser::processCycle(LockFreeQueue<ParseFrame *> &work, bool recursive) {//
                 if (delayed->retstatus() == UNSET) {
                     delayed->set_retstatus(NORETURN);
                     delayed->obj()->cs()->incrementCounter(PARSE_NORETURN_HEURISTIC);
-                    updated.push_back(func);
+                    updated.push_back(delayed);
                 }
             }
         }
@@ -2851,74 +2851,53 @@ Parser::update_function_ret_status(ParseFrame &frame, Function * other_func, Par
 
 void
 Parser::nonreturning_analysis() {
-    vector<NonreturningCallFrame *> work;
-    // We will not find any more functions,
-    // so we can just allocate the frames in one batch.
-    int total_funcs = hint_funcs.size() + discover_funcs.size();
-    NonreturningCallFrame * frames = new NonreturningCallFrame[total_funcs];
-    frame_func_map.clear();
+    dyn_c_vector<NonreturningCallFrame*> work, next_work;
+    dyn_c_vector<NonreturningCallFrame*> frames;
 
-    int i = 0;
-    for (auto fit = hint_funcs.begin(); fit != hint_funcs.end(); ++fit) {
-        frames[i].initializeFrame(*fit);
-        work.push_back(&(frames[i]));
-        i += 1;
-        frame_func_map[*fit] = &(frames[i]);
+#pragma omp parallel for schedule(dynamic)
+    for (size_t i = 0; i < hint_funcs.size(); ++i) {
+        NonreturningCallFrame * frame = new NonreturningCallFrame();
+        frame->initializeFrame(hint_funcs[i]);
+        work.push_back(frame);
+        frames.push_back(frame);
     }
-    for (auto fit = discover_funcs.begin(); fit != discover_funcs.end(); ++fit) {
-        frames[i].initializeFrame(*fit);
-        work.push_back(&(frames[i]));
-        i += 1;
-        frame_func_map[*fit] = &(frames[i]);
+#pragma omp parallel for schedule(dynamic)
+    for (size_t i = 0; i < discover_funcs.size(); ++i) {
+        NonreturningCallFrame * frame = new NonreturningCallFrame();
+        frame->initializeFrame(discover_funcs[i]);
+        work.push_back(frame);
+        frames.push_back(frame);
     }
-    delayed_nonreturning_frames_changed.store(true);
 
-    i = 0;
-    while (delayed_nonreturning_frames_changed.load()) {
-        i++;
-        delayed_nonreturning_frames_changed.store(false);
-        parsing_printf("Non-returning analysis iteration %d with %d funcitons\n", i, work.size());
-        #pragma omp parallel for schedule(dynamic)
+    while (!work.empty()) {
+        next_work.clear();
+        #pragma omp parallel for schedule(dynamic) shared(next_work)
         for (size_t i = 0; i < work.size(); ++i) {
             NonreturningCallFrame *f = work[i];
-            process_nonreturning_call_frame(f);
+            process_nonreturning_call_frame(f, next_work);
         }
 
-        work.clear();
-
-        // Clear up missed return status during parallel traversal
-        vector<Function *> updated;
-        for (auto iter = delayed_nonreturning_frames.begin();
-             iter != delayed_nonreturning_frames.end();
-             ++iter) {
-            if (iter->first->retstatus() != UNSET) {
-                updated.push_back(iter->first);
-            }
+        if(next_work.empty() && delayed_nonreturning_frames.size() > 0) {
+            process_nonreturning_call_cycle(next_work); 
         }
-        if (updated.size()) {
-            for (auto uIter = updated.begin();
-                 uIter != updated.end();
-                 ++uIter) {
-                resume_nonreturning_call_frames(*uIter, work);
-            }
-        }
-
-        if(work.empty() && delayed_nonreturning_frames.size() > 0 && !delayed_nonreturning_frames_changed.load()) {
-            process_nonreturning_call_cycle(work);            
-        }
+        work = next_work;
     }
 
-    delete[] frames;
+#pragma omp parallel for schedule(dynamic)
+    for (size_t i = 0; i < frames.size(); ++i) {
+        delete frames[i];
+    }
 }
 
 void
-Parser::process_nonreturning_call_cycle(vector<NonreturningCallFrame*> &work) {
+Parser::process_nonreturning_call_cycle(dyn_c_vector<NonreturningCallFrame*> &work) {
     vector<Function *> updated;
     
     parsing_printf("[%s] Fixed point reached (%d funcs with unknown return status)\n", __FILE__, delayed_nonreturning_frames.size());
     
     for (auto iter = delayed_nonreturning_frames.begin(); iter != delayed_nonreturning_frames.end(); ++iter) {
         Function * func = iter->first;
+        parsing_printf("\t function %s at %lx in delayed map\n", func->name().c_str(), func->addr());
         if (func->retstatus() == UNSET) {
             //if(recursive)
             if (true)
@@ -2939,7 +2918,7 @@ Parser::process_nonreturning_call_cycle(vector<NonreturningCallFrame*> &work) {
             if (delayed->retstatus() == UNSET) {
                 delayed->set_retstatus(NORETURN);
                 delayed->obj()->cs()->incrementCounter(PARSE_NORETURN_HEURISTIC);
-                updated.push_back(func);
+                updated.push_back(delayed);
             }
         }
     }
@@ -2947,7 +2926,6 @@ Parser::process_nonreturning_call_cycle(vector<NonreturningCallFrame*> &work) {
 
     // We should have updated the return status of one or more frames; recurse
     if (updated.size()) {
-        delayed_nonreturning_frames_changed.store(true);
         for (auto uIter = updated.begin();
              uIter != updated.end();
              ++uIter) {
@@ -2960,16 +2938,23 @@ Parser::process_nonreturning_call_cycle(vector<NonreturningCallFrame*> &work) {
                        delayed_frames.size());
         assert(0);
     }
+    for (auto iter = delayed_nonreturning_frames.begin(); iter != delayed_nonreturning_frames.end(); ++iter) {
+        Function * func = iter->first;
+        parsing_printf("\t function %s at %lx still in delayed map\n", func->name().c_str(), func->addr());
+    }
+
+    assert(delayed_nonreturning_frames.size() == 0);
 }
 
 void
-Parser::process_nonreturning_call_frame(NonreturningCallFrame *frame) {
+Parser::process_nonreturning_call_frame(NonreturningCallFrame *frame, dyn_c_vector<NonreturningCallFrame*>& next_work) {
     boost::lock_guard<NonreturningCallFrame> g(*frame);
     // The goal are two-fold:
     // 1. Determine the return status of the function
     // 2. Determine whether a call site in this function should
     //    have call-ft edge.
     parsing_printf("Analyze non-returning status for function %s at %lx\n", frame->f->name().c_str(), frame->f->addr());
+    FuncReturnStatus init_status = frame->f->retstatus();
 
     // We move delayed blocks to work list
     for (auto bit = frame->delayed_blocks.begin(); bit != frame->delayed_blocks.end(); ++bit) {
@@ -3081,25 +3066,40 @@ Parser::process_nonreturning_call_frame(NonreturningCallFrame *frame) {
     if (frame->f->retstatus() == UNSET && frame->delayed_blocks.empty()) {
         frame->f->set_retstatus(NORETURN);
     }
+    // Only resume frames when the return status changes
+    if (init_status == UNSET && frame->f->retstatus() != UNSET) {
+        resume_nonreturning_call_frames(frame->f, next_work);
+    }
 }
 
 void
 Parser::insert_nonreturning_delayed_frames(NonreturningCallFrame *frame, Function * callee, Block* cur) {
-    frame->delayed_blocks.insert(cur);
     dyn_c_hash_map<Function*, std::set<NonreturningCallFrame*> >::accessor a;
     set<NonreturningCallFrame *> waiters;
-    delayed_nonreturning_frames.insert(a, std::make_pair(callee, waiters));
-    a->second.insert(frame);
-    delayed_nonreturning_frames_changed.exchange(true, boost::memory_order_relaxed);
+    bool inserted = delayed_nonreturning_frames.insert(a, std::make_pair(callee, waiters));
+    // Here, we first acquire the lock for inserting to delayed frames,
+    // so, the following operation should either atomically happen before or after
+    // resuming frame.
+    if (callee->retstatus() == UNSET) {
+        // If the callee is UNSET, we insert to the delayed frames and will not
+        // miss the resuming event.
+        a->second.insert(frame);
+        frame->delayed_blocks.insert(cur);
+    } else {
+        // If the callee is already set, there is no need to insert to delayed frames
+        // Whether this happens before or after resuming frame is irrelevant.
+        frame->work_item.push(cur);
+        if (inserted) delayed_nonreturning_frames.erase(a);
+    }
 }
 
 void
-Parser::resume_nonreturning_call_frames(Function *func, vector<NonreturningCallFrame*> &work) {
+Parser::resume_nonreturning_call_frames(Function *func, dyn_c_vector<NonreturningCallFrame*> &work) {
     if (func->retstatus() == UNSET) {
         parsing_printf("[%s] %s return status unknown, cannot resume waiters\n",
                        __FILE__,
                        func->name().c_str());
-        return;
+        assert(0);
     }
 
     // When a function's return status is set, all waiting frames back into the worklist
@@ -3127,7 +3127,5 @@ Parser::resume_nonreturning_call_frames(Function *func, vector<NonreturningCallF
         }
         // remove func from delayedFrames map
         delayed_nonreturning_frames.erase(a);
-        delayed_nonreturning_frames_changed.exchange(true, boost::memory_order_relaxed);
     }
-
 }

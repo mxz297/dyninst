@@ -326,13 +326,11 @@ namespace Dyninst {
             dyn_c_hash_map<Block*, std::set<Function* > > funcsByBlockMap;
 
             dyn_c_hash_map<Function*, std::set<NonreturningCallFrame*> > delayed_nonreturning_frames;
-            boost::atomic<bool> delayed_nonreturning_frames_changed;
-            std::map<Function*, NonreturningCallFrame*> frame_func_map;
             void nonreturning_analysis();
-            void process_nonreturning_call_cycle(std::vector<NonreturningCallFrame*>&);
-            void process_nonreturning_call_frame(NonreturningCallFrame* frame);
+            void process_nonreturning_call_cycle(dyn_c_vector<NonreturningCallFrame*>&);
+            void process_nonreturning_call_frame(NonreturningCallFrame* frame, dyn_c_vector<NonreturningCallFrame*>&);
             void insert_nonreturning_delayed_frames(NonreturningCallFrame*, Function*, Block*);
-            void resume_nonreturning_call_frames(Function*, vector<NonreturningCallFrame*>&);
+            void resume_nonreturning_call_frames(Function*, dyn_c_vector<NonreturningCallFrame*>&);
         };
 
     }
