@@ -308,7 +308,8 @@ class PARSER_EXPORT Block :
     friend class Parser;
  public:
     typedef std::map<Offset, InstructionAPI::Instruction> Insns;
-    typedef std::list<Edge*> edgelist;
+    typedef std::set<Edge*> edgelist;
+
 public:
     static Block * sink_block;
 
@@ -379,8 +380,6 @@ public:
     Function * createdByFunc() { return _createdByFunc; }
 
 private:
-    std::map<int, std::set<Address> > targetMap;
-    std::map<int, std::set<Address> > sourceMap;
     void addSource(Edge * e);
     void addTarget(Edge * e);
     void removeTarget(Edge * e);

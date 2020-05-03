@@ -2766,7 +2766,6 @@ void Parser::move_edges_consistent_blocks(Block *A, Block *B) {
 	}
     }
     trgs.clear();
-    A->targetMap.clear();
 }
 
 bool Parser::inspect_value_driven_jump_tables(ParseFrame &frame) {
