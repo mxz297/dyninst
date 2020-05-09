@@ -46,6 +46,7 @@
 class baseTramp;
 class func_instance;
 class block_instance;
+class edge_instance;
 class AddressSpace;
 class instPoint;
 
@@ -151,8 +152,8 @@ class EmulatorTracker : public TrackerElement {
 
 class InstTracker : public TrackerElement {
  public:
-  InstTracker(Address orig, baseTramp *baseT, block_instance *b, func_instance *f) :
-   TrackerElement(orig, b, f), baseT_(baseT) {};
+  InstTracker(Address orig, baseTramp *baseT, block_instance *b, func_instance *f, edge_instance *e) :
+   TrackerElement(orig, b, f), baseT_(baseT), edge_(e) {};
   virtual ~InstTracker() {};
 
   virtual Address relocToOrig(Address reloc) const {
@@ -170,11 +171,13 @@ class InstTracker : public TrackerElement {
 
   virtual type_t type() const { return TrackerElement::instrumentation; };
   baseTramp *baseT() const { return baseT_; };
+  edge_instance* edge() const { return edge_;};
   
   virtual bool mergeable() const { return false; };
 
  private:
   baseTramp *baseT_;
+  edge_instance* edge_;
 };
 
 class PaddingTracker : public TrackerElement {

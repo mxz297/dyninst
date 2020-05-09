@@ -259,14 +259,12 @@ SgAsmExpression *ExpressionConversionVisitor::archSpecificRegisterProc(Instructi
 
             MachRegister machReg = regast->getID();
             if (machReg.isPC()) {
-                // ideally this would be symbolic
-                // When ip is read, the value read is not the address of the current instruction,
-                // but the address of the next instruction.
+		// InstructionAPI maintains pre-insn PC for X86 and X8664
                 SgAsmExpression *constAddrExpr;
                 if (arch == Arch_x86)
-                    constAddrExpr = new SgAsmDoubleWordValueExpression(addr + size);
+                    constAddrExpr = new SgAsmDoubleWordValueExpression(addr);
                 else
-                    constAddrExpr = new SgAsmQuadWordValueExpression(addr + size);
+                    constAddrExpr = new SgAsmQuadWordValueExpression(addr);
 
                 return constAddrExpr;
             }

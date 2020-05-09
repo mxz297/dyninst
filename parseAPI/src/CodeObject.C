@@ -513,7 +513,7 @@ void CodeObject::getATFunctionsInCodeSection(std::set<Function*> &at, std::map<A
 Address CodeObject::getTargetPCAddress(InstructionAPI::Instruction &ins, Address curAddr) {
     InstructionAPI::Expression::Ptr op = ins.getOperand(1).getValue();
     InstructionAPI::Expression::Ptr thePC(new InstructionAPI::RegisterAST(MachRegister::getPC(ins.getArch())));
-    op->bind(thePC.get(), InstructionAPI::Result(InstructionAPI::u64, curAddr + ins.size()));
+    op->bind(thePC.get(), InstructionAPI::Result(InstructionAPI::u64, curAddr));
     InstructionAPI::Result res = op->eval();
     if (res.defined) {
         return res.convert<Address>();

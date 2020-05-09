@@ -2359,6 +2359,27 @@ bool shouldSaveReg(registerSlot *reg, baseTramp *inst, bool saveFlags)
   if (reg->encoding() == REGNUM_RSP) {
     return false;
   }
+
+  if (reg->encoding() == REGNUM_RSI) {
+    return true;
+  }
+  if (reg->encoding() == REGNUM_RDI) {
+    return true;
+  }
+  if (reg->encoding() == REGNUM_R8) {
+    return true;
+  }
+  if (reg->encoding() == REGNUM_R9) {
+    return true;
+  }
+  if (reg->encoding() == REGNUM_R10) {
+    return true;
+  }
+  if (reg->encoding() == REGNUM_R11) {
+    return true;
+  }
+
+
   
    if (inst->point()) {
       regalloc_printf("\t shouldSaveReg for BT %p, from 0x%lx\n", inst, inst->point()->insnAddr() );
@@ -2455,7 +2476,6 @@ void EmitterAMD64::emitStackAlign(int offset, codeGen &gen)
 
 bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
 {
-    return true;
    gen.setInInstrumentation(true);
    InstSpec* s = bt->instP()->instSpec();
    if (s) {
@@ -2731,7 +2751,6 @@ bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
 
 bool EmitterAMD64::emitBTRestores(baseTramp* bt, codeGen &gen)
 {
-    return true;
    InstSpec* s = bt->instP()->instSpec();
    if (s) {
        for (auto rit = s->saveRegs.rbegin(); rit != s->saveRegs.rend(); ++rit) {

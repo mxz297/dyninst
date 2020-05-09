@@ -35,6 +35,7 @@
 #include "dyninstAPI/src/addressSpace.h"
 
 #include <iostream>
+#include "BPatch.h"
 
 using namespace Dyninst;
 using namespace Relocation;
@@ -72,7 +73,7 @@ CodeTracker *CodeTracker::fork(CodeTracker *parent,
          case TrackerElement::instrumentation: {
             InstTracker *pI = static_cast<InstTracker *>(pE);
             baseTramp *bt = baseTramp::fork(pI->baseT(), child);
-            cE = new InstTracker(pE->orig(), bt, cB, cF);
+            cE = new InstTracker(pE->orig(), bt, cB, cF, pI->edge());
             break;
          }
          case TrackerElement::padding: {
@@ -202,7 +203,7 @@ void CodeTracker::createIndices() {
 }
 
 void CodeTracker::debug() {
-  cerr << "************ FORWARD MAPPING ****************" << endl;
+/*  cerr << "************ FORWARD MAPPING ****************" << endl;
 
   for (ForwardMap::const_iterator iter = origToReloc_.begin();
        iter != origToReloc_.end(); ++iter) {
@@ -219,19 +220,26 @@ void CodeTracker::debug() {
         }
      }
   }
-     
   cerr << "************ REVERSE MAPPING ****************" << endl;
+*/
 
+  const char* path = BPatch::bpatch->getMappingFilePath();
+  FILE* f = fopen(path, "w");
   std::vector<ReverseMap::Entry> reverseEntries;
   relocToOrig_.elements(reverseEntries);
   
   for (unsigned i = 0; i < reverseEntries.size(); ++i) {
-     cerr << "\t" << hex << reverseEntries[i].first.first << "-" 
-          << reverseEntries[i].first.second << ": " 
-          << *(reverseEntries[i].second) << dec << endl;
+     if (reverseEntries[i].second->type() != TrackerElement::instrumentation) continue;
+     InstTracker * it = (InstTracker*)(reverseEntries[i].second);
+     fprintf(f, "%lx,%lx", reverseEntries[i].first.first, reverseEntries[i].first.second); 
+     if (it->edge() != NULL) {
+         fprintf(f, ",edge,%lx,%lx", it->edge()->src()->last(), it->edge()->trg()->start());
+     } else {
+	 fprintf(f, ",block,%lx", it->block()->start());
+     } 
+     fprintf(f,"\n");
   }
-
-  cerr << endl;
+  fclose(f);
 }
 
 namespace Dyninst
@@ -259,7 +267,7 @@ namespace Dyninst
                     os << ",?";
                     break;
             }
-            os << "," << e.block()->start() << "," << (e.func() ? e.func()->name() : "<NOFUNC>");
+            os << "," << hex << e.block()->start() << "," << (e.func() ? e.func()->name() : "<NOFUNC>");
             os << ")" << dec;
             return os;
         }

@@ -131,7 +131,10 @@ BPatch::BPatch()
     builtInTypes(NULL),
     stdTypes(NULL),
     type_Error(NULL),
-    type_Untyped(NULL)
+    type_Untyped(NULL),
+    relocJumpTable(false),
+    relocFuncPointer(false),
+    mappingFilePath(NULL)
 {
     init_debug();
     init_stats();
@@ -2041,4 +2044,27 @@ bool BPatch::markPatchFunctionExitInstrumented(Dyninst::PatchAPI::PatchFunction*
     if (fi == NULL) return false;
     fi->markExitInstrumented();
     return true;
+}
+
+bool BPatch::relocateJumpTable() {
+    return relocJumpTable;
+}
+
+void BPatch::setRelocateJumpTable(bool r) {
+    relocJumpTable = r;
+}
+
+bool BPatch::relocateFunctionPointer() {
+    return relocFuncPointer;
+}
+
+void BPatch::setRelocateFunctionPointer(bool r) {
+    relocFuncPointer = r;
+}
+
+void BPatch::setMappingFilePath(const char *f) {
+    mappingFilePath = f;
+}
+const char* BPatch::getMappingFilePath() {
+    return mappingFilePath;
 }

@@ -57,6 +57,8 @@ class ASTFactory : public Dyninst::InstructionAPI::Visitor
   std::deque<AstNodePtr> m_stack;
   virtual ~ASTFactory() {}
   ASTFactory() {}
+  Address curPC;
+  bool defensiveMode;
 };
 
 #endif //!defined(IAPI_TO_AST_H)

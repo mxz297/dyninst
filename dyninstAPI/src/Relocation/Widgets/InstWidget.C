@@ -58,7 +58,7 @@ TrackerElement *InstWidget::tracker() const {
    if (point_->block_compat() == NULL)
       return NULL;
 
-   e = new InstTracker(point_->addr_compat(), point_->tramp(), point_->block_compat(), point_->func());
+   e = new InstTracker(point_->addr_compat(), point_->tramp(), point_->block_compat(), point_->func(), point_->edge() );
    
    return e;
 }

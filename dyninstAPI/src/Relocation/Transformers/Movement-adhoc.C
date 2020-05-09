@@ -150,7 +150,7 @@ bool adhocMovementTransformer::process(RelocBlock *cur, RelocGraph *cfg) {
     }
     if (isPCRelData(*iter, insn, target)) {
       relocation_cerr << "  ... isPCRelData at "
-		      << std::hex << (*iter)->addr() << std::dec << endl;
+	      << std::hex << (*iter)->addr() << " target " << target << std::dec << endl;
       // Two options: a memory reference or a indirect call. The indirect call we 
       // just want to set target in the CFWidget, as it has the hardware to handle
       // control flow. Generic memory references get their own atoms. How nice. 
@@ -239,12 +239,7 @@ bool adhocMovementTransformer::process(RelocBlock *cur, RelocGraph *cfg) {
 }
 
 static Address PCValue(Address addr, Instruction insn) {
-    // ARM is for sure using pre-insnstruction PC value
-    if (insn.getArch() == Arch_aarch64 || insn.getArch() == Arch_aarch32) {
-        return addr;
-    } else {
-        return addr + insn.size();
-    }
+    return addr;
 }
 
 bool adhocMovementTransformer::isPCDerefCF(Widget::Ptr ptr,

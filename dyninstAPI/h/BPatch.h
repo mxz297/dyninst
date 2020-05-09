@@ -211,6 +211,10 @@ class BPATCH_DLL_EXPORT BPatch {
    std::set<entryID> delInsnOpcodes;
    std::set<Dyninst::Address> inliningAddresses;
 
+   bool relocJumpTable;
+   bool relocFuncPointer;
+   const char* mappingFilePath;
+
    public:  
      
    
@@ -696,6 +700,14 @@ public:
     bool markPatchFunctionEntryInstrumented(Dyninst::PatchAPI::PatchFunction*);
     bool markPatchFunctionExitInstrumented(Dyninst::PatchAPI::PatchFunction*);
     bool markPatchBlockInstrumented(Dyninst::PatchAPI::PatchBlock*);
+
+    bool relocateJumpTable();
+    void setRelocateJumpTable(bool);
+    bool relocateFunctionPointer();
+    void setRelocateFunctionPointer(bool);
+
+    void setMappingFilePath(const char*);
+    const char* getMappingFilePath();
 };
 
 #ifdef _MSC_VER
