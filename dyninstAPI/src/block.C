@@ -191,3 +191,12 @@ void block_instance::markInstrumented() {
 bool block_instance::isInstrumented() {
     return _instrumented;
 }
+
+mapped_object* block_instance::obj() const {
+    return SCAST_MO(obj_);
+}
+
+parse_block* block_instance::llb() const {
+    return SCAST_PB(block_);
+}
+

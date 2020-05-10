@@ -37,6 +37,7 @@
 #include "common/h/dyntypes.h"
 #include "Transformers/Transformer.h" // Priority enum
 #include "dyninstAPI/src/codegen.h"
+#include "dyninstAPI/src/function.h"
 
 class AddressSpace;
 
@@ -280,9 +281,8 @@ class SpringboardBuilder {
 
  public:
   typedef boost::shared_ptr<SpringboardBuilder> Ptr;
-  typedef std::set<func_instance *> FuncSet;
 
-  static Ptr createFunc(FuncSet::const_iterator begin, FuncSet::const_iterator end, AddressSpace *addrSpace);
+  static Ptr createFunc(FuncSetOrderdByLayout::const_iterator begin, FuncSetOrderdByLayout::const_iterator end, AddressSpace *addrSpace);
 
   bool generate(std::list<codeGen> &springboards,
 		SpringboardMap &input);

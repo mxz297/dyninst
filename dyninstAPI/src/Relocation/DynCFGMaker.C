@@ -33,6 +33,7 @@
 #include "dyninstAPI/src/mapped_object.h"
 #include "dyninstAPI/src/parse-cfg.h"
 #include "dyninstAPI/src/function.h"
+#include "dyninstAPI/src/addressSpace.h"
 
 using Dyninst::PatchAPI::DynCFGMaker;
 using Dyninst::PatchAPI::PatchObject;

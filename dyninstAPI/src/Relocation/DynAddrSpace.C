@@ -31,6 +31,7 @@
 
 #include "DynAddrSpace.h"
 #include "DynObject.h"
+#include "dyninstAPI/src/addressSpace.h"
 
 using Dyninst::ParseAPI::CodeObject;
 using Dyninst::PatchAPI::DynAddrSpace;

@@ -29,6 +29,7 @@
  */
 
 #include <dyninstAPI/src/registerSpace.h>
+#include "dyninstAPI/src/instPoint.h"
 #include "RelDataWidget.h"
 #include "instructionAPI/h/Instruction.h"
 #include "../dyninstAPI/src/debug.h"

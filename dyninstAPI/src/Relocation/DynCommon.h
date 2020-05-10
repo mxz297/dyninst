@@ -34,9 +34,6 @@
 #include "PatchCommon.h"
 #include "Instrumenter.h"
 
-// Dyninst Internal
-#include "dyninstAPI/src/addressSpace.h"
-
 #define DYN_CAST(type, obj)  boost::dynamic_pointer_cast<type>(obj)
 
 // Shortcuts for type casting

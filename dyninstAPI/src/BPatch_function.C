@@ -476,7 +476,7 @@ void BPatch_function::getAbruptEndPoints
 void BPatch_function::getCallerPoints(std::vector<BPatch_point*>& callerPoints)
 {
    std::vector<block_instance *> callerBlocks;
-   func->getCallerBlocks(std::back_inserter(callerBlocks));
+   func->getCallerBlocks(callerBlocks);
    for (std::vector<block_instance *>::iterator iter = callerBlocks.begin(); 
         iter != callerBlocks.end(); ++iter) 
    {
@@ -1113,3 +1113,8 @@ bool BPatch_function::addMods(std::set<StackMod*> mods)
 #endif
 }
 
+
+void BPatch_function::setLayoutOrder(int order)
+{
+    func->setLayoutOrder(order);
+}

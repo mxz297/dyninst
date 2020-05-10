@@ -2,6 +2,7 @@
 #define _R_JUMP_TABLE_MOVER_H
 
 #include "dyninstAPI/src/codegen.h"
+#include "dyninstAPI/src/function.h"
 #include "DynAST.h"
 
 namespace Dyninst{
@@ -10,9 +11,8 @@ namespace Relocation {
 class JumpTableMover {
 public:
     typedef boost::shared_ptr<JumpTableMover> Ptr;
-    typedef std::set<func_instance *> FuncSet;
-    static Ptr create(FuncSet::const_iterator begin,
-                      FuncSet::const_iterator end,
+    static Ptr create(FuncSetOrderdByLayout::const_iterator begin,
+                      FuncSetOrderdByLayout::const_iterator end,
                       AddressSpace * as);
     vector<codeGen> newTables;
 

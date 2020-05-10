@@ -51,8 +51,8 @@ SpringboardBuilder::SpringboardBuilder(AddressSpace* a)
 {
 }
 
-SpringboardBuilder::Ptr SpringboardBuilder::createFunc(FuncSet::const_iterator begin,
-						       FuncSet::const_iterator end,
+SpringboardBuilder::Ptr SpringboardBuilder::createFunc(FuncSetOrderdByLayout::const_iterator begin,
+						       FuncSetOrderdByLayout::const_iterator end,
 						       AddressSpace *as) 
 {
   Ptr ret = Ptr(new SpringboardBuilder(as));

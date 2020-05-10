@@ -44,6 +44,8 @@
 #include "../CodeBuffer.h"
 #include "../Transformers/Transformer.h" // transformer class
 #include "RelocGraph.h"
+#include "../../instPoint.h"
+#include "../../mapped_object.h"
 
 #include "boost/tuple/tuple.hpp"
 

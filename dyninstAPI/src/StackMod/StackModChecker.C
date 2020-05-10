@@ -49,6 +49,7 @@
 #include "StackMod.h"
 #include "StackModExpr.h"
 #include "StackModChecker.h"
+#include "dyninstAPI/src/addressSpace.h"
 
 
 StackModChecker::~StackModChecker() {

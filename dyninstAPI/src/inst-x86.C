@@ -60,6 +60,7 @@
 
 #include "dyninstAPI/src/instP.h" // class returnInstance
 #include "mapped_module.h"
+#include "mapped_object.h"
 #include "dyninstAPI/h/BPatch_memoryAccess_NP.h"
 #include "IAPI_to_AST.h"
 #include "Expression.h"

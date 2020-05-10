@@ -1690,17 +1690,17 @@ bool AddressSpace::relocate() {
   }
 
   bool ret = true;
-  for (std::map<mapped_object *, FuncSet>::iterator iter = modifiedFunctions_.begin();
+  for (std::map<mapped_object *, FuncSetOrderdByLayout>::iterator iter = modifiedFunctions_.begin();
        iter != modifiedFunctions_.end(); ++iter) {
-     FuncSet &modFuncs = iter->second;
+     FuncSetOrderdByLayout &modFuncs = iter->second;
 
      bool repeat = false;
 
      do { // add overlapping functions in a fixpoint calculation
         repeat = false;
         unsigned int num = modFuncs.size();
-        FuncSet overlappingFuncs;
-        for (FuncSet::iterator iter2 = modFuncs.begin(); iter2 != modFuncs.end(); ++iter2) {
+        FuncSetOrderdByLayout overlappingFuncs;
+        for (FuncSetOrderdByLayout::iterator iter2 = modFuncs.begin(); iter2 != modFuncs.end(); ++iter2) {
 //           block_instance *entry = (*iter2)->entryBlock();
 //           entry->getFuncs(std::inserter(overlappingFuncs,overlappingFuncs.begin()));
            // Check whether any blocks in the function are are members of any other functions
@@ -1719,7 +1719,7 @@ bool AddressSpace::relocate() {
      if (getArch() == Arch_ppc64) {
          // The PowerPC new ABI typically generate two entries per function.
          // Need special hanlding for them
-         FuncSet actualModFuncs;
+         FuncSetOrderdByLayout actualModFuncs;
          for (auto fit = modFuncs.begin(); fit != modFuncs.end(); ++fit) {
              func_instance* funct = *fit;
              if (funct->getPowerPreambleFunc() != NULL) {
@@ -1761,7 +1761,7 @@ bool AddressSpace::relocate() {
 }
 
 // iter is some sort of functions
-bool AddressSpace::relocateInt(FuncSet::const_iterator begin, FuncSet::const_iterator end, Address nearTo) {
+bool AddressSpace::relocateInt(FuncSetOrderdByLayout::const_iterator begin, FuncSetOrderdByLayout::const_iterator end, Address nearTo) {
 
   if (begin == end) {
     return true;

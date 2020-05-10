@@ -45,7 +45,7 @@
 #include "BPatch_function.h"
 #include "debug.h"
 #include "BPatch_point.h"
-
+#include "instPoint.h"
 const Dyninst::Address BPatch_object::E_OUT_OF_BOUNDS((Dyninst::Address) -1);
 
 class BPatch_object_getMod {

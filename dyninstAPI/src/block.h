@@ -33,9 +33,7 @@
 
 #include "parse-cfg.h"
 #include "parseAPI/h/CFG.h"
-#include "instPoint.h"
 #include "PatchCFG.h"
-#include "mapped_object.h"
 
 class block_instance;
 class func_instance;
@@ -91,7 +89,7 @@ class block_instance : public Dyninst::PatchAPI::PatchBlock {
     ~block_instance();
 
     // Up-accessors
-    mapped_object *obj() const { return SCAST_MO(obj_); }
+    mapped_object *obj() const;
     AddressSpace *addrSpace() const;
     AddressSpace *proc() const { return addrSpace(); }
 
@@ -100,7 +98,7 @@ class block_instance : public Dyninst::PatchAPI::PatchBlock {
 
     void triggerModified();
     void setNotAbruptEnd();
-    parse_block * llb() const { return SCAST_PB(block_); }
+    parse_block * llb() const;
     void *getPtrToInstruction(Address addr) const;
 
     //const edgelist &sources();

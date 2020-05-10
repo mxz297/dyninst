@@ -37,6 +37,7 @@
 #include "dyninstAPI/src/emitter.h"
 #include "dyninstAPI/src/inst-x86.h"
 #include "dyninstAPI/src/debug.h"
+#include "dyninstAPI/src/mapped_object.h"
 
 #if defined(cap_mem_emulation)
 #include "dyninstAPI/src/MemoryEmulator/memEmulatorWidget.h"

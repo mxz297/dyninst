@@ -45,12 +45,12 @@
 #include "bitArray.h"
 
 #include "block.h"
-#include "instPoint.h"
 #include "PatchCFG.h"
 #include "Point.h"
 
 #include "Variable.h"
 #include "stackanalysis.h"
+#include "Relocation/DynCommon.h"
 #if defined(cap_stack_mods)
 #include "StackMod.h"
 #include "StackMod/OffsetVector.h"
@@ -63,7 +63,6 @@ class PCProcess;
 class mapped_module;
 class mapped_object;
 
-class func_instance;
 class block_instance;
 class edge_instance;
 class instPoint;
@@ -145,7 +144,7 @@ class func_instance : public patchTarget, public Dyninst::PatchAPI::PatchFunctio
 
   // Not defined here so we don't have to play header file magic
   // Not const; we can add names via the Dyninst layer
-  parse_func *ifunc() const { return SCAST_PF(func_); }
+  parse_func *ifunc() const;
   mapped_module *mod() const { return mod_; }
   mapped_object *obj() const;
 
@@ -249,10 +248,8 @@ class func_instance : public patchTarget, public Dyninst::PatchAPI::PatchFunctio
 
   // Fill the <callers> vector with pointers to the statically-determined
   // list of functions that call this function.
-  template <class OutputIterator>
-    void getCallerBlocks(OutputIterator result);
-  template <class OutputIterator>
-    void getCallerFuncs(OutputIterator result);
+  void getCallerBlocks(std::vector<block_instance*>&);
+  void getCallerFuncs(std::vector<func_instance*>&);
   bool getLiveCallerBlocks(const std::set<block_instance*> &deadBlocks,
                            const std::list<func_instance*> &deadFuncs,
                            std::map<Address,vector<block_instance*> > & output_stubs);
@@ -366,6 +363,8 @@ class func_instance : public patchTarget, public Dyninst::PatchAPI::PatchFunctio
 
   void setSafeBlocks(std::set<block_instance*>& s) { safeBlocks = s; }
   std::set<block_instance*>& getSafeBlocks() { return safeBlocks; }
+  void setLayoutOrder(int order) { userSetLayoutOrder_ = order; }
+  int getLayoutOrder() const { return userSetLayoutOrder_; }
 
  private:
 
@@ -391,6 +390,8 @@ class func_instance : public patchTarget, public Dyninst::PatchAPI::PatchFunctio
                                 set to -1, or to the address of the fault
                                 that last caused the handler to be invoked. */
   Address handlerFaultAddrAddr_;
+
+  int userSetLayoutOrder_;
 
   //////////////////////////  Parallel Regions
   pdvector<int_parRegion*> parallelRegions_; /* pointer to the parallel regions */
@@ -460,36 +461,16 @@ class func_instance : public patchTarget, public Dyninst::PatchAPI::PatchFunctio
   std::set<block_instance*> safeBlocks;
 };
 
-template <class OutputIterator>
-void func_instance::getCallerBlocks(OutputIterator result)
-{
-  if(!ifunc() || !ifunc()->entryBlock())
-    return;
-  /*
-  const block_instance::edgelist &ins = entryBlock()->sources();
-  for (block_instance::edgelist::const_iterator iter = ins.begin();
-       iter != ins.end(); ++iter) {
-  */
-  const PatchBlock::edgelist &ins = entryBlock()->sources();
-  for (PatchBlock::edgelist::const_iterator iter = ins.begin();
-       iter != ins.end(); ++iter) 
-  {
-      if ((*iter)->type() == ParseAPI::CALL) {
-        *result = SCAST_EI(*iter)->src();
-        ++result;
-      }
-  }
-}
 
-template <class OutputIterator>
-void func_instance::getCallerFuncs(OutputIterator result)
-{
-  std::set<block_instance *> callerBlocks;
-  getCallerBlocks(std::inserter(callerBlocks, callerBlocks.end()));
-  for (std::set<block_instance *>::iterator iter = callerBlocks.begin();
-       iter != callerBlocks.end(); ++iter) {
-    (*iter)->getFuncs(result);
-  }
-}
+struct UserSetLayoutOrderFuncInstance {
+    bool operator() (const func_instance* const lhs, const func_instance* const rhs) const {
+        if (lhs->getLayoutOrder() == rhs->getLayoutOrder())
+            return lhs->addr() < rhs->addr();
+        return lhs->getLayoutOrder() < rhs->getLayoutOrder();
+    }
+};
+
+typedef std::set<func_instance* , UserSetLayoutOrderFuncInstance> FuncSetOrderdByLayout;
+
 
 #endif /* FUNCTION_H */

@@ -33,6 +33,7 @@
 #include "../function.h"
 #include "../parse-cfg.h"
 #include "Snippet.h"
+#include "dyninstAPI/src/addressSpace.h"
 
 using Dyninst::PatchAPI::DynInstrumenter;
 using Dyninst::PatchAPI::DynInsertSnipCommand;

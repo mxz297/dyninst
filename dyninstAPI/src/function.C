@@ -1757,3 +1757,38 @@ void func_instance::markExitInstrumented() {
 bool func_instance::isExitInstrumented() {
     return _exitInstrumented;
 }
+
+parse_func* func_instance::ifunc() const {
+    return SCAST_PF(func_);
+}
+
+void func_instance::getCallerBlocks(std::vector<block_instance*>& ret)
+{
+  if(!ifunc() || !ifunc()->entryBlock())
+    return;
+  /*
+  const block_instance::edgelist &ins = entryBlock()->sources();
+  for (block_instance::edgelist::const_iterator iter = ins.begin();
+       iter != ins.end(); ++iter) {
+  */
+  const PatchBlock::edgelist &ins = entryBlock()->sources();
+  for (PatchBlock::edgelist::const_iterator iter = ins.begin();
+       iter != ins.end(); ++iter) 
+  {
+      if ((*iter)->type() == ParseAPI::CALL) {
+        ret.push_back(SCAST_EI(*iter)->src());
+      }
+  }
+}
+
+void func_instance::getCallerFuncs(std::vector<func_instance*>& ret)
+{
+  std::vector<block_instance *> callerBlocks;
+  getCallerBlocks(callerBlocks);
+  for (auto iter = callerBlocks.begin();
+       iter != callerBlocks.end(); ++iter) {
+    (*iter)->getFuncs(std::back_inserter(ret));
+  }
+}
+
+

@@ -64,7 +64,6 @@ typedef std::map<std::pair<block_instance *, func_instance *>, Priority> Priorit
 class CodeMover {
  public:
   typedef boost::shared_ptr<CodeMover> Ptr;
-  typedef std::set<func_instance *> FuncSet;
   typedef std::set<block_instance *> BlockSet;
 
   // A generic mover of code; an instruction, a basic block, or
@@ -84,7 +83,7 @@ class CodeMover {
   static Ptr create(CodeTracker *);
   ~CodeMover();
 
-  bool addFunctions(FuncSet::const_iterator begin, FuncSet::const_iterator end);
+  bool addFunctions(FuncSetOrderdByLayout::const_iterator begin, FuncSetOrderdByLayout::const_iterator end);
 
   // Apply the given Transformer to all blocks in the Mover
   bool transform(Transformer &t);

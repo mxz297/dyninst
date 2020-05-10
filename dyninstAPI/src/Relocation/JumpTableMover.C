@@ -11,8 +11,8 @@ using namespace Dyninst;
 using namespace Dyninst::DataflowAPI;
 using namespace Relocation;
 
-JumpTableMover::Ptr JumpTableMover::create(FuncSet::const_iterator begin,
-        FuncSet::const_iterator end,
+JumpTableMover::Ptr JumpTableMover::create(FuncSetOrderdByLayout::const_iterator begin,
+        FuncSetOrderdByLayout::const_iterator end,
         AddressSpace *s) {
     Ptr ret = Ptr(new JumpTableMover(s));                      
 

@@ -32,6 +32,7 @@
 
 #ifndef ADDRESS_SPACE_H
 #define ADDRESS_SPACE_H
+#include "function.h"
 
 #include "infHeap.h"
 #include "codeRange.h"
@@ -49,6 +50,7 @@
 #include "Relocation/Springboard.h"
 #include "Relocation/JumpTableMover.h"
 #include "Relocation/FunctionPointerMover.h"
+#include "Relocation/DynCommon.h"
 #include "Patching.h"
 
 #include "PatchMgr.h"
@@ -57,7 +59,6 @@
 class codeRange;
 class replacedFunctionCall;
 
-class func_instance;
 class block_instance;
 class edge_instance;
 
@@ -80,7 +81,6 @@ class fileDescriptor;
 using namespace Dyninst;
 //using namespace SymtabAPI;
 
-class func_instance;
 class int_symbol;
 
 class Dyn_Symbol;
@@ -533,10 +533,9 @@ class AddressSpace : public InstructionSource {
 
     bool relocateJumpTables(Dyninst::Relocation::JumpTableMover::Ptr jtm);
     bool relocateFunctionPointers(Dyninst::Relocation::FunctionPointerMover::Ptr fpm);
-    typedef std::set<func_instance *> FuncSet;
-    std::map<mapped_object *, FuncSet> modifiedFunctions_;
+    std::map<mapped_object *, FuncSetOrderdByLayout> modifiedFunctions_;
 
-    bool relocateInt(FuncSet::const_iterator begin, FuncSet::const_iterator end, Address near);
+    bool relocateInt(FuncSetOrderdByLayout::const_iterator begin, FuncSetOrderdByLayout::const_iterator end, Address near);
     Dyninst::Relocation::InstalledSpringboards::Ptr installedSpringboards_;
  public:
     Dyninst::Relocation::InstalledSpringboards::Ptr getInstalledSpringboards() 

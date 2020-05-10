@@ -33,6 +33,7 @@
 #include "dyninstAPI/src/function.h"
 #include "dyninstAPI/src/block.h"
 #include "dyninstAPI/src/addressSpace.h"
+#include "dyninstAPI/src/baseTramp.h"
 
 #include <iostream>
 #include "BPatch.h"
@@ -225,6 +226,7 @@ void CodeTracker::debug() {
 
   const char* path = BPatch::bpatch->getMappingFilePath();
   FILE* f = fopen(path, "w");
+  if (f == NULL) return;
   std::vector<ReverseMap::Entry> reverseEntries;
   relocToOrig_.elements(reverseEntries);
   

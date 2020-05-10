@@ -32,6 +32,7 @@
 #include "block.h"
 #include "function.h"
 #include "mapped_object.h"
+#include "instPoint.h"
 
 using namespace Dyninst;
 using namespace PatchAPI;

@@ -42,6 +42,7 @@
 #include "dyninstAPI/src/debug.h"
 #include "CodeTracker.h"
 #include "CFG/RelocGraph.h"
+#include "mapped_object.h"
 
 using namespace std;
 using namespace Dyninst;
@@ -69,8 +70,8 @@ CodeMover::~CodeMover() {
    // Do not delete codeTracker
 }
 
-bool CodeMover::addFunctions(FuncSet::const_iterator begin, 
-			     FuncSet::const_iterator end) {
+bool CodeMover::addFunctions(FuncSetOrderdByLayout::const_iterator begin, 
+			     FuncSetOrderdByLayout::const_iterator end) {
    // A vector of Functions is just an extended vector of basic blocks...
    for (; begin != end; ++begin) {
       func_instance *func = *begin;

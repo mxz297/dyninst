@@ -2,6 +2,7 @@
 #include "dyninstAPI/src/addressSpace.h" 
 #include "dyninstAPI/src/function.h"
 #include "dyninstAPI/src/debug.h"
+#include "dyninstAPI/src/mapped_object.h"
 
 #include "Instruction.h"
 #include "InstructionDecoder.h"

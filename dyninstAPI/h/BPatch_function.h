@@ -348,6 +348,7 @@ public:
 
     // Add stack modifications
     bool addMods(std::set<StackMod*>);
+    void setLayoutOrder(int);
 };
 
 #endif /* _BPatch_function_h_ */
