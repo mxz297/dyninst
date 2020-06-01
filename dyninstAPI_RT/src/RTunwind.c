@@ -10,7 +10,17 @@
 #include <stdio.h>
 #include <string.h>
 
+#if defined(arch_x86_64)
 const char * unw_step_name = "_ULx86_64_step";
+#define UNW_RIP UNW_X86_64_RIP
+#define UNW_FUNC_NAME _ULx86_64_step
+
+#elif defined(arch_power)
+const char * unw_step_name = "_ULppc64_step";
+#define UNW_RIP UNW_PPC64_NIP
+#define UNW_FUNC_NAME _ULppc64_step
+
+#endif
 
 typedef int (*unw_step_fn_type) (unw_cursor_t *);
 static unw_step_fn_type real_unw_step = NULL;
@@ -83,7 +93,7 @@ unw_word_t DyninstRATranslation(unw_word_t ip) {
     return ip;
 }
 
-DLLEXPORT int _ULx86_64_step(unw_cursor_t* cursor) {
+DLLEXPORT int UNW_FUNC_NAME(unw_cursor_t* cursor) {
     if (!real_unw_step) {
         void* handle = dlopen("libunwind.so", RTLD_LAZY);
         if (handle == NULL) {
@@ -98,10 +108,10 @@ DLLEXPORT int _ULx86_64_step(unw_cursor_t* cursor) {
     int ret = real_unw_step(cursor);
     
     unw_word_t ip, new_ip;
-    unw_get_reg(cursor, UNW_X86_64_RIP, &ip);
+    unw_get_reg(cursor, UNW_RIP, &ip);
     new_ip = DyninstRATranslation(ip);
     if (new_ip != ip) {
-        unw_set_reg(cursor, UNW_X86_64_RIP, new_ip);
+        unw_set_reg(cursor, UNW_RIP, new_ip);
     }
     return ret;
 }

@@ -5,17 +5,18 @@ project (DyninstRT C)
 set (DYNINST_ROOT ${PROJECT_SOURCE_DIR}/..)
 set(CMAKE_C_FLAGS "${DYNINST_RT_CMAKE_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "${DYNINST_RT_CMAKE_CXX_FLAGS}")
-
+set(CMAKE_MODULE_PATH "${DYNINST_ROOT}/cmake/Modules")
 include (${DYNINST_ROOT}/cmake/shared.cmake)
+include (${DYNINST_ROOT}/cmake/Libunwind.cmake)
 
 include_directories (
     ${DYNINST_ROOT}/dyninstAPI_RT/src
     ${DYNINST_ROOT}/dyninstAPI_RT/h
     ${DYNINST_ROOT}
-    ${Libunwind_ROOT_DIR}/include
+    ${Libunwind_INCLUDE_DIRS}
   )
 
-link_directories(${Libunwind_ROOT_DIR}/lib)
+link_directories(${Libunwind_LIBRARY_DIRS})
 
 set (SRC_LIST
     src/RTcommon.c 
@@ -49,7 +50,7 @@ elseif (PLATFORM MATCHES nt OR PLATFORM MATCHES windows)
 set (SRC_LIST ${SRC_LIST}
     src/RTheap.c 
     src/RTheap-win.c
-    src/RTwinnt.c
+    bunwind_LIBRARY_DIRSsrc/RTwinnt.c
     src/RTthread.c
     src/RTthread-x86.c
 )
@@ -130,7 +131,7 @@ if(TARGET TBB)
     add_dependencies(dyninstAPI_RT_static TBB)
 endif()
 
-target_link_libraries(dyninstAPI_RT "libunwind.so" "libunwind-x86_64.so")
+target_link_libraries(dyninstAPI_RT ${Libunwind_LIBRARIES})
 
 # this should carry over from CMakeLists.txt
 set_target_properties (dyninstAPI_RT

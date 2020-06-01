@@ -1917,12 +1917,12 @@ bool AddressSpace::transform(CodeMover::Ptr cm) {
       cm->transform(m);
   }
 #endif
-
+/*
    if (maskBits > 0) {
        SFITransformer s(maskBits);
        cm->transform(s);
    }
-
+*/
   // Add instrumentation
   relocation_cerr << "Inst transformer" << endl;
   Instrumenter i;
