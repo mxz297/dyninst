@@ -331,6 +331,7 @@ SpringboardBuilder::generateSpringboard(std::list<codeGen> &springboards,
 
 bool SpringboardBuilder::generateMultiSpringboard(std::list<codeGen> &springboards,
 						  const SpringboardReq &r) {
+    if (addrSpace_->getArch() != Arch_x86_64) return false; 
     if (conflict(r.from, r.from + SHORT_BRANCH_LEN, r.fromRelocatedCode, r.func, r.priority)) return false;
 
    Address s = r.from + SHORT_BRANCH_LEN;
