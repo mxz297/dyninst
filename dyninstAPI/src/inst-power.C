@@ -1037,6 +1037,7 @@ unsigned restoreSPRegisters(codeGen &gen,
 bool baseTramp::generateSaves(codeGen &gen,
                               registerSpace *)
 {
+    return true;
     regalloc_printf("========== baseTramp::generateSaves\n");
     unsigned int width = gen.width();
 
@@ -1064,6 +1065,7 @@ bool baseTramp::generateSaves(codeGen &gen,
 bool baseTramp::generateRestores(codeGen &gen,
                                  registerSpace *)
 {
+    return true;
     unsigned int width = gen.width();
 
     regalloc_printf("========== baseTramp::generateRestores\n");

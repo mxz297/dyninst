@@ -9,7 +9,7 @@
 extern struct r_debug _r_debug;
 DLLEXPORT struct r_debug _r_debug __attribute__ ((weak));
 
-#if !defined(arch_x86_64) || defined(MUTATEE_32)
+#if defined(MUTATEE_32)
 typedef Elf32_Dyn ElfX_Dyn;
 #else
 typedef Elf64_Dyn ElfX_Dyn;
