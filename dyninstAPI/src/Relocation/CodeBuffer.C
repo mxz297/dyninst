@@ -135,7 +135,7 @@ bool CodeBuffer::BufferElement::generate(CodeBuffer *buf,
       size_ = newSize;
       regenerate = true;
    }
-   //relocation_cerr << "BufferElement::generate, new size " << size_ << endl;
+   relocation_cerr << "BufferElement::generate, new size " << size_ << endl;
 
    return true;
 }
@@ -314,11 +314,11 @@ void CodeBuffer::updateLabel(unsigned id, Address offset, bool &regenerate) {
    Label &l = labels_[id];
    if (!l.valid()) return;
 
-   //relocation_cerr << "\t Updating label " << id 
-//                   << " -> " << std::hex << offset << std::dec << endl;
+   relocation_cerr << "\t Updating label " << id 
+                   << " -> " << std::hex << offset << std::dec << endl;
    if (l.addr != offset) {
-      //relocation_cerr << "\t\t Old value " << std::hex << labels_[id].addr
-//                      << ", regenerating!" << std::dec << endl;
+      relocation_cerr << "\t\t Old value " << std::hex << labels_[id].addr
+                      << ", regenerating!" << std::dec << endl;
       regenerate = true;
    }
    l.addr = offset;
@@ -341,16 +341,16 @@ Address CodeBuffer::predictedAddr(unsigned id) {
    Label &label = labels_[id];
    switch(label.type) {
       case Label::Absolute:
-         //relocation_cerr << "\t\t Requested predicted addr for " << id
-//                         << ", label is absolute, ret " << std::hex << label.addr << std::dec << endl;
+         relocation_cerr << "\t\t Requested predicted addr for " << id
+                         << ", label is absolute, ret " << std::hex << label.addr << std::dec << endl;
          return label.addr;
       case Label::Relative:
          assert(gen_.startAddr());
          assert(gen_.startAddr() != (Address) -1);
-         //relocation_cerr << "\t\t Requested predicted addr for " << id
-//                         << ", label is relative, ret " << std::hex << label.addr + gen_.startAddr()
-//                         << " = " << label.addr << " + " << gen_.startAddr()
-            //             << std::dec << endl;
+         relocation_cerr << "\t\t Requested predicted addr for " << id
+                         << ", label is relative, ret " << std::hex << label.addr + gen_.startAddr()
+                         << " = " << label.addr << " + " << gen_.startAddr()
+                         << std::dec << endl;
          return label.addr + gen_.startAddr();
       case Label::Estimate: {
          // In this case we want to adjust the address by 
@@ -362,12 +362,12 @@ Address CodeBuffer::predictedAddr(unsigned id) {
          Address ret = label.addr + gen_.startAddr();
          if (label.iteration < curIteration_)
             ret += shift_;
-         //relocation_cerr << "\t\t Requested predicted addr for " << id
-//                         << ", label is relative, ret " << std::hex << ret
-    //                     << " = " << label.addr << " + " << gen_.startAddr()
-   //                      << " + (" << label.iteration << " < " 
-   //                      << curIteration_ << ") ? " << shift_ 
-   //                      << " : 0" << std::dec << endl;
+         relocation_cerr << "\t\t Requested predicted addr for " << id
+                         << ", label is relative, ret " << std::hex << ret
+                         << " = " << label.addr << " + " << gen_.startAddr()
+                         << " + (" << label.iteration << " < " 
+                         << curIteration_ << ") ? " << shift_ 
+                         << " : 0" << std::dec << endl;
          return ret;
       }
       default:

@@ -31,6 +31,7 @@
 #include "RelocGraph.h"
 #include "RelocBlock.h"
 #include <iostream>
+#include "../dyninstAPI/src/debug.h"
 
 using namespace Dyninst;
 using namespace Relocation;
@@ -61,6 +62,7 @@ RelocGraph::~RelocGraph() {
 void RelocGraph::addRelocBlock(RelocBlock *t) {
    if (t->type() == RelocBlock::Relocated) {
       springboards[std::make_pair(t->block(), t->func())] = t;
+      relocation_cerr << "addRelocBlock" << hex << " [" << t->block()->start() << "," << t->block()->end() << ")" << " func " << t->func()->addr() << dec << endl;
       reloc[t->block()->start()][make_pair(t->func(), t->block())] = t;
    }
 

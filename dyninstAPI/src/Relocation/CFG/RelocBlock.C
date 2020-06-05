@@ -244,12 +244,19 @@ void RelocBlock::processEdge(EdgeDirection e, edge_instance *edge, RelocGraph *c
       // we use ours.
       if (edge->interproc()) {
          f = block->entryOfFunc();
+         // On ppc64le,
+         // As we only add the function that contains the preabmle into the reloc graph,
+         // and intra-module call always goes to the local entry,
+         // we need to adjust the function pointer here to the preambled function
+         if (f != nullptr && f->getPowerPreambleFunc() != nullptr) f = f->getPowerPreambleFunc();
       }
       else {
          f = func();
       }
-
       RelocBlock *t = cfg->find(block, f);
+      relocation_cerr << "Create reloc edge" << ",is outedge " << (e == OutEdge) << " interproc " << edge->interproc() << hex << 
+          " other block [" << block->start() << "," << block->end() << ")" << " reloc block " << t << " func " << (f == NULL ? -1 : f->addr()) << dec << endl; 
+
       if (t) {
          if (e == OutEdge) {
             cfg->makeEdge(new Target<RelocBlock *>(this), 
@@ -520,12 +527,13 @@ void RelocBlock::determineNecessaryBranches(RelocBlock *successor) {
 
 bool RelocBlock::generate(const codeGen &templ,
 			  CodeBuffer &buffer) {
-   relocation_cerr << "Generating block " << id() << " orig @ " << hex << origAddr() << dec << endl;
-   relocation_cerr << "\t" << elements_.size() << " elements" << endl; 
-   relocation_cerr << "\t At entry, code buffer has size " << buffer.size() << endl;
   
    // Register ourselves with the CodeBuffer and get a label
    label_ = buffer.getLabel();
+
+   relocation_cerr << "Generating block " << id() << " orig @ " << hex << origAddr() << dec << " get label " << label_ << endl;
+   relocation_cerr << "\t" << elements_.size() << " elements" << endl; 
+   relocation_cerr << "\t At entry, code buffer has size " << buffer.size() << endl;
 
    codeGen ourTemplate;
    ourTemplate.applyTemplate(templ);
