@@ -394,7 +394,7 @@ bool CFWidget::generateBranch(CodeBuffer &buffer,
    // the next instruction. So if we ever see that (a branch of offset
    // == size) back up the codeGen and shrink us down.
 
-   CFPatch *newPatch = new CFPatch(CFPatch::Jump, insn, to, trace->func(), addr_);
+   CFPatch *newPatch = new CFPatch(CFPatch::Jump, insn, to, trace->func(), addr_, false);
 
    if (fallthrough || trace->block() == NULL) {
       buffer.addPatch(newPatch, destTracker(to, trace));
@@ -415,7 +415,7 @@ bool CFWidget::generateCall(CodeBuffer &buffer,
       return true;
    }
 
-   CFPatch *newPatch = new CFPatch(CFPatch::Call, insn, to, trace->func(), addr_);
+   CFPatch *newPatch = new CFPatch(CFPatch::Call, insn, to, trace->func(), addr_, destMap_.find(Fallthrough) != destMap_.end());
 
    buffer.addPatch(newPatch, tracker(trace));
 
@@ -427,7 +427,7 @@ bool CFWidget::generateConditionalBranch(CodeBuffer &buffer,
                                          const RelocBlock *trace,
                                          Instruction insn) {
    assert(to);
-   CFPatch *newPatch = new CFPatch(CFPatch::JCC, insn, to, trace->func(), addr_);
+   CFPatch *newPatch = new CFPatch(CFPatch::JCC, insn, to, trace->func(), addr_, false);
 
    buffer.addPatch(newPatch, tracker(trace));
 
@@ -480,8 +480,9 @@ CFPatch::CFPatch(Type a,
                  Instruction b,
                  TargetInt *c,
                  const func_instance *d,
-                 Address e) :
-  type(a), orig_insn(b), target(c), func(d), origAddr_(e) {
+                 Address e,
+                 bool call_ft) :
+  type(a), orig_insn(b), target(c), func(d), origAddr_(e), hasCallFT_(call_ft) {
   if (b.isValid()) {
     insn_ptr = new unsigned char[b.size()];
     memcpy(insn_ptr, b.ptr(), b.size());

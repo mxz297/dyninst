@@ -133,7 +133,8 @@ bool CFWidget::generateIndirect(CodeBuffer &buffer,
       CFPatch *newPatch = new CFPatch(CFPatch::Data, insn, 
                                       new Target<Address>(origTarget_),
                                       trace->func(),
-                                      addr_);
+                                      addr_,
+                                      true);
       buffer.addPatch(newPatch, tracker(trace));
    }
    else {
@@ -171,7 +172,8 @@ bool CFWidget::generateIndirectCall(CodeBuffer &buffer,
       CFPatch *newPatch = new CFPatch(CFPatch::Data, insn, 
                                       new Target<Address>(origTarget_),
                                       trace->func(),
-                                      addr_);
+                                      addr_,
+                                      true);
       buffer.addPatch(newPatch, tracker(trace));
    }
    else {

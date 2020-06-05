@@ -208,7 +208,8 @@ struct CFPatch : public Patch {
 		 InstructionAPI::Instruction b,
 		 TargetInt *c,
 		 const func_instance *d,
-		 Address e = 0);
+		 Address e,
+         bool hasCallFT);
   
   virtual bool apply(codeGen &gen, CodeBuffer *buf);
   virtual unsigned estimate(codeGen &templ);
@@ -221,6 +222,7 @@ struct CFPatch : public Patch {
   Address origAddr_;  
   arch_insn *ugly_insn;
   unsigned char* insn_ptr;
+  bool hasCallFT_;
 
 
 #if defined(arch_power)
