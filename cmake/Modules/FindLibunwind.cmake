@@ -53,6 +53,8 @@ if (PLATFORM MATCHES amd64 OR PLATFORM MATCHES x86_64)
 set(_libunwind_lib_name "libunwind-x86_64.so")
 elseif (PLATFORM MATCHES ppc64)
 set(_libunwind_lib_name "libunwind-ppc64.so")
+elseif (PLATFORM MATCHES aarch64)
+set(_libunwind_lib_name "libunwind-aarch64.so")
 endif()
 
 find_library(Libunwind_plat_LIBRARIES

@@ -20,6 +20,11 @@ const char * unw_step_name = "_ULppc64_step";
 #define UNW_RIP UNW_PPC64_NIP
 #define UNW_FUNC_NAME _ULppc64_step
 
+#elif defined(arch_aarch64)
+const char * unw_step_name = "_ULaarch64_step";
+#define UNW_RIP UNW_AARCH64_PC
+#define UNW_FUNC_NAME _ULaarch64_step
+
 #endif
 
 typedef int (*unw_step_fn_type) (unw_cursor_t *);
