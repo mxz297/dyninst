@@ -252,6 +252,11 @@ AST::Ptr NewTableEntryVisitor::visit(DataflowAPI::RoseAST *ast) {
             break;
         case ROSEOperation::derefOp: 
             return AST::Ptr();
+        case ROSEOperation::andOp: 
+            // Here the andOp is outside the memory reference.
+            // Assume it is on ppc64le or aarch64 where the andOp is used to mask the
+            // lower 2 bit. So, it does not really impact the calculation.
+            break;
         default:
             assert(0);
             break;            
