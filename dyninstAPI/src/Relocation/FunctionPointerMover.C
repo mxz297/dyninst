@@ -42,10 +42,7 @@ void FunctionPointerMover::movePointersInDataSection(const char *secName) {
            gen.allocate(PTR_SIZE);
            gen.setAddrSpace(as);
            gen.setAddr(addr);
-           GET_PTR(insn, gen);
-           *((Address*)insn) = newValue;
-           insn += sizeof(Address);
-           SET_PTR(insn,gen);
+           gen.copy(&newValue, PTR_SIZE);
            newPointers.push_back(gen);
        }
    }

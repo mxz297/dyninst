@@ -67,18 +67,15 @@ void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
             //       so the offset can change and may not necessarilly
             //       fit in the original table entry. This can be fixed
             //       by copying the whole table to a new location
-            GET_PTR(insn,gen);
             if (jt.indexStride == 8) {
-                *((int64_t*)insn) = newEntry;
-                insn += sizeof(int64_t);
+                gen.copy(&newEntry, sizeof(int64_t));
             } else if (jt.indexStride == 4) {
-                *((int32_t*)insn) = (int32_t)newEntry;
-                insn += sizeof(int32_t);
+                int32_t entry = (int32_t) newEntry;
+                gen.copy(&entry, sizeof(int32_t));
             } else {
                 fprintf(stderr, "Unhandled jump table stride %d for indirect jump %lx\n", jt.indexStride, jit->first);
                 assert(0);
             }
-            SET_PTR(insn,gen);
 
             auto it = overwritten.find(addr);
             if (it != overwritten.end() && it->second != newEntry) {
