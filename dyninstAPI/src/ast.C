@@ -288,6 +288,10 @@ AstNodePtr AstNode::scrambleRegistersNode(){
     return AstNodePtr(new AstScrambleRegistersNode());
 }
 
+AstNodePtr AstNode::paddingNode(int p) {
+    return AstNodePtr(new AstPaddingNode(p));
+}
+
 bool isPowerOf2(int value, int &result)
 {
   if (value<=0) return(false);
@@ -2307,6 +2311,11 @@ bool AstScrambleRegistersNode::generateCode_phase2(codeGen &gen,
    }
 #endif
    return true;
+}
+
+bool AstPaddingNode::generateCode_phase2(codeGen &gen, bool, Address&, Register&) {
+    gen.codeEmitter()->emitPadding(padding_, gen);
+    return true;
 }
 
 #if defined(AST_PRINT)

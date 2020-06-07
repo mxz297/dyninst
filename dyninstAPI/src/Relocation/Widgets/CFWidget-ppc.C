@@ -40,8 +40,8 @@
 #include "../CodeTracker.h"
 #include "../CodeBuffer.h"
 #include "dyninstAPI/src/addressSpace.h"
-#include "dyninstAPI/src/emit-x86.h"
 #include "dyninstAPI/src/registerSpace.h"
+#include "dyninstAPI/src/emit-power.h"
 
 using namespace Dyninst;
 using namespace Relocation;

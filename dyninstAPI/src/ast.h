@@ -255,6 +255,7 @@ class AstNode : public Dyninst::PatchAPI::Snippet {
    static AstNodePtr originalAddrNode();
    static AstNodePtr actualAddrNode();
    static AstNodePtr dynamicTargetNode();
+   static AstNodePtr paddingNode(int);
 
    static AstNodePtr snippetNode(Dyninst::PatchAPI::SnippetPtr snip);
 
@@ -918,6 +919,23 @@ class AstScrambleRegistersNode : public AstNode {
                                      Register &retReg);
 };
 
+class AstPaddingNode : public AstNode {
+ public:
+    AstPaddingNode(int p): padding_(p) {};
+
+    virtual ~AstPaddingNode() {};
+
+    virtual bool canBeKept() const { return false; }
+    virtual bool containsFuncCall() const { return false; }
+    virtual bool usesAppRegister() const { return false; }
+ 
+ private:
+    int padding_;
+    virtual bool generateCode_phase2(codeGen &gen,
+                                     bool noCost,
+                                     Address &retAddr,
+                                     Register &retReg);
+};
 
 class AstSnippetNode : public AstNode {
    // This is a little odd, since an AstNode _is_

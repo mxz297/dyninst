@@ -3292,5 +3292,14 @@ bool EmitterAMD64::emitXorRegSegReg(Register dest, Register base, int disp, code
     return true;
 }
 
+bool EmitterAMD64::emitPadding(int p, codeGen& gen)
+{
+    if (p <= 5) return true;
+    Address curAddr = gen.currAddr();
+    insnCodeGen::generateBranch(gen, p);
+    std::vector<unsigned char> paddings(p - (gen.currAddr() - curAddr), 0x90);
+    gen.copy(paddings);
+    return true;
+}
 
 #endif

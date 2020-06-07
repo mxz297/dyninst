@@ -3670,3 +3670,14 @@ Address Emitter::getInterModuleFuncAddr(func_instance *func, codeGen& gen)
     }
     return relocation_address;
 }
+
+bool EmitterPOWER::emitPadding(int p, codeGen& gen)
+{
+    if (p <= 4) return true;
+    Address curAddr = gen.currAddr();
+    insnCodeGen::generateBranch(gen, curAddr, curAddr + p, false);
+    std::vector<unsigned char> paddings(p - (gen.currAddr() - curAddr), 0x00);
+    gen.copy(paddings);
+    return true;
+
+}

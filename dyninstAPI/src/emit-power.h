@@ -117,6 +117,7 @@ class EmitterPOWER : public Emitter {
     virtual Register emitCallReplacement(opCode, codeGen &, bool,
                                          func_instance *);
     void emitCallWithSaves(codeGen &gen, Address dest, bool saveToc, bool saveLR, bool saveR12);
+    virtual bool emitPadding(int p, codeGen&);
     
  protected:
     virtual bool emitCallInstruction(codeGen &, func_instance *,

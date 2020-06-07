@@ -644,6 +644,11 @@ class BPATCH_DLL_EXPORT BPatch_scrambleRegistersExpr : public BPatch_snippet
   BPatch_scrambleRegistersExpr();
 };
 
+class BPATCH_DLL_EXPORT BPatch_paddingSnippet : public BPatch_snippet
+{
+ public:
+    BPatch_paddingSnippet(int padding);
+};
 #endif /* _BPatch_snippet_h_ */
 
 

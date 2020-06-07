@@ -118,6 +118,8 @@ class Emitter {
 
     virtual bool emitTOCJump(block_instance *, codeGen &) { assert(0); return false; }
     virtual bool emitTOCCall(block_instance *, codeGen &) { assert(0); return false; }
+
+    virtual bool emitPadding(int p, codeGen&) = 0;
 };
 
 #endif

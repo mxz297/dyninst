@@ -295,4 +295,13 @@ void EmitterAARCH64::emitLoadOrigRegister(Address register_num, Register destina
             insnCodeGen::Offset);
 }
 
+bool EmitterAARCH64::emitPadding(int p, codeGen &gen)
+{
+    if (p <= 4) return true;
+    Address curAddr = gen.currAddr();
+    insnCodeGen::generateBranch(gen, curAddr, curAddr + p, false);
+    std::vector<unsigned char> paddings(p - (gen.currAddr() - curAddr), 0x00);
+    gen.copy(paddings);
+    return true;
 
+}

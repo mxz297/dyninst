@@ -64,7 +64,8 @@ Address FunctionPointerMover::movePointer(Address addr) {
     for (auto ait = relocs.begin(); ait != relocs.end(); ++ait) {
         if (ret == 0 || ret > *ait) ret = *ait;
     }
-    //fprintf(stderr, "move function pointer from %lx to %lx\n", addr, ret);
+    relocation_cerr << "move function pointer from " << hex << addr <<
+        " to " << ret << dec << endl;
     return ret;
 }
 

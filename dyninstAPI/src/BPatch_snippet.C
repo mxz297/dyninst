@@ -1798,3 +1798,6 @@ bool BPatch_snippet::checkTypesAtPoint(BPatch_point* p) const
   return ast_wrapper->checkType(p->getFunction()) != BPatch::bpatch->type_Error;
 }
 
+BPatch_paddingSnippet::BPatch_paddingSnippet(int p) {
+    ast_wrapper = AstNodePtr(AstNode::paddingNode(p));
+}
