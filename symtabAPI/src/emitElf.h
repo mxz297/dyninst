@@ -233,7 +233,6 @@ namespace Dyninst {
             unsigned loadSecTotalSize;
 
             bool isStripped;
-            int library_adjust;
             Object *object;
 
             void (*err_func_)(const char*);
