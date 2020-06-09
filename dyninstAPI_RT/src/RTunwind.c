@@ -31,6 +31,7 @@ typedef int (*unw_step_fn_type) (unw_cursor_t *);
 static unw_step_fn_type real_unw_step = NULL;
 
 typedef struct {
+    Address loadAddr;
     Address min;
     Address max;
     Address* entries;
@@ -64,6 +65,7 @@ RAMappingTable* ParseAModule(struct link_map *l) {
    table->min = header->min;
    table->max = header->max;
    table->entries = (Address*) malloc( sizeof(Address) * (table->max - table->min + 1) );
+   table->loadAddr = l->l_addr;
    memset(table->entries, 0, sizeof(Address) * (table->max - table->min + 1));
    for (unsigned long i = 0; i < header->total; ++i)
        table->entries[header->entries[i][0] - table->min] = header->entries[i][1];
@@ -85,17 +87,19 @@ RAMappingTable* ExtractRAMapping() {
 unw_word_t DyninstRATranslation(unw_word_t ip) {
     if (parsed == 0) {
         ra_table = ExtractRAMapping();
-	parsed = 1;
-	
+        parsed = 1;        
     }
     if (ra_table == NULL) return ip;
     Address a = (Address)ip;
+    unw_word_t newip = 0;
+    a -= ra_table->loadAddr;
     if (ra_table->min <= a && a <= ra_table->max) {
         if (ra_table->entries[a - ra_table->min] != 0) {
-            ip = (unw_word_t) ra_table->entries[a - ra_table->min];
+            newip = (unw_word_t) ra_table->entries[a - ra_table->min];
         }
     }
-    return ip;
+    if (newip == 0) return ip;
+    return newip + ra_table->loadAddr;
 }
 
 DLLEXPORT int UNW_FUNC_NAME(unw_cursor_t* cursor) {
