@@ -600,8 +600,10 @@ private:
  public:  
   std::set<std::string> prereq_libs;
   std::vector<std::pair<long, long> > new_dynamic_entries;
+  Address getPPC64LELazyBindingStubStart() { return lazy_binding_stub_start_address; }
  private:
   const char* soname_;
+  Address lazy_binding_stub_start_address;
 
         };
 

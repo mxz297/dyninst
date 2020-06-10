@@ -3439,6 +3439,19 @@ SYMTAB_EXPORT bool Symtab::addSysVDynamic(long name, long value)
 #endif
 }
 
+SYMTAB_EXPORT Address Symtab::getPPC64LELazyBindingStubStart() {
+#if defined(os_linux) || defined(os_freebsd)
+    Object *obj = getObject();
+    if (!obj) {
+        return 0;
+    }
+    return obj->getPPC64LELazyBindingStubStart();
+#else
+   return 0;
+#endif
+
+}
+
 SYMTAB_EXPORT bool Symtab::addExternalSymbolReference(Symbol *externalSym, Region *localRegion,
         relocationEntry localRel)
 {

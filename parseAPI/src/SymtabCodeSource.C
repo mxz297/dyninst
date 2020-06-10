@@ -551,6 +551,19 @@ SymtabCodeSource::init_hints(RegionMap &rmap, hint_filt * filt)
                          cr->offset()+cr->length());
         }
     }
+
+    Address plt_lazy = _symtab->getPPC64LELazyBindingStubStart();
+    if (plt_lazy) {
+        SymtabAPI::Region* textReg = nullptr;
+        if (_symtab->findRegion(textReg, ".text")) {
+            CodeRegion * cr = nullptr;
+            RegionMap::const_accessor a;
+            if (rmap.find(a, textReg)) cr = a->second;
+            if (cr != nullptr) {
+                _hints.push_back(Hint(plt_lazy, 0, cr, "__glink_PLTresolve"));
+            }
+        }
+    }
 }
 
 void

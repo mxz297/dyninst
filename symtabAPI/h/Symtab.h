@@ -344,6 +344,7 @@ class SYMTAB_EXPORT Symtab : public LookupInterface,
 
    bool addLibraryPrereq(std::string libname);
    bool addSysVDynamic(long name, long value);
+   Address getPPC64LELazyBindingStubStart();
 
    bool addLinkingResource(Archive *library);
    bool getLinkingResources(std::vector<Archive *> &libs);

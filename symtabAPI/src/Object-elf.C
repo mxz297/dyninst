@@ -2258,6 +2258,12 @@ dyn_scnp, Elf_X_Data &symdata,
                 break;
             case DT_SONAME:
                 if(strs) soname_ = &strs[dyns.d_ptr(i)];
+                break;
+#if defined(arch_power) && defined(arch_64bit)                
+            case DT_PPC64_GLINK:                
+                lazy_binding_stub_start_address = dyns.d_ptr(i) + 32;
+                break;
+#endif                
             default:
                 break;
         }
@@ -2921,7 +2927,8 @@ Object::Object(MappedFile *mf_, bool, void (*err_func)(const char *),
         EEL(false), did_open(false),
         obj_type_(obj_Unknown),
         DbgSectionMapSorted(false),
-        soname_(NULL)
+        soname_(NULL),
+        lazy_binding_stub_start_address(0)
 {
     li_for_object = NULL; 
 

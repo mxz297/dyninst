@@ -491,63 +491,30 @@ void insnCodeGen::generateLongBranch(codeGen &gen,
     // 4. Restore the original register value (if a scratch register was not found)
     // 5. build the branch instruction.
     //fprintf(stderr, "info: %s:%d: \n", __FILE__, __LINE__); 
-    Register scratch = REG_NULL;
+    Register scratch = registerSpace::r10;
+    int saved_off = 0;
+
+
     // TODO: Fix this, this should work....
     //= gen.rs()->getScratchRegister(gen);
-    if (scratch == REG_NULL) {
-      //fprintf(stderr, "info: %s:%d: \n", __FILE__, __LINE__); 
-        instPoint *point = GetInstPointPower(gen, from);//gen.point();
-        if (!point) {
-          // No clue if CTR or LR are filled, use broken trap and likely fail.
-            //fprintf(stderr, "%s\n", "Couldn't grab point - Using a trap instruction.....");
-            return generateBranchViaTrap(gen, from, to, isCall);
-        }
-        // Grab the register space, and see if LR or CTR are free.
-        // What we are going to do here is use the LR/CTR as temporary store for an existing register value
-        std::vector<Register> potentialRegisters = {registerSpace::r3, registerSpace::r4, registerSpace::r5, registerSpace::r6, registerSpace::r7, registerSpace::r8, registerSpace::r9, registerSpace::r10};
-        bitArray liveRegs = point->liveRegisters();
+	insnCodeGen::generateImm(gen, CALop,
+                                 REG_SP, REG_SP, -TRAMP_FRAME_SIZE_64);
 
-        for (int iter =  potentialRegisters.size() - 1; iter >= 0; iter = iter - 1) {
-          if (liveRegs[potentialRegisters[iter]] == false) {
-            scratch = potentialRegisters[iter]; 
-            break;
-          }
-        }
-        if (scratch == REG_NULL) {
-          if (liveRegs[registerSpace::lr] == false && isCall) {
-              usingLR = true;
-              // Register 11 is the chosen one for using temporarily.
-              generateMoveToSPR(gen, registerSpace::r10, SPR_LR);
-          } else if (liveRegs[registerSpace::ctr] == false) {
-              usingCTR = true;
-              generateMoveToSPR(gen, registerSpace::r10, SPR_CTR);
-          }
-          if (!usingLR && !usingCTR) {
-              //fprintf(stderr, "%s\n", "Couldn't grab free register - Using a trap instruction.....");
-              return generateBranchViaTrap(gen, from, to, isCall);
-          }
-        }
-    } else if (scratch != REG_NULL) {
-        //fprintf(stderr, "%s\n", "Generating branch with TAR.....");
-        insnCodeGen::generateBranchTar(gen, scratch, to, isCall);
-        return;
-    }
+    insnCodeGen::generateMemAccess64(gen, STDop, STDxop,
+                                         scratch, REG_SP, saved_off);
 
-    if (scratch == REG_NULL) {
-      // Now the fun stuff....
-      // Loed destination value into r11, copy it to SPR_TAR, restore the original R11 value.
-      insnCodeGen::loadImmIntoReg(gen, registerSpace::r10, to);
-      insnCodeGen::generateMoveToSPR(gen, registerSpace::r10, SPR_TAR);
-      if (usingCTR)
-        insnCodeGen::generateMoveFromSPR(gen, registerSpace::r10, SPR_CTR);
-      else if (usingLR)
-        insnCodeGen::generateMoveFromSPR(gen, registerSpace::r10, SPR_LR);
-      else 
-        assert("SHOULD NEVER BE HERE" == 0);
-    } else {
-      insnCodeGen::loadImmIntoReg(gen, scratch, to);
-      insnCodeGen::generateMoveToSPR(gen, scratch, SPR_TAR);      
-    }
+
+    insnCodeGen::loadImmIntoReg(gen, scratch, to);
+    insnCodeGen::generateMoveToSPR(gen, scratch, SPR_TAR);      
+
+
+    insnCodeGen::generateMemAccess64(gen, LDop, LDxop,
+                                         scratch, REG_SP, saved_off);
+
+
+	insnCodeGen::generateImm(gen, CALop,
+                                 REG_SP, REG_SP, TRAMP_FRAME_SIZE_64);
+
     // Emit the call instruction.
     instruction branchToBr;
     branchToBr.clear();

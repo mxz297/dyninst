@@ -128,7 +128,12 @@ bool SpringboardBuilder::generate(std::list<codeGen> &springboards,
 
 bool InstalledSpringboards::addFunc(func_instance* func)
 {
+  springboard_cerr << hex << "InstalledSpringboards::addFunc " << func->name() << endl;
   addJumpTableRanges(func);
+  if (func->getPowerPreambleFunc() != nullptr)
+      addJumpTableRanges(func->getPowerPreambleFunc());
+  if (func->getNoPowerPreambleFunc() != nullptr)
+      addJumpTableRanges(func->getNoPowerPreambleFunc());
   if(!addBlocks(func, func->blocks().begin(), func->blocks().end())) return false;
   return true;
 }
