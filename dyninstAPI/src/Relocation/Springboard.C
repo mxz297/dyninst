@@ -128,8 +128,19 @@ bool SpringboardBuilder::generate(std::list<codeGen> &springboards,
 
 bool InstalledSpringboards::addFunc(func_instance* func)
 {
+  addJumpTableRanges(func);
   if(!addBlocks(func, func->blocks().begin(), func->blocks().end())) return false;
   return true;
+}
+
+void InstalledSpringboards::addJumpTableRanges(func_instance * func) {
+    auto& jump_tables = func->ifunc()->getJumpTables();
+    for (auto&  jit : jump_tables) {
+        ParseAPI::Function::JumpTableInstance &jti = jit.second;
+        springboard_cerr << hex << " Adding jump table range " << jti.tableStart <<
+            " - " << jti.tableEnd << dec << endl;
+        jumpTableRanges_.insert(jti.tableStart, jti.tableEnd, true);
+    }
 }
 
 bool isNoneContained(std::set<ParseAPI::Block*> &blocks) {
@@ -186,10 +197,14 @@ bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, Bloc
     std::set<ParseAPI::Block*> blocks;
     co->findBlocks(cr, end, blocks);
 
-    // Removal of the below code limits the size of range to the size of the block
-    // Future fix is to actually do what the above comment ("int size" 
-    //  suggest and look for noop's explicitly
-    while (isNoneContained(blocks) && cr->contains(end)) {
+    // Extend the block if the block end:
+    // (1) does not overrun into another block;
+    // (2) is still inside the section;
+    // (3) and is not inside any jump table.
+    // If all conditions are true, then we can extend this block end
+    // so that we can have more space to trampoline installation
+    bool ignored_bool;
+    while (isNoneContained(blocks) && cr->contains(end) && !jumpTableRanges_.find(end, LB, UB, ignored_bool)) {
         end++;
         size++;
         blocks.clear();

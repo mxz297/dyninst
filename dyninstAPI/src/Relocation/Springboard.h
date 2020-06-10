@@ -233,6 +233,7 @@ class InstalledSpringboards
   template <typename BlockIter> 
   bool addBlocks(func_instance* func, BlockIter begin, BlockIter end);
   bool addFunc(func_instance* f);
+  void addJumpTableRanges(func_instance* f);
   bool conflict(Address start, Address end, bool inRelocatedCode, func_instance* func, Priority p);
   bool conflictInRelocated(Address start, Address end);
 
@@ -252,6 +253,7 @@ class InstalledSpringboards
   std::set<Address> relocTraps_; 
   
 
+  IntervalTree<Address, bool> jumpTableRanges_;
   // We don't really care about the payload; I just want an "easy to look up"
   // range data structure. 
   // Map this to an int because IntervalTree collapses similar ranges. Punks.
