@@ -34,6 +34,7 @@
 #include "dyninstAPI/src/codegen.h"
 
 #include "dyninstAPI/src/addressSpace.h"
+#include "dyninstAPI/src/binaryEdit.h"
 #include "dyninstAPI/src/function.h"
 #include "common/src/arch.h"
 
@@ -63,6 +64,16 @@ SpringboardBuilder::Ptr SpringboardBuilder::createFunc(FuncSetOrderdByLayout::co
      {
         return Ptr();
      }
+  }
+
+  BinaryEdit* binEdit = as->edit();
+  if (binEdit != nullptr) {
+      for (auto freeMemory : binEdit->getFreeRegions()) {
+          springboard_cerr << "Add padding space from sections that will be relocated " <<
+              hex << freeMemory->get_address()  << " - " << freeMemory->get_address() + freeMemory->get_size() << endl;
+          ret->installed_springboards_->insertPaddingSpace(freeMemory->get_address(), 
+                  freeMemory->get_address() + freeMemory->get_size());
+      }
   }
   return ret;
 }
@@ -220,7 +231,7 @@ bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, Bloc
 
     // If we extended the block, remember that range
     if (end > bbl->end()) {
-      paddingRanges_.insert(bbl->end(), end, info);
+      paddingRanges_.insert(bbl->end(), end, nullptr);
       springboard_cerr << "find padding [" << hex << bbl->end() << "," << end << ")" << endl;
     } else {
         set<block_instance*>& safeBlocks = func->getSafeBlocks();
@@ -306,7 +317,7 @@ SpringboardBuilder::generateSpringboard(std::list<codeGen> &springboards,
       // We cannot fit a normal branch, let's try multiple branches:
       // we first use a short branch to jump to a free area,
       // and then use a full branch to jump to the actual targets
-      if (generateMultiSpringboard(springboards, r)) {
+      if (generateMultiSpringboard(springboards, r, size)) {
           return Succeeded;
       }
       // Errr...
@@ -344,24 +355,44 @@ SpringboardBuilder::generateSpringboard(std::list<codeGen> &springboards,
    }
    return Succeeded;
 }
+
+#if defined(arch_x86_64)
+
 #define NEG_BOUND -128
 #define POS_BOUND 128
 #define SHORT_BRANCH_LEN 2
-#define FULL_BRANCH_LEN 5
+
+#elif defined(arch_power)
+
+#define NEG_BOUND -MAX_BRANCH
+#define POS_BOUND MAX_BRANCH
+#define SHORT_BRANCH_LEN 4
+
+#elif defined(arch_aarch64)
+
+#define NEG_BOUND -MAX_BRANCH_OFFSET
+#define POS_BOUND MAX_BRANCH_OFFSET
+#define SHORT_BRANCH_LEN 4
+
+#endif
 
 bool SpringboardBuilder::generateMultiSpringboard(std::list<codeGen> &springboards,
-						  const SpringboardReq &r) {
-    if (addrSpace_->getArch() != Arch_x86_64) return false; 
+						  const SpringboardReq &r,
+                          unsigned secondTrampolineSize) {
     if (conflict(r.from, r.from + SHORT_BRANCH_LEN, r.fromRelocatedCode, r.func, r.priority)) return false;
 
-   Address s = r.from + SHORT_BRANCH_LEN;
+   Address s = r.from;
+
+   // Only x86 is post instruction PC for calculting branching target
+   if (addrSpace_->getArch() != Arch_x86_64) s += SHORT_BRANCH_LEN;
+
    Address lower_bound;
    Address upper_bound;
    // Find a padding area [lower_bound, upper_bound) that can hold a full branch
-   if (installed_springboards_->findPaddingSpace(s, NEG_BOUND, POS_BOUND, FULL_BRANCH_LEN, lower_bound, upper_bound)) {
+   if (installed_springboards_->findPaddingSpace(s, NEG_BOUND, POS_BOUND, secondTrampolineSize, lower_bound, upper_bound)) {
        springboard_cerr << "Multi-branch trampolines: from " << std::hex << r.from
            << ", a short branch to [" << lower_bound << "," << upper_bound
-           << "), then normal branch to " << r.destinations.begin()->second << dec << endl;
+           << "), then normal trampoline to " << r.destinations.begin()->second << dec << endl;
        // Generate and register the full branch
        codeGen gen;
        generateBranch(lower_bound, r.destinations.begin()->second, gen);
@@ -373,6 +404,8 @@ bool SpringboardBuilder::generateMultiSpringboard(std::list<codeGen> &springboar
        codeGen shortBranch;
        generateShortBranch(r.from, lower_bound, shortBranch);
        springboards.push_back(shortBranch);
+
+       assert(shortBranch.used() == SHORT_BRANCH_LEN);
        registerBranch(r.from, r.from + shortBranch.used(), r.destinations, r.fromRelocatedCode, r.func, r.priority);
        return true;
    } else {
@@ -404,14 +437,23 @@ bool InstalledSpringboards::findPaddingSpace(Address s,
         springboard_cerr << "\tfind [" << hex << x << "," << y << ")" << dec << endl;
         Address cur_lower_bound = x;
         if (cur_lower_bound < lower_bound) cur_lower_bound = lower_bound;
-        if (cur_lower_bound + size <= y) {
+        Address unused1, unused2;
+        bool unused3;
+        if (cur_lower_bound + size <= y && !jumpTableRanges_.find(cur_lower_bound, unused1, unused2, unused3)) {
             lb = cur_lower_bound;
             ub = y;
             return true;
         }
+        paddingRanges_.remove(x);
         cur = x - 1;
     }
     return false;
+}
+
+void InstalledSpringboards::insertPaddingSpace(Address s, Address e) {
+    paddingRanges_.insert(s, e, nullptr);
+    // To use padding ranges, we also need to the range to validRanges_
+    validRanges_.insert(s, e, new SpringboardInfo(UnallocatedStart, nullptr));
 }
 
 bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocated, func_instance* func, Priority p) {
@@ -462,7 +504,7 @@ bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocate
        }
        springboard_cerr << "\t\t Found " << hex << LB << " -> " << UB << " /w/ state " 
            << state->val << ", "
-           << state->func->name() << ", priority " 
+           << (state->func == nullptr ? "nullptr" : state->func->name()) << ", priority " 
            << state->priority << dec << endl;
       if (state->val == Allocated) {
 	if(LB == start && UB >= end) 
@@ -575,7 +617,7 @@ void InstalledSpringboards::registerBranch
       // then relocating again can't assume the same luxury, and must trap.
       for (Address i = start; i < end; ++i) {
          Address lb, ub;
-         SpringboardInfo* val = NULL;
+         SpringboardInfo* val = nullptr;
          if (paddingRanges_.find(i, lb, ub, val)) {
             destTrapped = true;
          }
@@ -634,17 +676,17 @@ void InstalledSpringboards::registerBranch
    }
 
    // Update the padding ranges for multi-branch trampolines
-   SpringboardInfo* state = NULL;
+   SpringboardInfo* state = nullptr;
    if (paddingRanges_.find(end - 1, lb, ub, state)) {
        paddingRanges_.remove(lb);
        springboard_cerr << "\tRemove padding range [" << hex << lb << "," << ub << ")" << dec << endl;
        if (end < ub) {
            springboard_cerr << "\tInsert padding range [" << hex << end << "," << ub << ")" << dec << endl;
-           paddingRanges_.insert(end, ub, info);
+           paddingRanges_.insert(end, ub, nullptr);
        }
        if (lb < start) {
            springboard_cerr << "\tInsert padding range [" << hex << lb << "," << start << ")" << dec << endl;
-           paddingRanges_.insert(lb, start, info);
+           paddingRanges_.insert(lb, start, nullptr);
        }
    }
 }
@@ -700,17 +742,22 @@ void SpringboardBuilder::generateBranch(Address from, Address to, codeGen &gen) 
 
 void SpringboardBuilder::generateShortBranch(Address from, Address to, codeGen &gen) {
   gen.invalidate();
-  // On ppc, the spring board can be a long branch,
-  // which can takes more than 5 instructions
   gen.allocate(64);
 
   gen.setAddrSpace(addrSpace_);
   gen.setAddr(from);
 
-  std::vector<unsigned char> code;
-  code.push_back(0xEB);
-  code.push_back( (unsigned char) (to - (from + 2)) );
-  gen.copy(code);
+  if (addrSpace_->getArch() == Arch_x86_64 || addrSpace_->getArch() == Arch_x86) {
+      // We do not emit the two-byte short branch anywhere else,
+      // so we just emit it here.
+      std::vector<unsigned char> code;
+      code.push_back(0xEB);
+      code.push_back( (unsigned char) (to - (from + 2)) );
+      gen.copy(code);      
+  } else {
+      // On power and ARM, we just reuse the code gen to emit a branch 
+      insnCodeGen::generateBranch(gen, from, to);
+  }
   springboard_cerr << "Generated springboard short branch " << hex << from << "->" << to << dec << endl;
 }
 

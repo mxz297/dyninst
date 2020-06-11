@@ -244,6 +244,7 @@ class InstalledSpringboards
     return relocTraps_.find(a) != relocTraps_.end();
   }
   bool findPaddingSpace(Address s, int neg, int pos, int size, Address &lb, Address &ub);
+  void insertPaddingSpace(Address s, Address e);
 
 
     
@@ -301,7 +302,8 @@ class SpringboardBuilder {
                                        SpringboardMap &);
 
   bool generateMultiSpringboard(std::list<codeGen> &input,
-				const SpringboardReq &p);
+				const SpringboardReq &p,
+                unsigned secondTrampolineSize);
 
   // Find all previous instrumentations and also overwrite 
   // them. 

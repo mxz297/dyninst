@@ -766,6 +766,15 @@ Address BinaryEdit::allocateStaticMemoryRegion(unsigned size) {
     return newStart;
 }
 
+static std::set<std::string> relocSections = {
+    ".hash",
+    ".dynsym",
+    ".dynstr",
+    ".gnu.version",
+    ".gnu.version_r",
+    ".rela.dyn",
+    ".rela.plt"
+};
 
 bool BinaryEdit::createMemoryBackingStore(mapped_object *obj) {
     // We want to create a buffer for every section in the
@@ -774,6 +783,7 @@ bool BinaryEdit::createMemoryBackingStore(mapped_object *obj) {
     Symtab *symObj = obj->parse_img()->getObject();
     vector<Region*> regs;
     symObj->getAllRegions(regs);
+    freeRegions.clear();
 
    for (unsigned i = 0; i < regs.size(); i++) {
       memoryTracker *newTracker = NULL;
@@ -785,7 +795,9 @@ bool BinaryEdit::createMemoryBackingStore(mapped_object *obj) {
          newTracker = new memoryTracker(regs[i]->getMemOffset(),
                                         regs[i]->getMemSize(),
                                         regs[i]->getPtrToRawData());
-         
+         if (relocSections.find(regs[i]->getRegionName()) != relocSections.end()) {
+             freeRegions.push_back(newTracker);
+         }
       }
       newTracker->alloced = false;
       if (!memoryTracker_)

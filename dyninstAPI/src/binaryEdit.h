@@ -193,6 +193,7 @@ class BinaryEdit : public AddressSpace {
    virtual void removeTrap(Address /*from*/) {};
     static bool getResolvedLibraryPath(const std::string &filename, std::vector<std::string> &paths);
     Address allocateStaticMemoryRegion(unsigned);
+    std::vector<memoryTracker*>& getFreeRegions() { return freeRegions; }
 
  private:
     Address highWaterMark_;
@@ -237,6 +238,7 @@ class BinaryEdit : public AddressSpace {
     std::vector<SymtabAPI::Symbol *> newDyninstSyms_;
 
     void buildRAMapping();
+    std::vector<memoryTracker*> freeRegions;
 };
 
 class depRelocation {
