@@ -491,7 +491,7 @@ bool emitElf<ElfTypes>::driver(std::string fName) {
         // resolve section name
         const char *name = &shnames[shdr->sh_name];
         bool result = obj->findRegion(foundSec, shdr->sh_addr, shdr->sh_size);
-        if (!result || foundSec->isDirty()) {
+        if (!result) {
             result = obj->findRegion(foundSec, name);
         }
 
@@ -1563,7 +1563,7 @@ bool emitElf<ElfTypes>::createSymbolTables(set<Symbol *> &allSymbols) {
     if ((foundRegion != secTagRegionMapping.end()) && (foundRegion->second != NULL)) {
         // .dynstr
         sec = foundRegion->second;
-        olddynStrData = (char *) (sec->getPtrToRawData());
+        olddynStrData = (char *) (sec->getOriginalPtrToRawData());
         olddynStrSize = sec->getMemSize();
         dynsymbolNamesLength = olddynStrSize + 1;
     }

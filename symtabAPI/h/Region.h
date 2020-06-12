@@ -115,6 +115,8 @@ class SYMTAB_EXPORT Region : public AnnotatableSparse {
 
    void *getPtrToRawData() const;
    bool setPtrToRawData(void *, unsigned long);//also sets diskSize
+   void *getOriginalPtrToRawData() const;
+
 
    bool isBSS() const;
    bool isText() const;
@@ -156,6 +158,7 @@ class SYMTAB_EXPORT Region : public AnnotatableSparse {
    unsigned long memSize_;
    Offset fileOff_;
    void *rawDataPtr_;
+   void *originalRawDataPtr_;
    perm_t permissions_;
    RegionType rType_;
    bool isDirty_;

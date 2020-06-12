@@ -52,7 +52,7 @@ Region *Region::createRegion( Offset diskOff, perm_t perms, RegionType regType,
 }
 
 Region::Region(): regNum_(0), diskOff_(0), diskSize_(0), memOff_(0),
-    memSize_(0), fileOff_(0), rawDataPtr_(NULL), permissions_(RP_R),
+    memSize_(0), fileOff_(0), rawDataPtr_(NULL), originalRawDataPtr_(NULL), permissions_(RP_R),
     rType_(RT_INVALID), isDirty_(false), buffer_(NULL), isLoadable_(false),
     isTLS_(false), memAlign_(0), symtab_(NULL)
 {
@@ -63,7 +63,7 @@ Region::Region(unsigned regnum, std::string name, Offset diskOff,
                     char *rawDataPtr, perm_t perms, RegionType regType, bool isLoadable,
                     bool isThreadLocal, unsigned long memAlignment) :
     regNum_(regnum), name_(name), diskOff_(diskOff), diskSize_(diskSize), memOff_(memOff),
-    memSize_(memSize), fileOff_(0), rawDataPtr_(rawDataPtr), permissions_(perms), rType_(regType),
+    memSize_(memSize), fileOff_(0), rawDataPtr_(rawDataPtr), originalRawDataPtr_(rawDataPtr), permissions_(perms), rType_(regType),
     isDirty_(false), buffer_(NULL), isLoadable_(isLoadable), isTLS_(isThreadLocal),
     memAlign_(memAlignment), symtab_(NULL)
 {
@@ -79,7 +79,7 @@ Region::Region(const Region &reg) :
 #endif
    regNum_(reg.regNum_), name_(reg.name_),
    diskOff_(reg.diskOff_), diskSize_(reg.diskSize_), memOff_(reg.memOff_),
-   memSize_(reg.memSize_), fileOff_(reg.fileOff_), rawDataPtr_(reg.rawDataPtr_),
+   memSize_(reg.memSize_), fileOff_(reg.fileOff_), rawDataPtr_(reg.rawDataPtr_), originalRawDataPtr_(reg.originalRawDataPtr_),
    permissions_(reg.permissions_), rType_(reg.rType_), isDirty_(reg.isDirty_),
    rels_(reg.rels_), buffer_(reg.buffer_), isLoadable_(reg.isLoadable_),
    isTLS_(reg.isTLS_), memAlign_(reg.memAlign_), symtab_(reg.symtab_)
@@ -95,6 +95,7 @@ Region& Region::operator=(const Region &reg)
     memOff_ = reg.memOff_;
     memSize_ = reg.memSize_;
     rawDataPtr_ = reg.rawDataPtr_;
+    originalRawDataPtr_ = reg.originalRawDataPtr_;
     permissions_ = reg.permissions_;
     rType_ = reg.rType_;
     isDirty_ = reg.isDirty_;
@@ -304,6 +305,12 @@ bool Region::setPtrToRawData(void *buf, unsigned long newsize)
     isDirty_ = true;
     return true;
 }
+
+void *Region::getOriginalPtrToRawData() const
+{
+    return originalRawDataPtr_;
+}
+
 
 bool Region::isBSS() const 
 {
