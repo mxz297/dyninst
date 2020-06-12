@@ -93,18 +93,16 @@ bool IA_power::isTailCall(const Function* context, EdgeTypeEnum type, unsigned i
 {
    // Collapse down to "branch" or "fallthrough"
     switch(type) {
-       case CALL:
        case COND_TAKEN:
        case DIRECT:
        case INDIRECT:
-       case RET:
           type = DIRECT;
           break;
+       case CALL:
+       case RET:
        case COND_NOT_TAKEN:
        case FALLTHROUGH:
        case CALL_FT:
-          type = FALLTHROUGH;
-          break;
        default:
           return false;
     }

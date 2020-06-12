@@ -499,6 +499,7 @@ bool Parser::ProcessCFInsn(
     parsing_printf("\t\t%d edges:\n", edges_out.size());
     for (Edges_t::iterator curEdge = edges_out.begin();
          curEdge != edges_out.end(); ++curEdge) {
+        parsing_printf("\t\t\t edge type %d\n", curEdge->second);
         Edge *newedge = NULL;
         bool resolvable_edge = true;
         bool tailcall = false;

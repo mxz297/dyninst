@@ -173,8 +173,8 @@ class PARSER_EXPORT Edge : public allocatable {
             _type_enum(t), _sink(s), _interproc(false)
         { }
         uint16_t _type_enum;
-        uint8_t _sink;
-        uint8_t  _interproc;    // modifier for interprocedural branches
+        bool _sink;
+        bool  _interproc;    // modifier for interprocedural branches
                                 // (tail calls)
     };
     EdgeType _type;
@@ -193,9 +193,9 @@ class PARSER_EXPORT Edge : public allocatable {
     EdgeTypeEnum type() const { 
         return static_cast<EdgeTypeEnum>(_type._type_enum); 
     }
-    bool sinkEdge() const { return _type._sink != 0; }
+    bool sinkEdge() const { return _type._sink; }
     bool interproc() const { 
-       return (_type._interproc != 0 ||
+       return (_type._interproc ||
                type() == CALL ||
                type() == RET);
     }
