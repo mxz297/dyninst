@@ -32,6 +32,7 @@
 #include "PatchMgr.h"
 #include "PatchObject.h"
 #include "PatchCFG.h"
+#include "Register.h"
 
 using namespace Dyninst::PatchAPI;
 using Dyninst::PatchAPI::Location;
@@ -43,6 +44,8 @@ using Dyninst::PatchAPI::PatchEdge;
 using Dyninst::PatchAPI::Location;
 using Dyninst::PatchAPI::PatchMgrPtr;
 
+using Dyninst::InstructionAPI::RegisterAST;
+
 Point *
 PointMaker::createPoint(Location loc, Point::Type t) {
    switch(t) {
@@ -51,6 +54,28 @@ PointMaker::createPoint(Location loc, Point::Type t) {
          return mkInsnPoint(t, mgr_, loc.block, loc.addr, loc.insn, loc.func);
          break;
       case Point::BlockEntry:
+         if (loc.block->block()->obj()->cs()->getArch() == Arch_ppc64) {
+             Dyninst::ParseAPI::Block::Insns insns;
+             loc.block->block()->getInsns(insns);
+             bool firstInsns = true;
+             bool movePoint = false;
+             for (auto it : insns) {
+                 if (movePoint) {
+                     return mkInsnPoint(Point::PostInsn, mgr_, loc.block, it.first, it.second, loc.func);
+                 }
+                 if (!firstInsns) break;
+                 bool findR2 = false;
+                 std::set<RegisterAST::Ptr> regs;
+                 it.second.getWriteSet(regs);                 
+                 for (auto r : regs) {
+                     if (r->getID() == ppc64::r2) findR2 = true;
+                 }
+                 if (firstInsns && findR2) {
+                     movePoint = true;
+                 }
+                 firstInsns = false;
+             }
+         }
       case Point::BlockExit:
       case Point::BlockDuring:
          return mkBlockPoint(t, mgr_, loc.block, loc.func);
