@@ -650,7 +650,15 @@ int rtdebug_printf(char *format, ...)
 {
   int ret;
   va_list va;
-  if (!DYNINSTdebugRTlib) return 0;
+  if (DYNINSTdebugRTlib == 0) {
+    if (getenv("DYNINST_DEBUG_RTLIB")) {
+      fprintf(stderr, "Enable DyninstAPI Runtime library debugging\n");
+      DYNINSTdebugRTlib = 1;
+    } else {
+      DYNINSTdebugRTlib = -1;
+    }
+  }
+  if (DYNINSTdebugRTlib <= 0) return 0;
   if (NULL == format) return DYNINST_PRINTF_ERRVAL;
 
   fprintf(stderr, "[RTLIB]");

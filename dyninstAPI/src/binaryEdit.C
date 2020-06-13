@@ -1091,7 +1091,7 @@ void BinaryEdit::buildRAMapping() {
          if (tracker->orig() != tblock->block()->last()) continue;
          InstructionAPI::Instruction i = tblock->getInsn(tracker->orig());
          if (i.getCategory() != InstructionAPI::c_CallInsn) continue;
-         RAMap[tracker->reloc() + i.size()] = tracker->orig() + i.size();
+         RAMap[tracker->reloc() + tracker->size()] = tracker->orig() + i.size();
       }
    }
 
@@ -1120,6 +1120,7 @@ void BinaryEdit::buildRAMapping() {
 
    // Write each entry
    for (auto it = RAMap.begin(); it != RAMap.end(); ++it) {
+       springboard_cerr << "Return address mapping " << hex << it->first << "->" << it->second << dec << endl;
        result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(it->first));
        offset += sizeof(Address);
        result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(it->second));

@@ -376,8 +376,8 @@ static int num_entries = 0;
 
 __attribute__((destructor))
 void printStats() {
-    fprintf(stderr, "dyninstTrapHandler called %d times\n", handlerCalled);
-    fprintf(stderr, "\tThere are %d trap trampolines\n", num_entries);
+    rtdebug_printf("dyninstTrapHandler called %d times\n", handlerCalled);
+    rtdebug_printf("\tThere are %d trap trampolines\n", num_entries);
 
 }
 
@@ -537,7 +537,7 @@ static int parse_link_map(struct link_map *l)
    {
       header->traps[i].source = (void *) (((unsigned long) header->traps[i].source) + l->l_addr);
       header->traps[i].target = (void *) (((unsigned long) header->traps[i].target) + l->l_addr);
-      fprintf(stderr, "trampoline from %p to %p\n", header->traps[i].source, header->traps[i].target);
+      rtdebug_printf("trampoline from %p to %p\n", header->traps[i].source, header->traps[i].target);
       if (!header->low_entry || header->low_entry > (unsigned long) header->traps[i].source)
          header->low_entry = (unsigned long) header->traps[i].source;
       if (!header->high_entry || header->high_entry < (unsigned long) header->traps[i].source)

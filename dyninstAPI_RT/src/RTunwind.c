@@ -98,6 +98,8 @@ unw_word_t DyninstRATranslation(unw_word_t ip) {
             newip = (unw_word_t) ra_table->entries[a - ra_table->min];
         }
     }
+    rtdebug_printf("input ip %lx, found ip %lx, loadd addr %lx , calculated ip %lx\n",
+            ip, newip, ra_table->loadAddr, newip + ra_table->loadAddr);
     if (newip == 0) return ip;
     return newip + ra_table->loadAddr;
 }

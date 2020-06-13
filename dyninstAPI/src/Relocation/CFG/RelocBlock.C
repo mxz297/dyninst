@@ -32,6 +32,7 @@
 #include <iomanip>
 
 #include "../dyninstAPI/src/debug.h"
+#include "dyninstAPI/src/addressSpace.h"
 
 #include "../Widgets/Widget.h"
 #include "../Widgets/InsnWidget.h" // Default Widget in each RelocBlock
@@ -71,6 +72,17 @@ using namespace InstructionAPI;
 
 int RelocBlock::RelocBlockID = 0;
 
+static uint32_t restore_toc_insn = 0xE8410018;
+
+static bool IsRestoreTOCInsn(AddressSpace *as, Address addr) {
+    uint32_t insn;
+    if (as->readTextSpace((const void*)addr, 4, (void*)(&insn))) {
+        if (insn == restore_toc_insn) return true;
+    }
+    return false;
+}
+
+
 RelocBlock *RelocBlock::createReloc(block_instance *block, func_instance *func) {
   if (!block) return NULL;
 
@@ -108,6 +120,20 @@ RelocBlock *RelocBlock::createReloc(block_instance *block, func_instance *func) 
   // on this behavior
   newRelocBlock->createCFWidget();
 
+  if (block->block()->obj()->cs()->getArch() == Arch_ppc64) {
+      bool findCall = false;
+      bool findCallFT = false;
+      for (auto e : block->targets()) {
+          if (e->type() == ParseAPI::CALL) findCall = true;
+          if (e->type() == ParseAPI::CALL_FT) findCallFT = true;
+      }
+      if (findCall && !findCallFT && IsRestoreTOCInsn(block->proc(), block->end())) {
+          relocation_cerr << " non-returing call that has a TOC restore after it, copy the TOC restore instruction" << endl;
+          InstructionAPI::InstructionDecoder decoder((const unsigned char*)(&restore_toc_insn), 4, Arch_ppc64);          
+          Widget::Ptr ptr = InsnWidget::create(decoder.decode(), block->end());
+          newRelocBlock->elements_.push_back(ptr);
+      }
+  }
   newRelocBlock->preserveBlockGap();
 
   return newRelocBlock;

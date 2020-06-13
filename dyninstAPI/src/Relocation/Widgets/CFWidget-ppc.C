@@ -49,18 +49,6 @@ using namespace InstructionAPI;
 
 using namespace NS_power;
 
-static uint32_t restore_toc_insn = 0xE8410018;
-
-static bool IsRestoreTOCInsn(codeGen &gen, Address addr) {
-    addr += 4;
-    AddressSpace* as = gen.addrSpace();
-    uint32_t insn;
-    if (as->readTextSpace((const void*)addr, 4, (void*)(&insn))) {
-        if (insn == restore_toc_insn) return true;
-    }
-    return false;
-}
-
 bool CFWidget::generateIndirect(CodeBuffer &buffer,
                               Register,
                               const RelocBlock *trace,
@@ -169,10 +157,6 @@ bool CFPatch::apply(codeGen &gen, CodeBuffer *buf) {
                return false;
             }
 
-            if (!hasCallFT_ && IsRestoreTOCInsn(gen, origAddr_)) {
-                relocation_cerr << " non-returing call that has a TOC restore after it, copy the TOC restore instruction" << endl;
-                gen.copy((const void*)(&restore_toc_insn), 4);
-            }
             return true;
          }
          case CFPatch::Data: {
