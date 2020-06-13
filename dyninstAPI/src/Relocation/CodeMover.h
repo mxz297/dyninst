@@ -133,11 +133,11 @@ class CodeMover {
 
   void finalizeRelocBlocks();
   void OptimizeSpringboards();
-  bool canRemoveTrampoline(block_instance*, std::set<block_instance*>&);
+  bool canRemoveTrampoline(block_instance*, const std::set<block_instance*>&);
   bool ReverseDFS(block_instance*,
                   block_instance*,
                   std::set<block_instance*>&,
-                  std::set<block_instance*>&);
+                  const std::set<block_instance*>&);
   bool canMoveTrampoline(block_instance*,
                   block_instance*,
                   std::set<block_instance*>&,
@@ -163,9 +163,6 @@ class CodeMover {
   CodeBuffer buffer_;
 
   bool finalized_;
-
-  bool needCallEmulation_;
-  
 };
 
 

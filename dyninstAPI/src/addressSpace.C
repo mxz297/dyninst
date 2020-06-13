@@ -1775,11 +1775,15 @@ bool AddressSpace::relocateInt(FuncSetOrderdByLayout::const_iterator begin, Func
   CodeMover::Ptr cm = CodeMover::create(relocatedCode_.back());
   if (!cm->addFunctions(begin, end)) return false;
 
-  SpringboardBuilder::Ptr spb = SpringboardBuilder::createFunc(begin, end, this);
-
   relocation_cerr << "Debugging CodeMover (pre-transform)" << endl;
   relocation_cerr << cm->format() << endl;
   transform(cm);
+
+  // SprinbboardBuilder  needs to be built after finalizing CodeMover,
+  // as CodeMover::finalizeRelocBlocks will perform trampoline opitmizations
+  // to remove unncessary trampolines.
+  SpringboardBuilder::Ptr spb = SpringboardBuilder::createFunc(begin, end, this);
+
 
   relocation_cerr << "Debugging CodeMover" << endl;
   relocation_cerr << cm->format() << endl;

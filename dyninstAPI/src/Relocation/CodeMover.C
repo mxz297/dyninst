@@ -44,6 +44,8 @@
 #include "CFG/RelocGraph.h"
 #include "mapped_object.h"
 
+#include "BPatch.h"
+
 using namespace std;
 using namespace Dyninst;
 using namespace InstructionAPI;
@@ -114,7 +116,7 @@ void CodeMover::finalizeRelocBlocks() {
       iter->determineSpringboards(priorityMap_);
    }
 
-   //OptimizeSpringboards();
+   OptimizeSpringboards();
 }
    
 
@@ -279,41 +281,39 @@ void CodeMover::extractDefensivePads(AddressSpace *AS) {
 }
 
 void CodeMover::OptimizeSpringboards() {
-    // When the execution enters this function,
+    // Before the execution enters this function,
     // trampolines are installed based on where the instrumentations are installed
     // 
     // However, the locations to install trampolines can be further optimized
     // by considering where the the control flow may get back to the orignial code:
     //
-    // (1) jump tables
-    // (2) call emulation for call site when there are try/catch blocks
+    // (1) function entry
+    // (2) jump table target blocks when jump table relocation is disabled
+    // (3) catch blocks 
     //
     // We do a control flow analysis to determine the minimal number of required
     // trampolines for each function. The idea is that if we know control flow will not
     // come back to original code at an instrumentation point, we do not need trampolines.
     block_instance* b = priorityMap_.begin()->first.first;
-    SymtabAPI::Symtab* symtab = b->obj()->parse_img()->getObject();
-    std::vector<SymtabAPI::ExceptionBlock*> exceptions;
-    needCallEmulation_ = symtab->getAllExceptions(exceptions);
-
     map<func_instance*, set<block_instance*> > funcMap;
-    for (auto it = priorityMap_.begin(); it != priorityMap_.end(); ++it) {
-        func_instance* f = it->first.second;
-        block_instance* b = it->first.first;
+    for (auto it : priorityMap_) {
+        func_instance* f = it.first.second;
+        block_instance* b = it.first.first;
         funcMap[f].insert(b);
     }
 
-    for (auto it = funcMap.begin(); it != funcMap.end(); ++it) {
-        func_instance* f = it->first;
-        set<block_instance*>& trampolineLocs = it->second;
-        for (auto bit = trampolineLocs.begin(); bit != trampolineLocs.end(); ++bit) {
-            block_instance *b = *bit;
+    for (auto it : funcMap) {
+        func_instance* f = it.first;
+        set<block_instance*>& trampolineLocs = it.second;
+        for (auto b : trampolineLocs) {
             if (canRemoveTrampoline(b, trampolineLocs)) {
                 priorityMap_.erase(make_pair(b, f));
+                springboard_cerr << " remove trampoline at " << hex << b->start() << dec << endl;
             }
         }
     }
 
+    /*
     // We now determine the blocks that hold a trampoline can hold a trampoline.
     // If not, we try to find a safe, pre-dominator block to hold a trampoline
     funcMap.clear();
@@ -339,23 +339,27 @@ void CodeMover::OptimizeSpringboards() {
             }
         }
     }
+    */
+
+
+
     // Finally, we identify safe blocks that do not hold trampolines
     // and will never be executed in the original code because the program
     // will hit a trampoline first. These safe blocks can be used to extend trampoline
     // blocks to avoid signal based trampoline
     funcMap.clear();
-    for (auto it = priorityMap_.begin(); it != priorityMap_.end(); ++it) {
-        func_instance* f = it->first.second;
-        block_instance* b = it->first.first;
+    for (auto it : priorityMap_) {
+        func_instance* f = it.first.second;
+        block_instance* b = it.first.first;
         funcMap[f].insert(b);
     }
 
-    for (auto it = funcMap.begin(); it != funcMap.end(); ++it) {
-        func_instance* f = it->first;
-        set<block_instance*>& trampolineLocs = it->second;
+    for (auto it : funcMap) {
+        func_instance* f = it.first;
+        set<block_instance*>& trampolineLocs = it.second;
         set<block_instance*> safeBlocks;
-        for (auto bit = f->blocks().begin(); bit != f->blocks().end(); ++bit) {
-            block_instance* b = dynamic_cast<block_instance*>(*bit);
+        for (auto bit : f->blocks()) {
+            block_instance* b = dynamic_cast<block_instance*>(bit);
             if (trampolineLocs.find(b) != trampolineLocs.end()) continue;
             if (safeBlocks.find(b) != safeBlocks.end()) continue;
             set<block_instance*> visited;
@@ -365,7 +369,7 @@ void CodeMover::OptimizeSpringboards() {
     }
 }
 
-bool CodeMover::canRemoveTrampoline(block_instance* b, set<block_instance*>& tBlocks) {
+bool CodeMover::canRemoveTrampoline(block_instance* b, const set<block_instance*>& tBlocks) {
     set<block_instance*> visited;
     return ReverseDFS(b, b, visited, tBlocks);
 }
@@ -373,7 +377,7 @@ bool CodeMover::canRemoveTrampoline(block_instance* b, set<block_instance*>& tBl
 bool CodeMover::ReverseDFS(block_instance* cur,
                            block_instance* origin,
                            set<block_instance*> &visited,
-                           set<block_instance*> &tBlocks) {
+                           const set<block_instance*> &tBlocks) {
     if (cur != origin) {
         if (tBlocks.find(cur) != tBlocks.end()) return true;
     }
@@ -381,15 +385,14 @@ bool CodeMover::ReverseDFS(block_instance* cur,
     visited.insert(cur);
 
     vector<edge_instance*> edges;
-    for (auto eit = cur->sources().begin(); eit != cur->sources().end(); ++eit) {
-        edge_instance* e = dynamic_cast<edge_instance*>(*eit);
+    for (auto eit : cur->sources()) {
+        edge_instance* e = dynamic_cast<edge_instance*>(eit);
         if (e->sinkEdge()) continue;
         if (e->interproc()) continue;
-        if (e->type() == ParseAPI::CATCH) continue;
-        if (e->type() == ParseAPI::INDIRECT) {
+        if (e->type() == ParseAPI::INDIRECT && !BPatch::bpatch->relocateJumpTable()) {
             return false;
         }
-        if (e->type() == ParseAPI::CALL_FT && needCallEmulation_) {
+        if (e->type() == ParseAPI::CATCH) {
             return false;
         }
         edges.push_back(e);
@@ -398,8 +401,7 @@ bool CodeMover::ReverseDFS(block_instance* cur,
         return false;
     }
     bool ret = true;
-    for (auto eit = edges.begin(); eit != edges.end(); ++eit) {
-        edge_instance* e = *eit;
+    for (auto e : edges) {
         ret = ret && ReverseDFS(e->src(), origin, visited, tBlocks);
         if (!ret) break;
     }
@@ -430,9 +432,6 @@ bool CodeMover::canMoveTrampoline(block_instance* cur,
         if (e->type() == ParseAPI::INDIRECT) {
             return false;
         }
-        if (e->type() == ParseAPI::CALL_FT && needCallEmulation_) {
-            return false;
-        }
         edges.push_back(e);
     }
     if (edges.size() == 0) {
@@ -457,15 +456,12 @@ bool CodeMover::findSafeBlocks(block_instance* cur,
     visited.insert(cur);
 
     vector<edge_instance*> edges;
-    for (auto eit = cur->sources().begin(); eit != cur->sources().end(); ++eit) {
-        edge_instance* e = dynamic_cast<edge_instance*>(*eit);
+    for (auto eit : cur->sources()) {
+        edge_instance* e = dynamic_cast<edge_instance*>(eit);
         if (e->sinkEdge()) continue;
         if (e->interproc()) continue;
         if (e->type() == ParseAPI::CATCH) return false;
-        if (e->type() == ParseAPI::INDIRECT) {
-            return false;
-        }
-        if (e->type() == ParseAPI::CALL_FT && needCallEmulation_) {
+        if (e->type() == ParseAPI::INDIRECT && !BPatch::bpatch->relocateJumpTable()) {
             return false;
         }
         edges.push_back(e);
@@ -474,12 +470,14 @@ bool CodeMover::findSafeBlocks(block_instance* cur,
         return false;
     }
     bool ret = true;
-    for (auto eit = edges.begin(); eit != edges.end(); ++eit) {
-        edge_instance* e = *eit;
+    for (auto e : edges) {
         ret = ret && findSafeBlocks(e->src(), safeBlocks, tBlocks, visited);
         if (!ret) break;
     }
-    if (ret) safeBlocks.insert(cur);
+    if (ret) {
+        springboard_cerr << "identify safe block " << hex << cur->start() << " - " << cur->end() << dec << endl;
+        safeBlocks.insert(cur);
+    }
     return ret;
 
 }

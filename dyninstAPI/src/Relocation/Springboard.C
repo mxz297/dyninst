@@ -185,9 +185,13 @@ template <typename BlockIter>
 bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, BlockIter end) {
   // TODO: map these addresses to relocated blocks as well so we 
   // can do our thang.
+  set<block_instance*>& safeBlocks = func->getSafeBlocks();
+  vector<block_instance*> trampolineBlocks;
   for (; begin != end; ++begin) {
      block_instance *bbl = SCAST_BI(*begin);
-
+     if (safeBlocks.find(bbl) == safeBlocks.end()) trampolineBlocks.emplace_back(bbl);
+  }
+  for (auto bbl : trampolineBlocks) {
      //if (bbl->wasUserAdded()) continue;
      // Don't try to springboard a user-added block...
 
@@ -196,6 +200,8 @@ bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, Bloc
     SpringboardInfo *id = NULL;
     Address start = bbl->start();
     Address end = bbl->end();
+    springboard_cerr << "trampoline block :" << hex << start << " - " << end << dec << endl;
+
 
 #if 0
     // HACK for small, aligned functions
@@ -233,20 +239,21 @@ bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, Bloc
     if (end > bbl->end()) {
       paddingRanges_.insert(bbl->end(), end, nullptr);
       springboard_cerr << "find padding [" << hex << bbl->end() << "," << end << ")" << endl;
-    } else {
-        set<block_instance*>& safeBlocks = func->getSafeBlocks();
-        while (end - start < 5) {
-            block_instance* nextBlock = NULL;
-            for (auto bit = safeBlocks.begin(); bit != safeBlocks.end(); ++bit) {
-                if ((*bit)->start() == end) {
-                    nextBlock = *bit;
-                    break;
-                }
+    }
+    
+    // See if there are safe blocks that can be used for trampolines
+    while (true) {
+        block_instance* nextBlock = NULL;
+        for (auto b: safeBlocks) {
+            if (b->start() == end) {
+                nextBlock = b;
+                break;
             }
-            if (nextBlock == NULL) break;
-            end = nextBlock->end();
-            safeBlocks.erase(nextBlock);
         }
+        if (nextBlock == NULL) break;
+        springboard_cerr << "\textend to safe block :" << hex << nextBlock->start() << " - " << nextBlock->end() << dec << endl;
+        end = nextBlock->end();
+        safeBlocks.erase(nextBlock);
     }
 
     for (Address lookup = start; lookup < end; ) 
@@ -496,39 +503,25 @@ bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocate
    SpringboardInfo *lastState = state;
    springboard_cerr << "Conflict called for " << hex << start << "->" << end << dec << endl;
    
-//   while (end > working) {
-        springboard_cerr << "\t looking for " << hex << working << dec << endl;
-       if (!validRanges_.find(working, LB, UB, state)) {
-         springboard_cerr << "\t Conflict: unable to find entry for " << hex << working << dec << endl;
-         return true;
-       }
-       springboard_cerr << "\t\t Found " << hex << LB << " -> " << UB << " /w/ state " 
+   springboard_cerr << "\t looking for " << hex << working << dec << endl;
+   if (!validRanges_.find(working, LB, UB, state)) {
+       springboard_cerr << "\t Conflict: unable to find entry for " << hex << working << dec << endl;
+       return true;
+   }
+   springboard_cerr << "\t\t Found " << hex << LB << " -> " << UB << " /w/ state " 
            << state->val << ", "
            << (state->func == nullptr ? "nullptr" : state->func->name()) << ", priority " 
            << state->priority << dec << endl;
-      if (state->val == Allocated) {
-	if(LB == start && UB >= end) 
-	{
-               /* We need to pay attention to priorities here... 
-                *   If priorities are equal (and suggested), return OK
-                *   If new sb has higher priority, return OK
-                *   If the old sb has higher priority, return conflict 
-                *   If priorities are equal (and required):
-                *       If same function, return OK
-                *       If different functions {
-                *           If same target, then OK (simplify to conflict for ease of use)
-                *           If not same target, then conflict 
-                *   Otherwise, return OK
-                */
-
-                if (state->priority > p) {
-                    springboard_cerr << "\t Starting range matches already allocated springboard, prior springboard had higher priority, ret conflict" << endl;
-                    return true;
-                }
-                if ((state->priority == p) && (state->func != func)) {
-                    springboard_cerr << "\t Starting range matches already allocated springboard, equivalent priorities and different functions, ret conflict" << endl;
-                    return true;
-                }
+   if (state->val == Allocated) {
+       if(LB == start && UB >= end) {
+           if (state->priority > p) {
+               springboard_cerr << "\t Starting range matches already allocated springboard, prior springboard had higher priority, ret conflict" << endl;
+               return true;
+           }
+           if ((state->priority == p) && (state->func != func)) {
+               springboard_cerr << "\t Starting range matches already allocated springboard, equivalent priorities and different functions, ret conflict" << endl;
+               return true;
+           }
                  // In dynamic instrumentation, springboards are installed immediately after
                  // users wants to insert a snippet. The user can continue to insert
                  // more snippets to the same function, which will trigger Dyninst to perform
@@ -540,17 +533,18 @@ bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocate
                  // wants to continue to attached/created process. 
                 springboard_cerr << "\t Starting range matches already allocated springboard, assuming overwrite, ret OK" << endl;
                 return false;
-           }
-
-           springboard_cerr << "\t Starting range already allocated, ret conflict" << endl;
-           return true;
        }
-       if (lastState != NULL &&
-               state->func != lastState->func) {
+       springboard_cerr << "\t Starting range already allocated, ret conflict" << endl;
+       return true;
+   }
+   
+   if (lastState != NULL &&
+           state->func != lastState->func) {
+       
+       springboard_cerr << "\t Crossed into a different function, ret conflict" << endl;
+       return true;
+   }
 
-          springboard_cerr << "\t Crossed into a different function, ret conflict" << endl;
-          return true;
-      }
        // BLOCK PRIORITY CHECK:
        //    Check to see if the block we are writing to contains a required (or greater) springboard
        //    What this check prevents is a required springboard in a block at a lower address from
@@ -562,9 +556,8 @@ bool InstalledSpringboards::conflict(Address start, Address end, bool inRelocate
             return true;
         }
 
-      working = UB;
-      lastState = state;
-//   }
+   working = UB;
+   lastState = state;
 
    if (UB < end) {
        return true;
