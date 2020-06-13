@@ -45,6 +45,9 @@
 #include "registerSpace.h"
 #include "pcrel.h"
 #include "bitArray.h"
+#include "liveness.h"
+#include "Location.h"
+#include "debug.h"
 
 #include "instructionAPI/h/InstructionDecoder.h"
 
@@ -72,6 +75,7 @@ codeGen::codeGen() :
     addr_((Address)-1),
     ip_(NULL),
     f_(NULL),
+    b_(nullptr),
     bt_(NULL),
     isPadded_(true),
     trackRegDefs_(false),
@@ -96,6 +100,7 @@ codeGen::codeGen(unsigned size) :
     addr_((Address)-1),
     ip_(NULL),
     f_(NULL),
+    b_(nullptr),
     bt_(NULL),
     isPadded_(true),
     trackRegDefs_(false),
@@ -127,6 +132,7 @@ codeGen::codeGen(codeBuf_t *buffer, int size) :
     addr_((Address)-1),
     ip_(NULL),
     f_(NULL),
+    b_(nullptr),
     bt_(NULL),
     isPadded_(true),
     trackRegDefs_(false),
@@ -161,6 +167,7 @@ codeGen::codeGen(const codeGen &g) :
     addr_(g.addr_),
     ip_(g.ip_),
     f_(g.f_),
+    b_(g.b_),
     bt_(g.bt_),
     isPadded_(g.isPadded_),
     trackRegDefs_(g.trackRegDefs_),
@@ -198,6 +205,8 @@ codeGen &codeGen::operator=(const codeGen &g) {
     inInstrumentation_ = g.inInstrumentation_;
     insertNaked_ = g.insertNaked_;
     modifiedStackFrame_ = g.modifiedStackFrame_;
+    f_ = g.f_;
+    b_ = g.b_;
 
     if (size_ != 0) {
        assert(allocated_); 
@@ -708,6 +717,10 @@ func_instance *codeGen::func() const {
     return NULL;
 }
 
+block_instance *codeGen::block() const {
+    return b_;
+}
+
 registerSpace *codeGen::rs()  const{
     return rs_;
 }
@@ -776,6 +789,29 @@ void codeGen::registerDefensivePad(block_instance *callBlock, Address padStart, 
   // This is kind of hacky, btw.
     //cerr << "Registering pad [" << hex << padStart << "," << padStart + padSize << "], for block @ " << callBlock->start() << dec << endl;
   defensivePads_[callBlock] = Extent(padStart, padSize);
+}
+
+
+int codeGen::getScratchGPR() {
+    if (f_ == nullptr || b_ == nullptr) return REG_NULL; 
+	static LivenessAnalyzer live(8);
+    bitArray liveRegs;
+    live.query(ParseAPI::Location(ParseAPI::BlockSite(f_->function(), b_->block())), 
+            LivenessAnalyzer::Before,
+            liveRegs);
+    int ret = -1;
+    Architecture arch = getArch();
+    if (arch == Arch_ppc64) arch = Arch_ppc32;
+    for (int i = 3; i <= 30; ++i) {
+        MachRegister reg = MachRegister::DwarfEncToReg(i, arch);
+        if (!liveRegs[live.getIndex(reg)]) {
+            ret = i;
+            springboard_cerr << "Get scratch register " << ret << " for block "
+                << hex << b_->start() << " - " << b_->end() << " , function at " << f_->addr() << dec << endl;
+            break;
+        }
+    }
+    return ret;
 }
 
 

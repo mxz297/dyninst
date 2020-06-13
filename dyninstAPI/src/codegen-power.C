@@ -414,59 +414,26 @@ bool insnCodeGen::generateBranchCTR(codeGen &gen,
   return true;
 }
 
-
-
-#include "addressSpace.h"
-#include "instPoint.h"
-#include "function.h"
-instPoint * GetInstPointPower(codeGen & gen, Address from) {
-    // If this point is straight availible from the generator, return it
-    instPoint *point = gen.point();
-    if (point) 
-      return point;
-
-    // Take the hardest road....
-
-    // Grab the function instance from addressSpace.
-    AddressSpace * curAddressSpace = gen.addrSpace();
-
-    // Find the func instance
-    func_instance * func;
-    std::set<func_instance *> funcList;
-    curAddressSpace->findFuncsByAddr(from, funcList);
-
-    for (auto i :  funcList)
-    {
-      point = instPoint::funcEntry(i);
-      if (point != NULL){
-        if (point->addr_compat() == from){
-          return point;
-        }
-      }
-    }
-    return NULL;
-}
 void insnCodeGen::generateLongBranch(codeGen &gen, 
                                      Address from, 
                                      Address to, 
                                      bool isCall) {
-  bool usingLR = false;
-  bool usingCTR = false;
-  //fprintf(stderr, "%s\n", "inside generate long branch");
-  // If we are a call, the LR is going to be free. Use TAR to save/restore any register
-  if (isCall) {
-    //fprintf(stderr, "info: %s:%d: \n", __FILE__, __LINE__); 
-    //fprintf(stderr, "%s\n", "generating call long branch using LR");
-      // This is making the assumption R2/R12 has already been setup correctly, 
-      // First generate a scratch register by moving something, i choose R11 to send to TAR
-      insnCodeGen::generateMoveToSPR(gen,registerSpace::r10, SPR_TAR);
-      
-      // r10 is now free to setup the branch instruction
-      insnCodeGen::loadImmIntoReg(gen, registerSpace::r10, to);
-      insnCodeGen::generateMoveToSPR(gen,registerSpace::r10, SPR_LR);
+  Register scratch = gen.getScratchGPR();
+  bool saveScratch = false;
+  if (scratch == REG_NULL) {
+      saveScratch = true;
+      scratch = registerSpace::r10;
+  }
 
-      // Return r10 to its original state
-      insnCodeGen::generateMoveFromSPR(gen, registerSpace::r10, SPR_TAR);
+  if (isCall) {
+      // If we are a call, the LR is going to be free. Use TAR to save/restore any register
+      if (saveScratch) insnCodeGen::generateMoveToSPR(gen, scratch, SPR_TAR);
+      
+      insnCodeGen::loadImmIntoReg(gen, scratch, to);
+      insnCodeGen::generateMoveToSPR(gen, scratch, SPR_LR);
+
+      // Return scratch register to its original state
+      if (saveScratch) insnCodeGen::generateMoveFromSPR(gen, scratch, SPR_TAR);
 
       // Emit the branch instruction
       instruction branchToBr;
@@ -476,46 +443,28 @@ void insnCodeGen::generateLongBranch(codeGen &gen,
       XLFORM_BA_SET(branchToBr, 0); // Unused
       XLFORM_BB_SET(branchToBr, 0); // Unused
       XLFORM_XO_SET(branchToBr, BCLRxop);
-      XLFORM_LK_SET(branchToBr, (isCall ? 1 : 0));
+      XLFORM_LK_SET(branchToBr, 1);
       insnCodeGen::generate(gen,branchToBr);
   } else {
-    //fprintf(stderr, "%s\n", "generating non-call long branch using TAR");
-    // What this does is the following:
-    // 1. Attempt to allocate a scratch register, this is needed to store the destination 
-    //    address temporarily because you can only move registers to SPRs like CTR/LR/TAR.
-    //    - If a scratch register cannot be obtained, see if either CTR or LR are free.
-    //    - If one of those are, store r11 (our new scratch register) into CTR or LR. 
-    //    - after the destination address has been loaded to TAR, we will restore R11 from this value
-    // 2. Calculate the destination address storing it into scratch.
-    // 3. Move the register to the SPR (tar)
-    // 4. Restore the original register value (if a scratch register was not found)
-    // 5. build the branch instruction.
-    //fprintf(stderr, "info: %s:%d: \n", __FILE__, __LINE__); 
-    Register scratch = registerSpace::r10;
+
     int saved_off = 0;
 
-
-    // TODO: Fix this, this should work....
-    //= gen.rs()->getScratchRegister(gen);
-	insnCodeGen::generateImm(gen, CALop,
-                                 REG_SP, REG_SP, -TRAMP_FRAME_SIZE_64);
-
-    insnCodeGen::generateMemAccess64(gen, STDop, STDxop,
-                                         scratch, REG_SP, saved_off);
+    // Save the scratch register if necessary
+    if (saveScratch) {
+        insnCodeGen::generateImm(gen, CALop, REG_SP, REG_SP, -TRAMP_FRAME_SIZE_64);
+        insnCodeGen::generateMemAccess64(gen, STDop, STDxop, scratch, REG_SP, saved_off);
+    }
 
 
     insnCodeGen::loadImmIntoReg(gen, scratch, to);
     insnCodeGen::generateMoveToSPR(gen, scratch, SPR_TAR);      
 
-
-    insnCodeGen::generateMemAccess64(gen, LDop, LDxop,
-                                         scratch, REG_SP, saved_off);
-
-
-	insnCodeGen::generateImm(gen, CALop,
-                                 REG_SP, REG_SP, TRAMP_FRAME_SIZE_64);
-
-    // Emit the call instruction.
+    // Restore the scratch register if necessary
+    if (saveScratch) {
+        insnCodeGen::generateMemAccess64(gen, LDop, LDxop, scratch, REG_SP, saved_off);
+        insnCodeGen::generateImm(gen, CALop, REG_SP, REG_SP, TRAMP_FRAME_SIZE_64);
+    }
+    // Emit the branch instruction.
     instruction branchToBr;
     branchToBr.clear();
     XLFORM_OP_SET(branchToBr, BCTARop);
@@ -523,7 +472,7 @@ void insnCodeGen::generateLongBranch(codeGen &gen,
     XLFORM_BA_SET(branchToBr, 0); // Unused
     XLFORM_BB_SET(branchToBr, 0); // Unused
     XLFORM_XO_SET(branchToBr, BCTARxop);
-    XLFORM_LK_SET(branchToBr, (isCall ? 1 : 0));
+    XLFORM_LK_SET(branchToBr,  0);
     insnCodeGen::generate(gen, branchToBr);    
   }
   return;

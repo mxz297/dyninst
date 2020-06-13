@@ -210,6 +210,7 @@ class codeGen {
     void setRegTracker(regTracker_t *t) { t_ = t; }
     void setCodeEmitter(Emitter *emitter) { emitter_ = emitter; }
     void setFunction(func_instance *f) { f_ = f; }
+    void setBlock(block_instance *b) { b_ = b;}
     void setBT(baseTramp *i) { bt_ = i; }
     void setInInstrumentation(bool i) { inInstrumentation_ = i; }
 
@@ -220,6 +221,7 @@ class codeGen {
     instPoint *point() const;
     baseTramp *bt() const { return bt_; }
     func_instance *func() const;
+    block_instance* block() const;
     registerSpace *rs() const;
     regTracker_t *tracker() const;
     Emitter *codeEmitter() const;
@@ -255,6 +257,7 @@ class codeGen {
     
     void registerRemovedInstrumentation(baseTramp *bt, Address loc) { removedInstrumentation_[bt] = loc; }
     std::map<baseTramp *, Address> &getRemovedInstrumentation() { return removedInstrumentation_; }
+    int getScratchGPR();
 
  private:
     void realloc(unsigned newSize); 
@@ -275,6 +278,7 @@ class codeGen {
     Address addr_;
     instPoint *ip_;
     func_instance *f_;
+    block_instance *b_;
     baseTramp *bt_;
     bool isPadded_;
 

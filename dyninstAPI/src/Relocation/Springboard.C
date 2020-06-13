@@ -316,6 +316,8 @@ SpringboardBuilder::generateSpringboard(std::list<codeGen> &springboards,
                                         SpringboardMap &input) {
    codeGen gen;
    codeGen tmpGen;
+   tmpGen.setFunction(r.func);
+   tmpGen.setBlock(r.block);
    bool usedTrap = false;
    // Arbitrarily select the first function containing this springboard, since only one can win. 
    generateBranch(r.from, r.destinations.begin()->second, tmpGen);
@@ -347,6 +349,8 @@ SpringboardBuilder::generateSpringboard(std::list<codeGen> &springboards,
    } else {
       // regenerate the branch into gen 
       // ideally we would like to do gen = tmpGen but there is a problem with codeGen's copy constructor
+      gen.setFunction(r.func);
+      gen.setBlock(r.block);
       generateBranch(r.from, r.destinations.begin()->second, gen);
       springboard_cerr << "\t Using a branch for springboard at addr: 0x" << std::hex << r.from 
                        << " with byte size = " << std::dec << gen.used() << std::endl;
@@ -402,6 +406,8 @@ bool SpringboardBuilder::generateMultiSpringboard(std::list<codeGen> &springboar
            << "), then normal trampoline to " << r.destinations.begin()->second << dec << endl;
        // Generate and register the full branch
        codeGen gen;
+       gen.setFunction(r.func);
+       gen.setBlock(r.block);
        generateBranch(lower_bound, r.destinations.begin()->second, gen);
        if (gen.used() > upper_bound - lower_bound) return false;
        springboards.push_back(gen);
