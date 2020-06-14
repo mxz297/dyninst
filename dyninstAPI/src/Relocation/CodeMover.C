@@ -51,16 +51,17 @@ using namespace Dyninst;
 using namespace InstructionAPI;
 using namespace Relocation;
 
-CodeMover::CodeMover(CodeTracker *t) :
+CodeMover::CodeMover(AddressSpace *as, CodeTracker *t) :
    cfg_(new RelocGraph()),
    addr_(0),
    tracker_(t),
-   finalized_(false) {};
+   finalized_(false),
+   as_(as) {};
 
-CodeMover::Ptr CodeMover::create(CodeTracker *t) {
+CodeMover::Ptr CodeMover::create(AddressSpace*as, CodeTracker *t) {
 
    // Make a CodeMover
-   Ptr ret = Ptr(new CodeMover(t));
+   Ptr ret = Ptr(new CodeMover(as, t));
    if (!ret) 
       return Ptr();
 
@@ -366,7 +367,25 @@ void CodeMover::OptimizeSpringboards() {
             findSafeBlocks(b, safeBlocks, trampolineLocs, visited); 
         }
         f->setSafeBlocks(safeBlocks);
+
+        // For safe blocks, we overwrite all of them with invalid
+        // instructions. In this way, we can catch unintented
+        // bouncing from relocated code.
+        for (auto b : safeBlocks) {
+            if (b->_ignorePowerPreamble) continue;
+            refillSafeBlockWithInvalidInsns(b);
+        }
     }
+}
+
+void CodeMover::refillSafeBlockWithInvalidInsns(block_instance* b) {
+#if defined(arch_x86) || defined(arch_x86_64)
+#define INVALID 0x63
+#else
+#define INVALID 0x0
+#endif
+    std::vector<unsigned char> invalid(b->end() - b->start(), INVALID);
+    as_->writeTextSpace((void*)(b->start()), b->end() - b->start(), invalid.data());
 }
 
 bool CodeMover::canRemoveTrampoline(block_instance* b, const set<block_instance*>& tBlocks) {

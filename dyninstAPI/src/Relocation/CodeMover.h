@@ -80,7 +80,7 @@ class CodeMover {
   // We take a CodeTracker as a reference parameter so that we don't 
   // have to copy it on output; CodeMovers are designed to be discarded
   // while CodeTrackers survive.
-  static Ptr create(CodeTracker *);
+  static Ptr create(AddressSpace*, CodeTracker *);
   ~CodeMover();
 
   bool addFunctions(FuncSetOrderdByLayout::const_iterator begin, FuncSetOrderdByLayout::const_iterator end);
@@ -123,7 +123,7 @@ class CodeMover {
 
  private:
     
-  CodeMover(CodeTracker *t);
+  CodeMover(AddressSpace* as, CodeTracker *t);
   
   void setAddr(Address &addr) { addr_ = addr; }
   template <typename RelocBlockIter>
@@ -147,6 +147,7 @@ class CodeMover {
                   std::set<block_instance*>&,
                   std::set<block_instance*>&,
                   std::set<block_instance*>&);
+  void refillSafeBlockWithInvalidInsns(block_instance*);
 
 
 
@@ -163,6 +164,8 @@ class CodeMover {
   CodeBuffer buffer_;
 
   bool finalized_;
+
+  AddressSpace *as_;
 };
 
 

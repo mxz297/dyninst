@@ -1772,7 +1772,7 @@ bool AddressSpace::relocateInt(FuncSetOrderdByLayout::const_iterator begin, Func
   //cerr << "Creating a CodeMover" << endl;
 
   relocatedCode_.push_back(new CodeTracker());
-  CodeMover::Ptr cm = CodeMover::create(relocatedCode_.back());
+  CodeMover::Ptr cm = CodeMover::create(this, relocatedCode_.back());
   if (!cm->addFunctions(begin, end)) return false;
 
   relocation_cerr << "Debugging CodeMover (pre-transform)" << endl;

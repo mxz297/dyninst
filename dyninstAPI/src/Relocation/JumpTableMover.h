@@ -21,6 +21,7 @@ public:
 private:
     JumpTableMover(AddressSpace* s): as(s) {}
     AddressSpace* as;
+    std::set<func_instance*> processed_funcs;
 };
 
 class JumpTableEntryVisitor: public ASTVisitor {

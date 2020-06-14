@@ -22,6 +22,10 @@ JumpTableMover::Ptr JumpTableMover::create(FuncSetOrderdByLayout::const_iterator
             continue;
         }
         ret->moveJumpTableInFunction(func);
+        if (func->getNoPowerPreambleFunc() != nullptr)
+            ret->moveJumpTableInFunction(func->getNoPowerPreambleFunc());
+        if (func->getPowerPreambleFunc() != nullptr)
+            ret->moveJumpTableInFunction(func->getPowerPreambleFunc());
     }
 
     return ret;
@@ -30,6 +34,8 @@ JumpTableMover::Ptr JumpTableMover::create(FuncSetOrderdByLayout::const_iterator
 static std::map<Address, int64_t> overwritten;
 
 void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
+    if (processed_funcs.find(func) != processed_funcs.end()) return;
+    processed_funcs.insert(func);
     parse_func * f = func->ifunc();
     const map<Address,ParseAPI::Function::JumpTableInstance>& jt_list = f->getJumpTables();
     for (auto jit = jt_list.begin(); jit != jt_list.end(); ++jit) {
@@ -48,6 +54,13 @@ void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
             
             // 2. Lookup the relocated address
             Address reloc = findRelocatedAddress(func, orig);
+            if (reloc == 0 && func->getNoPowerPreambleFunc() != nullptr) {
+                reloc = findRelocatedAddress(func->getNoPowerPreambleFunc(), orig);
+            }
+            if (reloc == 0 && func->getPowerPreambleFunc() != nullptr) {
+                reloc = findRelocatedAddress(func->getPowerPreambleFunc(), orig);
+            }
+
             if (reloc == 0) {
                 fprintf(stderr, "Cannot find relocated address for %lx for jump table at %lx for function %s at %lx\n", orig, jit->first, func->name().c_str(), func->addr());
             }
