@@ -54,6 +54,8 @@ void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
             
             // 2. Lookup the relocated address
             Address reloc = findRelocatedAddress(func, orig);
+            // For ppc64le, we check relocated addresses using both
+            // global entry function and local entry function.
             if (reloc == 0 && func->getNoPowerPreambleFunc() != nullptr) {
                 reloc = findRelocatedAddress(func->getNoPowerPreambleFunc(), orig);
             }
@@ -80,14 +82,39 @@ void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
             //       so the offset can change and may not necessarilly
             //       fit in the original table entry. This can be fixed
             //       by copying the whole table to a new location
-            if (jt.indexStride == 8) {
-                gen.copy(&newEntry, sizeof(int64_t));
-            } else if (jt.indexStride == 4) {
-                int32_t entry = (int32_t) newEntry;
-                gen.copy(&entry, sizeof(int32_t));
-            } else {
-                fprintf(stderr, "Unhandled jump table stride %d for indirect jump %lx\n", jt.indexStride, jit->first);
-                assert(0);
+            switch (jt.indexStride) {
+                case 8: {
+                    gen.copy(&newEntry, sizeof(int64_t));
+                    break;
+                }
+                case 4: {
+                    int32_t entry = (int32_t) newEntry;
+                    gen.copy(&entry, sizeof(int32_t));
+                    break;
+                }
+                case 2: {                    
+                    if ((newEntry >= (1 << 15)) || (newEntry < -(1 << 15))) {
+                        fprintf(stderr, "Overflown table entry for 2-byte entry for indirect jump %lx, new value %lld\n", jit->first, newEntry);
+                        assert(0);
+                    }
+                    int16_t entry = (int16_t) newEntry;
+                    gen.copy(&entry, sizeof(int16_t));
+                    break;
+                }
+                case 1: {
+                    if ((newEntry >= (1 << 7)) || (newEntry < -(1 << 7))) {
+                        fprintf(stderr, "Overflown table entry for 1-byte entry for indirect jump %lx, new value %lld\n", jit->first, newEntry);
+                        assert(0);
+                    }
+                    int8_t entry = (int8_t) newEntry;
+                    gen.copy(&entry, sizeof(int8_t));
+                    break;
+
+                }
+                default: {
+                    fprintf(stderr, "Unhandled jump table stride %d for indirect jump %lx\n", jt.indexStride, jit->first);
+                    assert(0);
+                }
             }
 
             auto it = overwritten.find(addr);
