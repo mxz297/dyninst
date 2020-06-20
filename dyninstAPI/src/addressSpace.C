@@ -2336,8 +2336,7 @@ AddressSpace::getStubs(const std::list<block_instance *> &owBlocks,
 }
 
 bool AddressSpace::relocateJumpTables(JumpTableMover::Ptr jtm) {
-    for (auto codegen_it = jtm->newTables.begin(); codegen_it != jtm->newTables.end(); ++codegen_it) {
-        codeGen& c = *codegen_it;
+    for (auto& c : jtm->codeGens){
         if (!writeTextSpace((void*)c.startAddr(), c.used(), c.start_ptr())) {
             relocation_cerr << "\t failed to write jump table at " << hex << c.startAddr() << endl;
             return false;

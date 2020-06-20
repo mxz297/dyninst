@@ -4,6 +4,7 @@
 #include "dyninstAPI/src/debug.h"
 
 #include "SymEval.h"
+#include "slicing.h"
 
 
 using namespace std;
@@ -31,107 +32,204 @@ JumpTableMover::Ptr JumpTableMover::create(FuncSetOrderdByLayout::const_iterator
     return ret;
 }
 
-static std::map<Address, int64_t> overwritten;
-
 void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
     if (processed_funcs.find(func) != processed_funcs.end()) return;
     processed_funcs.insert(func);
     parse_func * f = func->ifunc();
-    const map<Address,ParseAPI::Function::JumpTableInstance>& jt_list = f->getJumpTables();
-    for (auto jit = jt_list.begin(); jit != jt_list.end(); ++jit) {
-        const ParseAPI::Function::JumpTableInstance &jt = jit->second;
-        codeGen gen;
-        gen.invalidate();
-        gen.allocate(jt.tableEnd - jt.tableStart);
-        gen.setAddrSpace(as);
-        gen.setAddr(jt.tableStart);
+    map<Address,ParseAPI::Function::JumpTableInstance>& jt_list = f->getJumpTables();
 
-        for (Address addr = jt.tableStart; addr < jt.tableEnd; addr += jt.indexStride) {
-            // 1. Calculate the original target
-            JumpTableEntryVisitor jtev(as, addr, jt.isZeroExtend, jt.memoryReadSize);
-            jt.jumpTargetExpr->accept(&jtev);
-            Address orig = jtev.targetAddress;
-            
-            // 2. Lookup the relocated address
-            Address reloc = findRelocatedAddress(func, orig);
-            // For ppc64le, we check relocated addresses using both
-            // global entry function and local entry function.
-            if (reloc == 0 && func->getNoPowerPreambleFunc() != nullptr) {
-                reloc = findRelocatedAddress(func->getNoPowerPreambleFunc(), orig);
+    for (auto& jit : jt_list) {
+        moveOneJumpTable(func, jit.first, jit.second);
+    }
+
+}
+
+void JumpTableMover::moveOneJumpTable(func_instance* func, Address jumpAddr, ParseAPI::Function::JumpTableInstance& jt) {
+    
+    // First, detetermine whether the relocation will cause table entry overflow.
+    bool overflow = computeNewTableEntries(func, jumpAddr, jt);
+    if (overflow) {
+        bool first = true;
+        Address minAddr = 0;
+        Address maxAddr = 0;
+        int64_t minVal, maxVal;
+        minVal = maxVal = 0;
+        for (const auto& new_entry : newTable) {
+            const int64_t& val = new_entry.second.second;
+            const Address& addr = new_entry.second.first;
+            if (first) {
+                first = false;
+                minAddr = maxAddr = addr;
+                minVal = maxVal = val;
             }
-            if (reloc == 0 && func->getPowerPreambleFunc() != nullptr) {
-                reloc = findRelocatedAddress(func->getPowerPreambleFunc(), orig);
+            if (addr < minAddr) {
+                minAddr = addr;
+                minVal = val;
             }
-
-            if (reloc == 0) {
-                fprintf(stderr, "Cannot find relocated address for %lx for jump table at %lx for function %s at %lx\n", orig, jit->first, func->name().c_str(), func->addr());
-            }
-            assert(reloc);
-
-            // 3. Calculate the new table entry
-            NewTableEntryVisitor ntev(reloc);
-            jt.jumpTargetExpr->accept(&ntev);
-            int64_t newEntry = ntev.newValue;
-            //fprintf(stderr, "Relocation jump table entry from %lx to %lx for jump table at %lx for function %s at %lx, new entry value %lx, %d %d\n",
-            //        orig, reloc, jit->first, func->name().c_str(), func->addr(), newEntry, jt.indexStride, jt.memoryReadSize);
-            //fprintf(stderr, "\t%s\n", jt.jumpTargetExpr->format().c_str());
-
-            // 4. Put the new table entry to a codegen object
-            // TODO: assume the new entry fits in the table.
-            //       Note that we are having a new jump target,
-            //       so the offset can change and may not necessarilly
-            //       fit in the original table entry. This can be fixed
-            //       by copying the whole table to a new location
-            switch (jt.indexStride) {
-                case 8: {
-                    gen.copy(&newEntry, sizeof(int64_t));
-                    break;
-                }
-                case 4: {
-                    int32_t entry = (int32_t) newEntry;
-                    gen.copy(&entry, sizeof(int32_t));
-                    break;
-                }
-                case 2: {                    
-                    if ((newEntry >= (1 << 15)) || (newEntry < -(1 << 15))) {
-                        fprintf(stderr, "Overflown table entry for 2-byte entry for indirect jump %lx, new value %lld\n", jit->first, newEntry);
-                        assert(0);
-                    }
-                    int16_t entry = (int16_t) newEntry;
-                    gen.copy(&entry, sizeof(int16_t));
-                    break;
-                }
-                case 1: {
-                    if ((newEntry >= (1 << 7)) || (newEntry < -(1 << 7))) {
-                        fprintf(stderr, "Overflown table entry for 1-byte entry for indirect jump %lx, new value %lld\n", jit->first, newEntry);
-                        assert(0);
-                    }
-                    int8_t entry = (int8_t) newEntry;
-                    gen.copy(&entry, sizeof(int8_t));
-                    break;
-
-                }
-                default: {
-                    fprintf(stderr, "Unhandled jump table stride %d for indirect jump %lx\n", jt.indexStride, jit->first);
-                    assert(0);
-                }
-            }
-
-            auto it = overwritten.find(addr);
-            if (it != overwritten.end() && it->second != newEntry) {
-                fprintf(stderr, "ERROR: jump table relocation twice for address %lx\n", addr);
-            } else {
-                overwritten.insert(make_pair(addr, newEntry));
+            if (addr > maxAddr) {
+                maxAddr = addr;
+                maxVal = val;
             }
         }
-        newTables.push_back(gen);
+        int64_t range = maxVal - minVal;
+        bool needNewTable = false;
+        if (jt.indexStride == 2) {
+            if (range >= (1 << 16)) needNewTable = true;
+        } else if (jt.indexStride == 1) {
+            if (range >= (1 << 8)) needNewTable = true;
+        }
+        assert(!needNewTable);
+        Address newJumpTargetBase = 0;
+        if (jt.isZeroExtend) {
+            // If the jump table is unsigned, a table entry is in the range
+            // of [0, MAX]. To have the maximal jump range, we set the jump
+            // base to the minimal target address
+            newJumpTargetBase = minAddr;
+        } else {
+            // If the jump table is signed, a table entry is in the range
+            // of [-MAX-1, MAX]. To have the maximal jump range, we set the jump
+            // base to the mid point of the range
+            newJumpTargetBase = (minAddr + maxAddr + 1) / 2;
+        }
+
+        // We adjust the new table entry based on the new jump target base
+        for (auto& it : newTable) {
+            it.second.second = (int64_t)it.second.first - (int64_t)newJumpTargetBase;
+        }
+        if (!modifyJumpTargetBase(newJumpTargetBase, jt)) {
+            fprintf(stderr, "need to modify jump target base to %lx, but failed\n", newJumpTargetBase);
+            assert(0);
+        }
+    }
+    
+    // Emit the new table
+    codeGen gen;
+    gen.invalidate();
+    gen.allocate(jt.tableEnd - jt.tableStart);
+    gen.setAddrSpace(as);
+    gen.setAddr(jt.tableStart);
+    fillNewTableEntries(gen, jumpAddr, jt.indexStride);
+}
+
+bool JumpTableMover::computeNewTableEntries(func_instance* func, Address jumpAddr, ParseAPI::Function::JumpTableInstance& jt) {
+    bool overflow = false;
+    // Old table entry address -> pair of relocated target address and new table entry value
+    newTable.clear();
+
+    for (Address addr = jt.tableStart; addr < jt.tableEnd; addr += jt.indexStride) {
+        // 1. Calculate the original target
+        JumpTableEntryVisitor jtev(as, addr, jt.isZeroExtend, jt.memoryReadSize);
+        jt.jumpTargetExpr->accept(&jtev);
+        Address orig = jtev.targetAddress;
+            
+        // 2. Lookup the relocated address
+        Address reloc = findRelocatedAddress(func, orig);
+            
+        // For ppc64le, we check relocated addresses using both
+        // global entry function and local entry function.
+        if (reloc == 0 && func->getNoPowerPreambleFunc() != nullptr) {
+            reloc = findRelocatedAddress(func->getNoPowerPreambleFunc(), orig);
+        }
+        if (reloc == 0 && func->getPowerPreambleFunc() != nullptr) {
+            reloc = findRelocatedAddress(func->getPowerPreambleFunc(), orig);
+        }
+
+        if (reloc == 0) {
+            fprintf(stderr, "Cannot find relocated address for %lx for jump table at %lx for function %s at %lx\n", orig, jumpAddr, func->name().c_str(), func->addr());
+        }
+        assert(reloc);
+
+        // 3. Calculate the new table entry
+        NewTableEntryVisitor ntev(reloc);
+        jt.jumpTargetExpr->accept(&ntev);
+        int64_t newEntry = ntev.newValue;
+
+        relocation_cerr << "Relocation jump table entry from " << hex
+                << orig << " to " << reloc << " for jump table at " << jumpAddr
+                << " for function " << func->name() << " at " << func->addr()
+                << " new entry value " << dec << newEntry << " table stride " << jt.indexStride
+                << " memory read size " << jt.memoryReadSize << endl;
+        relocation_cerr << "\t" << "jump target expression: " << jt.jumpTargetExpr->format() << endl;
+
+        // 4. Record new target and new entry value
+        newTable.emplace(addr, make_pair(reloc, newEntry));
+
+        // 5. Check if new entry fits in the old table
+        if (jt.indexStride == 2) {
+            if ((newEntry >= (1 << 15)) || (newEntry < -(1 << 15))) overflow = true;
+        } else if (jt.indexStride == 1) {
+            if ((newEntry >= (1 << 7)) || (newEntry < -(1 << 7))) overflow = true;
+        }
+    }
+    return overflow;
+}
+
+void JumpTableMover::fillNewTableEntries(codeGen& gen, Address jumpAddr, int indexStride) {
+    for (auto& it : newTable) {
+        const Address& addr = it.first;
+        const int64_t& newEntry = it.second.second;
+        switch (indexStride) {
+            case 8: {
+                gen.copy(&newEntry, sizeof(int64_t));
+                break;
+            }
+            case 4: {
+                int32_t entry = (int32_t) newEntry;
+                gen.copy(&entry, sizeof(int32_t));
+                break;
+            } 
+            case 2: {                    
+                int16_t entry = (int16_t) newEntry;
+                gen.copy(&entry, sizeof(int16_t));
+                break;
+            }
+            case 1: {
+                int8_t entry = (int8_t) newEntry;
+                gen.copy(&entry, sizeof(int8_t));
+                break;
+            }
+            default: { 
+                fprintf(stderr, "Unhandled jump table stride %d for indirect jump %lx\n", indexStride, jumpAddr);
+                assert(0);
+            }
+        }
+        
+        // Detect conflict writes to the same address
+        // from different jump tabels
+        auto oit = overwritten.find(addr);
+        if (oit != overwritten.end() && oit->second != newEntry) {
+            fprintf(stderr, "ERROR: jump table relocation twice for address %lx\n", addr);
+        } else {
+            overwritten.emplace(addr, newEntry);
+        }
     }    
+
 }
 
 Address JumpTableMover::findRelocatedAddress(func_instance* func, Address orig) {
     block_instance* block = func->getBlock(orig);
     if (block == NULL) return 0;
     return as->getRelocPreAddr(orig, block, func);
+}
+
+bool JumpTableMover::modifyJumpTargetBase(Address newBase, ParseAPI::Function::JumpTableInstance& jt) {
+    Graph::Ptr g = jt.formatSlice;
+    NodeIterator nbegin, nend; 
+    g->exitNodes(nbegin, nend);
+    SliceNode::Ptr indJumpNode;
+    for (; nbegin != nend; ++nbegin) {
+        indJumpNode = boost::static_pointer_cast<SliceNode>(*nbegin);
+    }
+    indJumpNode->ins(nbegin, nend);
+    fprintf(stderr, "inspect jump table format slice\n");
+    for (; nbegin != nend; ++nbegin) {
+        SliceNode::Ptr s = boost::static_pointer_cast<SliceNode>(*nbegin);
+        fprintf(stderr, "%lx %s\n", s->assign()->addr(),
+                s->assign()->insn().format().c_str());
+    }
+
+
+    return true;
 }
 
 JumpTableEntryVisitor::JumpTableEntryVisitor(AddressSpace* s, Address mem, bool ze, int m) {

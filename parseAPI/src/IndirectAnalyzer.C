@@ -85,7 +85,7 @@ boost::make_lock_guard(*func);
     se.cs = block->obj()->cs();
     se.cr = block->region();
     JumpTableFormatPred jtfp(func, block, rf, thunks, se);
-    GraphPtr slice = formatSlicer.backwardSlice(jtfp);
+    GraphPtr formatSlice = formatSlicer.backwardSlice(jtfp);
     //parsing_printf("\tJump table format: %s\n", jtfp.format().c_str());
     // If the jump target expression is not in a form we recognize,
     // we do not try to resolve it
@@ -114,7 +114,7 @@ boost::make_lock_guard(*func);
         Slicer indexSlicer(jtfp.indexLoc, jtfp.indexLoc->block(), func, false, false);
 	JumpTableIndexPred jtip(func, block, jtfp.index, se);
 	jtip.setSearchForControlFlowDep(true);
-	slice = indexSlicer.backwardSlice(jtip);
+	GraphPtr indexSlice = indexSlicer.backwardSlice(jtip);
 
         if (!jtip.findBound && block->obj()->cs()->getArch() != Arch_aarch64) {
 
@@ -148,6 +148,7 @@ boost::make_lock_guard(*func);
     inst.tableStart = inst.tableEnd = 0;
     inst.indexStride = 0;
     inst.block = block;
+    inst.formatSlice = formatSlice;
     ReadTable(jtfp.jumpTargetExpr,
               jtfp.index,
               b,

@@ -409,6 +409,7 @@ void popStack(codeGen &gen)
 /*********************************** Base Tramp ***********************************************/
 bool baseTramp::generateSaves(codeGen &gen, registerSpace *)
 {
+    return true;
     regalloc_printf("========== baseTramp::generateSaves\n");
 
     // Make a stack frame.
@@ -448,6 +449,7 @@ bool baseTramp::generateSaves(codeGen &gen, registerSpace *)
 
 bool baseTramp::generateRestores(codeGen &gen, registerSpace *)
 {
+    return true;
     EmitterAARCH64RestoreRegs restoreRegs;
     unsigned int width = gen.width();
 

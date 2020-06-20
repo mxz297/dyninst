@@ -54,7 +54,7 @@
 #include "DynAST.h"
 
 namespace Dyninst {
-
+   class Graph;
    namespace InstructionAPI {
       class Instruction;
       typedef boost::shared_ptr<Instruction> InstructionPtr;
@@ -472,6 +472,7 @@ class PARSER_EXPORT Function : public allocatable, public AnnotatableSparse, pub
         bool isZeroExtend;
         std::map<Address, Address> tableEntryMap;
         Block* block;
+        boost::shared_ptr<Dyninst::Graph> formatSlice;
     };
     std::map<Address, JumpTableInstance> & getJumpTables() { return jumptables; }
 

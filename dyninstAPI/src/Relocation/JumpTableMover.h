@@ -14,14 +14,25 @@ public:
     static Ptr create(FuncSetOrderdByLayout::const_iterator begin,
                       FuncSetOrderdByLayout::const_iterator end,
                       AddressSpace * as);
-    vector<codeGen> newTables;
-
-    void moveJumpTableInFunction(func_instance*);
-    Address findRelocatedAddress(func_instance*, Address);
+    vector<codeGen> codeGens;
 private:
     JumpTableMover(AddressSpace* s): as(s) {}
     AddressSpace* as;
     std::set<func_instance*> processed_funcs;
+    std::map<Address, std::pair<Address, int64_t> > newTable;    
+
+    void moveJumpTableInFunction(func_instance*);
+    Address findRelocatedAddress(func_instance*, Address);
+    void moveOneJumpTable(func_instance*, Address, ParseAPI::Function::JumpTableInstance&);
+    bool computeNewTableEntries(func_instance*, Address, ParseAPI::Function::JumpTableInstance&);
+    void fillNewTableEntries(codeGen&, Address, int);
+    bool modifyJumpTargetBase(Address, ParseAPI::Function::JumpTableInstance&);
+    
+    // Record all overritten jump table entries 
+    // to detect conflict table entry relocation
+    std::map<Address, int64_t> overwritten;
+
+
 };
 
 class JumpTableEntryVisitor: public ASTVisitor {
