@@ -80,23 +80,27 @@ void JumpTableMover::moveOneJumpTable(func_instance* func, Address jumpAddr, Par
         }
         assert(!needNewTable);
         Address newJumpTargetBase = 0;
+        int64_t newTableValueBase = 0;
         if (jt.isZeroExtend) {
             // If the jump table is unsigned, a table entry is in the range
             // of [0, MAX]. To have the maximal jump range, we set the jump
             // base to the minimal target address
             newJumpTargetBase = minAddr;
+            newTableValueBase = minVal;
         } else {
             // If the jump table is signed, a table entry is in the range
             // of [-MAX-1, MAX]. To have the maximal jump range, we set the jump
             // base to the mid point of the range
-            newJumpTargetBase = (minAddr + maxAddr + 1) / 2;
+            newTableValueBase = (minVal + maxVal + 1) / 2;
+            // Currently only on aarch64, we have table overflow,
+            // and on aarch64, jump table values are left shifted two bits adding to the jump base
+            newJumpTargetBase = minAddr - (minVal - newTableValueBase) * 4;
         }
-
-        // We adjust the new table entry based on the new jump target base
+        // We adjust the new table entry based on the new table value base
         for (auto& it : newTable) {
-            it.second.second = (int64_t)it.second.first - (int64_t)newJumpTargetBase;
+            it.second.second -= newTableValueBase;
         }
-        if (!modifyJumpTargetBase(newJumpTargetBase, jt)) {
+        if (!modifyJumpTargetBase(func, newJumpTargetBase, jt)) {
             fprintf(stderr, "need to modify jump target base to %lx, but failed\n", newJumpTargetBase);
             assert(0);
         }
@@ -109,6 +113,7 @@ void JumpTableMover::moveOneJumpTable(func_instance* func, Address jumpAddr, Par
     gen.setAddrSpace(as);
     gen.setAddr(jt.tableStart);
     fillNewTableEntries(gen, jumpAddr, jt.indexStride);
+    codeGens.emplace_back(gen);
 }
 
 bool JumpTableMover::computeNewTableEntries(func_instance* func, Address jumpAddr, ParseAPI::Function::JumpTableInstance& jt) {
@@ -149,7 +154,6 @@ bool JumpTableMover::computeNewTableEntries(func_instance* func, Address jumpAdd
                 << " for function " << func->name() << " at " << func->addr()
                 << " new entry value " << dec << newEntry << " table stride " << jt.indexStride
                 << " memory read size " << jt.memoryReadSize << endl;
-        relocation_cerr << "\t" << "jump target expression: " << jt.jumpTargetExpr->format() << endl;
 
         // 4. Record new target and new entry value
         newTable.emplace(addr, make_pair(reloc, newEntry));
@@ -168,6 +172,7 @@ void JumpTableMover::fillNewTableEntries(codeGen& gen, Address jumpAddr, int ind
     for (auto& it : newTable) {
         const Address& addr = it.first;
         const int64_t& newEntry = it.second.second;
+        relocation_cerr << "\tnew entry at " << hex << it.first << " with value " << dec << newEntry << endl;
         switch (indexStride) {
             case 8: {
                 gen.copy(&newEntry, sizeof(int64_t));
@@ -212,7 +217,17 @@ Address JumpTableMover::findRelocatedAddress(func_instance* func, Address orig) 
     return as->getRelocPreAddr(orig, block, func);
 }
 
-bool JumpTableMover::modifyJumpTargetBase(Address newBase, ParseAPI::Function::JumpTableInstance& jt) {
+static bool insnReadsPC(const InstructionAPI::Instruction& i) {
+    static MachRegister pc = MachRegister::getPC(i.getArch());
+    std::set<InstructionAPI::RegisterAST::Ptr> regs;
+    i.getReadSet(regs);
+    for (auto r : regs) {
+        if (r->getID() == pc) return true; 
+    }
+    return false;
+}
+
+bool JumpTableMover::modifyJumpTargetBase(func_instance* func, Address newBase, ParseAPI::Function::JumpTableInstance& jt) {
     Graph::Ptr g = jt.formatSlice;
     NodeIterator nbegin, nend; 
     g->exitNodes(nbegin, nend);
@@ -220,15 +235,40 @@ bool JumpTableMover::modifyJumpTargetBase(Address newBase, ParseAPI::Function::J
     for (; nbegin != nend; ++nbegin) {
         indJumpNode = boost::static_pointer_cast<SliceNode>(*nbegin);
     }
-    indJumpNode->ins(nbegin, nend);
-    fprintf(stderr, "inspect jump table format slice\n");
-    for (; nbegin != nend; ++nbegin) {
-        SliceNode::Ptr s = boost::static_pointer_cast<SliceNode>(*nbegin);
-        fprintf(stderr, "%lx %s\n", s->assign()->addr(),
-                s->assign()->insn().format().c_str());
+    queue<SliceNode::Ptr> queue;
+    queue.push(indJumpNode);
+
+    bool findJumpBase = false;
+    while (!findJumpBase && !queue.empty()) {
+        SliceNode::Ptr cur = queue.front();
+        queue.pop();
+        cur->ins(nbegin, nend);
+        for (; nbegin != nend; ++nbegin) {
+            SliceNode::Ptr s = boost::static_pointer_cast<SliceNode>(*nbegin);
+            if (insnReadsPC(s->assign()->insn())) {
+                findJumpBase = true;
+                Address relocated_insn_addr = findRelocatedAddress(func, s->assign()->addr());
+                relocation_cerr << "\t modify instruction " << s->assign()->insn().format() << " at " << hex
+                    << s->assign()->addr() << ", relocated to " << relocated_insn_addr << ", to reference " << newBase << dec << endl;
+                
+                codeGen gen;
+                gen.invalidate();
+                gen.allocate(s->assign()->insn().size() * 2);
+                gen.setAddrSpace(as);
+                gen.setAddr(relocated_insn_addr);
+
+                instruction ugly_insn(s->assign()->insn().ptr(), (gen.width() == 8));
+                insnCodeGen::modifyData(newBase, ugly_insn, gen);
+                // Currently, we do jump table relocation after normal relocation is done.
+                // So, this PC relative is compensated to reference original jump base,
+                // which does not fit in one instruction
+                insnCodeGen::generateNOOP(gen, 4);
+                codeGens.emplace_back(gen);
+                break;
+            }
+            queue.push(s);
+        }
     }
-
-
     return true;
 }
 

@@ -108,10 +108,6 @@ bool instruction::isCall() const
     return false;
 }
 
-void instruction::setInstruction(codeBuf_t * /*ptr*/, Address) {
-		assert(0);
-}
-
 void instruction::setInstruction(unsigned char *ptr, Address) {
     // We don't need the addr on this platform
     instructUnion *insnPtr = (instructUnion *)ptr;

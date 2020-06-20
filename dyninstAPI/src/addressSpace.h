@@ -48,8 +48,6 @@
 #include "Relocation/Relocation.h"
 #include "Relocation/CodeTracker.h"
 #include "Relocation/Springboard.h"
-#include "Relocation/JumpTableMover.h"
-#include "Relocation/FunctionPointerMover.h"
 #include "Relocation/DynCommon.h"
 #include "Patching.h"
 
@@ -94,6 +92,10 @@ namespace Dyninst {
 
    namespace InstructionAPI {
       class Instruction;
+   }
+   namespace Relocation {
+       class JumpTableMover;
+       class FunctionPointerMover;
    }
 };
 
@@ -531,8 +533,8 @@ class AddressSpace : public InstructionSource {
     bool patchCode(Dyninst::Relocation::CodeMoverPtr cm,
 		   Dyninst::Relocation::SpringboardBuilderPtr spb);
 
-    bool relocateJumpTables(Dyninst::Relocation::JumpTableMover::Ptr jtm);
-    bool relocateFunctionPointers(Dyninst::Relocation::FunctionPointerMover::Ptr fpm);
+    bool relocateJumpTables(boost::shared_ptr<Dyninst::Relocation::JumpTableMover> jtm);
+    bool relocateFunctionPointers(boost::shared_ptr<Dyninst::Relocation::FunctionPointerMover> fpm);
     std::map<mapped_object *, FuncSetOrderdByLayout> modifiedFunctions_;
 
     bool relocateInt(FuncSetOrderdByLayout::const_iterator begin, FuncSetOrderdByLayout::const_iterator end, Address near);

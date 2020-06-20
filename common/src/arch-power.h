@@ -362,8 +362,7 @@ typedef union {
 
 // instruction is now a class for platform-indep.
 
-// Mmmm alignment
-typedef instructUnion codeBuf_t;
+typedef unsigned char codeBuf_t;
 typedef unsigned codeBufIndex_t;
 
 #define SPR_XER	1
@@ -818,7 +817,6 @@ class COMMON_EXPORT instruction {
     instruction *copy() const;
 
     void clear() { insn_.raw = 0; }
-    void setInstruction(codeBuf_t *ptr, Address = 0);
     void setBits(unsigned int pos, unsigned int len, unsigned int value) {
         unsigned int mask;
 

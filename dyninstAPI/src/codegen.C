@@ -51,11 +51,7 @@
 
 #include "instructionAPI/h/InstructionDecoder.h"
 
-#if defined(arch_x86) || defined(arch_x86_64)
 #define CODE_GEN_OFFSET_SIZE 1
-#else
-#define CODE_GEN_OFFSET_SIZE (instruction::size())
-#endif
 
 const unsigned int codeGenPadding = (128);
 const unsigned int codeGenMinAlloc = (4 * 1024);

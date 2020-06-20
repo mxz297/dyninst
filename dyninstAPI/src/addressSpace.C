@@ -60,6 +60,8 @@
 #include "Relocation/DynPointMaker.h"
 #include "Relocation/DynObject.h"
 #include "Relocation/DynInstrumenter.h"
+#include "Relocation/JumpTableMover.h"
+#include "Relocation/FunctionPointerMover.h"
 
 #include <boost/bind.hpp>
 

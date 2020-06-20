@@ -26,7 +26,7 @@ private:
     void moveOneJumpTable(func_instance*, Address, ParseAPI::Function::JumpTableInstance&);
     bool computeNewTableEntries(func_instance*, Address, ParseAPI::Function::JumpTableInstance&);
     void fillNewTableEntries(codeGen&, Address, int);
-    bool modifyJumpTargetBase(Address, ParseAPI::Function::JumpTableInstance&);
+    bool modifyJumpTargetBase(func_instance*, Address, ParseAPI::Function::JumpTableInstance&);
     
     // Record all overritten jump table entries 
     // to detect conflict table entry relocation

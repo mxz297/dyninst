@@ -126,11 +126,6 @@ void instruction::setInstruction(codeBuf_t *ptr, Address) {
     instructUnion *insnPtr = (instructUnion *)ptr;
     insn_.raw = (*insnPtr).raw;
 }
-void instruction::setInstruction(unsigned char *ptr, Address) {
-    // We don't need the addr on this platform
-    instructUnion *insnPtr = (instructUnion *)ptr;
-    insn_ = *insnPtr;
-}
 
 bool instruction::isUncondBranch() const {
     return isInsnType(Bmask, Bmatch);

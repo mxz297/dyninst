@@ -46,7 +46,7 @@
 // "Casting" methods. We use a "base + offset" model, but often need to
 // turn that into "current instruction pointer".
 codeBuf_t *insnCodeGen::insnPtr(codeGen &gen) {
-    return (instructUnion *)gen.cur_ptr();
+    return (codeBuf_t*)gen.cur_ptr();
 }
 
 #if 0
