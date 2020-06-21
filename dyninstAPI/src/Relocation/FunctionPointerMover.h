@@ -20,7 +20,7 @@ private:
     FunctionPointerMover(AddressSpace* s): as(s) {}
     AddressSpace *as;
 
-    Address movePointer(Address addr);
+    Address movePointer(Address, Address);
     Address getOriginalPCAddress(InstructionAPI::Instruction&, Address);
     Address getImmediateOperand(InstructionAPI::Instruction&);
 };

@@ -35,7 +35,7 @@ void FunctionPointerMover::movePointersInDataSection(const char *secName) {
            Address addr = start + off;
            Address value = 0;
            as->readTextSpace( (const void*)addr, PTR_SIZE, (void*)&value);      
-           Address newValue = movePointer(value);
+           Address newValue = movePointer(value, addr);
            if (newValue == 0) continue;
            codeGen gen;
            gen.invalidate();
@@ -48,7 +48,7 @@ void FunctionPointerMover::movePointersInDataSection(const char *secName) {
    }
 }
 
-Address FunctionPointerMover::movePointer(Address addr) {
+Address FunctionPointerMover::movePointer(Address addr, Address ptr_addr) {
     func_instance* func = as->findFuncByEntry(addr);
     if (func == NULL) return 0;
     block_instance* block = func->getBlockByEntry(addr);
@@ -61,8 +61,8 @@ Address FunctionPointerMover::movePointer(Address addr) {
     for (auto ait = relocs.begin(); ait != relocs.end(); ++ait) {
         if (ret == 0 || ret > *ait) ret = *ait;
     }
-    relocation_cerr << "move function pointer from " << hex << addr <<
-        " to " << ret << dec << endl;
+    relocation_cerr << "move function pointer at " << hex << ptr_addr << " from " 
+        << addr << " to " << ret << dec << endl;
     return ret;
 }
 
@@ -94,7 +94,7 @@ void FunctionPointerMover::movePointersInCodeSection() {
                     curAddr += ins.size();
                     continue;
                 }
-                Address newValue = movePointer(orig);
+                Address newValue = movePointer(orig, curAddr);
                 if (newValue == 0) {
                     curAddr += ins.size();
                     continue;
@@ -114,7 +114,7 @@ void FunctionPointerMover::movePointersInCodeSection() {
                     curAddr += ins.size();
                     continue;
                 }
-                Address newValue = movePointer(orig);
+                Address newValue = movePointer(orig, curAddr);
                 if (newValue == 0) {
                     curAddr += ins.size();
                     continue;
