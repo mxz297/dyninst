@@ -452,7 +452,6 @@ static tc_lock_t trap_mapping_lock;
 
 static struct trap_mapping_header *getStaticTrapMap(unsigned long addr)
 {
-#if !defined (arch_aarch64)
    struct trap_mapping_header *header;
    int i;
    tc_lock_lock(&trap_mapping_lock);
@@ -475,10 +474,6 @@ static struct trap_mapping_header *getStaticTrapMap(unsigned long addr)
  done:
    tc_lock_unlock(&trap_mapping_lock);
    return header;
-#else
-	assert(0);
-	return NULL;
-#endif
 }
 
 static int parse_libs()
