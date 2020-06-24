@@ -289,10 +289,7 @@ bool Block::operator!=(const Block &rhs) const {
 void Block::addSource(Edge * e) 
 {
     boost::lock_guard<Block> g(*this);
-    if (sourceMap[e->type()].find(e->src()->last()) != sourceMap[e->type()].end()) return;
-    sourceMap[e->type()].insert(e->src()->last());
-    parsing_printf("addSource: %p %p\n", e, this);
-    _srclist.push_back(e);
+    _srclist.insert(e);
 }
 
 void Block::addTarget(Edge * e)
@@ -303,10 +300,7 @@ void Block::addTarget(Edge * e)
     {
         assert(e->_target_off == end());
     }
-    if (targetMap[e->type()].find(e->trg_addr()) != targetMap[e->type()].end()) return;
-    targetMap[e->type()].insert(e->trg_addr());
-    parsing_printf("addTarget: %p %p\n", e, this);
-    _trglist.push_back(e);
+    _trglist.insert(e);
 
 }
 
@@ -314,24 +308,31 @@ void Block::removeTarget(Edge * e)
 {
     if (e == NULL) return;
     boost::lock_guard<Block> g(*this);
-    for (auto it = _trglist.begin(); it != _trglist.end(); ++it)
-        if ((*it)->trg_addr() == e->trg_addr()) {
-            parsing_printf("removeTarget %p from %p\n", *it, this);
-            _trglist.erase(it);
-            break;
-        }
-    targetMap[e->type()].erase(e->trg_addr());
+    _trglist.erase(e);
 }
 
 void Block::removeSource(Edge * e) {
     if (e == NULL) return;
     boost::lock_guard<Block> g(*this);
-    for (auto it = _srclist.begin(); it != _srclist.end(); ++it)
-        if ((*it)->src()->last() == e->src()->last()) {
-            parsing_printf("removeSource %p from %p\n", *it, this);
-            _srclist.erase(it);
-            break;
-        }
-    sourceMap[e->type()].erase(e->src()->last());
+    _srclist.erase(e);
 }
 
+void Block::moveTargetEdges(Block* B) {
+    if (this == B) return;
+    boost::lock_guard<Block> g(*this);
+    Block* A = this;
+    /* We move outgoing edges from this block to block B, which is 
+     * necessary when spliting blocks.
+     * The start of block B should be consistent with block A.
+     *
+     */
+    Block::edgelist &trgs = _trglist;
+    Block::edgelist::iterator tit = trgs.begin();
+	for (; tit != trgs.end(); ++tit) {
+        ParseAPI::Edge *e = *tit;
+        // Helgrind gets confused, we use a cmp&swap to hide the write.
+        assert(e->_source.compare_exchange_strong(A, B));
+        B->addTarget(e);
+	}
+    trgs.clear();
+}

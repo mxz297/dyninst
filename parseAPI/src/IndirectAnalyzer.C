@@ -359,5 +359,6 @@ bool IndirectControlFlowAnalyzer::FindJunkInstruction(Address addr) {
         }
         ahPtr->advance();
     }
+    delete ahPtr;
     return false;
 }
