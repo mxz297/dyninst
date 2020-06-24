@@ -120,6 +120,12 @@ bool JumpTableMover::computeNewTableEntries(func_instance* func, Address jumpAdd
     bool overflow = false;
     // Old table entry address -> pair of relocated target address and new table entry value
     newTable.clear();
+    
+    relocation_cerr << "Relocation jump table at " << hex << jumpAddr
+                << " for function " << func->name() << " at " << func->addr() << dec
+                << " table stride " << jt.indexStride
+                << " memory read size " << jt.memoryReadSize
+                << " memory zero extend " << jt.isZeroExtend << endl;
 
     for (Address addr = jt.tableStart; addr < jt.tableEnd; addr += jt.indexStride) {
         // 1. Calculate the original target
@@ -148,12 +154,10 @@ bool JumpTableMover::computeNewTableEntries(func_instance* func, Address jumpAdd
         NewTableEntryVisitor ntev(reloc);
         jt.jumpTargetExpr->accept(&ntev);
         int64_t newEntry = ntev.newValue;
-
-        relocation_cerr << "Relocation jump table entry from " << hex
-                << orig << " to " << reloc << " for jump table at " << jumpAddr
-                << " for function " << func->name() << " at " << func->addr()
-                << " new entry value " << dec << newEntry << " table stride " << jt.indexStride
-                << " memory read size " << jt.memoryReadSize << endl;
+        relocation_cerr << "\t table address " << hex << addr
+            << " original target address " << orig
+            << " new target address " << reloc
+            << " new entry value " << dec << newEntry << endl;
 
         // 4. Record new target and new entry value
         newTable.emplace(addr, make_pair(reloc, newEntry));

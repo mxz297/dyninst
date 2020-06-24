@@ -1078,32 +1078,31 @@ Parser::finalize()
 void
 Parser::finalize_jump_tables()
 {
-    set<Address> jumpTableStart;
-    map<Block*, Function::JumpTableInstance*> jumpTables;
+    map<Address, set<Address> > jumpTableStart;
+    vector<Function::JumpTableInstance*> jumpTableVector;
 
     // Step 1: get all jump tables
     for (auto fit = hint_funcs.begin(); fit != hint_funcs.end(); ++fit) {
         Function* f = *fit;
         for (auto jit = f->getJumpTables().begin(); jit != f->getJumpTables().end(); ++jit) {
-            jumpTableStart.insert(jit->second.tableStart);
-            jumpTables.emplace(jit->second.block, &(jit->second));
+            jumpTableStart[jit->second.tableStart].insert(jit->second.block->last());
+            jumpTableVector.push_back(&(jit->second));
         }
     }
 
     for (auto fit = discover_funcs.begin(); fit != discover_funcs.end(); ++fit) {
         Function* f = *fit;
         for (auto jit = f->getJumpTables().begin(); jit != f->getJumpTables().end(); ++jit) {
-            jumpTableStart.insert(jit->second.tableStart);
-            jumpTables.emplace(jit->second.block, &(jit->second));
+            jumpTableStart[jit->second.tableStart].insert(jit->second.block->last());
+            jumpTableVector.push_back(&(jit->second));
         }
     }
 
-    for (auto ait = jumpTableStart.begin(); ait != jumpTableStart.end(); ++ait)
-        parsing_printf("Jump table at %lx\n", *ait);
-
-    vector<Function::JumpTableInstance*> jumpTableVector;
-    for (auto jti = jumpTables.begin(); jti != jumpTables.end(); ++jti)
-        jumpTableVector.push_back(jti->second);
+    for (auto ait = jumpTableStart.begin(); ait != jumpTableStart.end(); ++ait) {
+        parsing_printf("Jump table at %lx, referenced by", ait->first);
+        for (auto& a : ait->second) parsing_printf(" %lx", a);
+        parsing_printf("\n");
+    }
 
     // Step 2: concurrently searching for overrun jump table entries
 #pragma omp parallel for schedule(dynamic)
@@ -1125,12 +1124,15 @@ Parser::finalize_jump_tables()
         }
 
         if (start_it == jumpTableStart.end()) continue;
-        if (*start_it < jti->tableEnd) {
+        Address nextTableAddr = start_it->first;
+        parsing_printf("\t nextTableAddr %lx, current end %lx\n", nextTableAddr, jti->tableEnd);
+        if (nextTableAddr < jti->tableEnd) {
             std::set<Address> validTargets;
             // Non-overlapping entries are valid targets.
             // We record these valid targets and do not remove target edges
             // even if overlapping entries lead to valid targets.
-            for (Address addr = jti->tableStart; addr < *start_it; addr += jti->indexStride) {
+            for (Address addr = jti->tableStart; addr < nextTableAddr; addr += jti->indexStride) {
+                parsing_printf("\t valid entry at %lx, target addr %lx\n", addr, jti->tableEntryMap[addr]);
                 validTargets.insert(jti->tableEntryMap[addr]);
             }
 
@@ -1143,7 +1145,9 @@ Parser::finalize_jump_tables()
             }
 
             // Enumerate every overlapping entries and attempt to delete bogus edges
-            for (Address addr = *start_it; addr < jti->tableEnd; addr += jti->indexStride) {
+            for (Address addr = nextTableAddr; addr < jti->tableEnd; addr += jti->indexStride) {
+                parsing_printf("\t invalid entry at %lx, target addr %lx\n", addr, jti->tableEntryMap[addr]);
+
                 if (validTargets.find(jti->tableEntryMap[addr]) != validTargets.end()) continue;
                 if (edgeMap.find(jti->tableEntryMap[addr]) == edgeMap.end()) continue;
                 Edge * e = edgeMap[jti->tableEntryMap[addr]];
@@ -1151,7 +1155,7 @@ Parser::finalize_jump_tables()
             }
 
             // Adjust jump table end
-            jti->tableEnd = *start_it;
+            jti->tableEnd = nextTableAddr;
         }
     }
 }
