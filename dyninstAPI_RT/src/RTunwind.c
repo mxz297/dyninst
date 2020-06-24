@@ -10,21 +10,23 @@
 #include <stdio.h>
 #include <string.h>
 
+// libunwind cursor is an opaque structure.
+// Based on its source code, its fourth qword field
+// is the current PC
+#define IP_OFFSET_IN_CURSOR 3
+
+
 #if defined(arch_x86_64)
 const char * unw_step_name = "_ULx86_64_step";
-#define UNW_RIP UNW_X86_64_RIP
 #define UNW_FUNC_NAME _ULx86_64_step
 
 #elif defined(arch_power)
 const char * unw_step_name = "_ULppc64_step";
-#define UNW_RIP UNW_PPC64_NIP
 #define UNW_FUNC_NAME _ULppc64_step
 
 #elif defined(arch_aarch64)
 const char * unw_step_name = "_ULaarch64_step";
-#define UNW_RIP UNW_AARCH64_PC
 #define UNW_FUNC_NAME _ULaarch64_step
-
 #endif
 
 typedef int (*unw_step_fn_type) (unw_cursor_t *);
@@ -85,6 +87,7 @@ RAMappingTable* ExtractRAMapping() {
 }
 
 unw_word_t DyninstRATranslation(unw_word_t ip) {
+    rtdebug_printf("input ip %lx\n", ip);
     if (parsed == 0) {
         ra_table = ExtractRAMapping();
         parsed = 1;        
@@ -117,12 +120,15 @@ DLLEXPORT int UNW_FUNC_NAME(unw_cursor_t* cursor) {
     }
 
     int ret = real_unw_step(cursor);
-    
+
+    // The current PC may not be in a reg,
+    // so we cannot just call unw_get_reg.
+    unw_word_t* typed_cursor = (unw_word_t*) cursor;
     unw_word_t ip, new_ip;
-    unw_get_reg(cursor, UNW_RIP, &ip);
+    ip = typed_cursor[IP_OFFSET_IN_CURSOR];
     new_ip = DyninstRATranslation(ip);
     if (new_ip != ip) {
-        unw_set_reg(cursor, UNW_RIP, new_ip);
+        typed_cursor[IP_OFFSET_IN_CURSOR] = new_ip;
     }
     return ret;
 }
