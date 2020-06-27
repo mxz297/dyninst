@@ -123,6 +123,7 @@ void baseTramp::initializeFlags() {
 
 bool baseTramp::shouldRegenBaseTramp(registerSpace *rs)
 {
+    return false;
 #if !defined(cap_tramp_liveness)
    return false;
 #endif

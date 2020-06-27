@@ -2476,6 +2476,7 @@ void EmitterAMD64::emitStackAlign(int offset, codeGen &gen)
 
 bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
 {
+    return true;
    gen.setInInstrumentation(true);
    InstSpec* s = bt->instP()->instSpec();
    if (s) {
@@ -2751,6 +2752,7 @@ bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
 
 bool EmitterAMD64::emitBTRestores(baseTramp* bt, codeGen &gen)
 {
+    return true;
    InstSpec* s = bt->instP()->instSpec();
    if (s) {
        for (auto rit = s->saveRegs.rbegin(); rit != s->saveRegs.rend(); ++rit) {
@@ -3292,7 +3294,9 @@ bool EmitterAMD64::emitXorRegSegReg(Register dest, Register base, int disp, code
     return true;
 }
 
-bool EmitterAMD64::emitPadding(int p, codeGen& gen)
+#endif
+
+bool Emitterx86::emitPadding(int p, codeGen& gen)
 {
     if (p <= 5) return true;
     Address curAddr = gen.currAddr();
@@ -3302,4 +3306,4 @@ bool EmitterAMD64::emitPadding(int p, codeGen& gen)
     return true;
 }
 
-#endif
+
