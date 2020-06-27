@@ -79,7 +79,7 @@ std::shared_ptr<TrackStacktraces> _global_stack_track;
 
 // "Casting" methods. We use a "base + offset" model, but often need to 
 // turn that into "current instruction pointer".
-codeBuf_t *insnCodeGen::insnPtr(codeGen &gen) {
+instructUnion *insnCodeGen::insnPtr(codeGen &gen) {
     return (instructUnion *)gen.cur_ptr();
 }
 
