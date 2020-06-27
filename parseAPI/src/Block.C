@@ -336,3 +336,11 @@ void Block::moveTargetEdges(Block* B) {
 	}
     trgs.clear();
 }
+
+bool EdgeCompare::operator() (Edge* const &a, Edge* const &b) const {
+    if (a->src()->start() != b->src()->start())
+        return a->src()->start() < b->src()->start();
+    if (a->trg_addr() != b->trg_addr())
+        return a->trg_addr() < b->trg_addr();
+    return a->type() < b->type();
+};

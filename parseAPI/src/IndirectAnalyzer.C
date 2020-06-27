@@ -116,7 +116,7 @@ boost::make_lock_guard(*func);
 	jtip.setSearchForControlFlowDep(true);
 	GraphPtr indexSlice = indexSlicer.backwardSlice(jtip);
 
-        if (!jtip.findBound && block->obj()->cs()->getArch() != Arch_aarch64) {
+        if (!jtip.findBound) {
 
             // After the slicing is done, we do one last check to
             // see if we can resolve the indirect jump by assuming

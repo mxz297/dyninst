@@ -238,6 +238,9 @@ class Function;
 };
 
 class CodeRegion;
+struct EdgeCompare {
+    bool operator() (Edge* const &a, Edge* const &b) const;
+};
 
 class PARSER_EXPORT Block :
         public Dyninst::SimpleInterval<Address, int>,
@@ -246,7 +249,7 @@ class PARSER_EXPORT Block :
     friend class Parser;
  public:
     typedef std::map<Offset, InstructionAPI::Instruction> Insns;
-    typedef std::set<Edge*> edgelist;
+    typedef std::set<Edge*, EdgeCompare> edgelist;
 public:
     static Block * sink_block;
 

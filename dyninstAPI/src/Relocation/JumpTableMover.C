@@ -20,6 +20,8 @@ JumpTableMover::Ptr JumpTableMover::create(FuncSetOrderdByLayout::const_iterator
     for (; begin != end; ++begin) {
         func_instance *func = *begin;
         if (!func->isInstrumentable()) {
+            relocation_cerr << " Jump table relocation skips uninstrumentable function "
+                << func->name() << " at " << hex << func->addr() << dec << endl;
             continue;
         }
         ret->moveJumpTableInFunction(func);
