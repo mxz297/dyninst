@@ -989,18 +989,16 @@ Parser::finalize(Function *f)
 
     f->_cache_valid = cache_value; // see comment at function entry
 
-    // Finalize jump table ownership
-    for (auto it = f->jumptables.begin(); it != f->jumptables.end(); ) {
-        // A jump table that belongs to this function during parsing time
-        // may not necessarily still belong to this function as function boundary
-        // has changed.
-        if (blockSet.find(it->second.block) == blockSet.end()) {
-            auto next_it = it;
-            ++next_it;
-            f->jumptables.erase(it);
-            it = next_it;
-        } else ++it;
+    // Finalize jump tables in this function
+    f->jumptables.clear();
+    for (auto b : blockSet) {
+        dyn_c_hash_map<Address, Function::JumpTableInstance>::const_accessor a;
+        if (jumpTableMap.find(a, b->last())) {
+            parsing_printf("finalize jump table at %lx\n", a->first);
+            f->jumptables.emplace(a->first, a->second);
+        }
     }
+    parsing_printf("%s has %d jump tables\n", f->name().c_str(), f->jumptables.size());
 
     // Update funcsByBlockMap
     for (auto bit = blocks.begin(); bit != blocks.end(); ++bit) {
@@ -1061,7 +1059,7 @@ Parser::finalize()
                 sorted_funcs.insert(*it);
                 funcs_to_ranges.push_back(*it);
             }
-                
+        jumpTableMap.clear();
         _parse_state = FINALIZED;
     }
 }
@@ -1156,6 +1154,24 @@ Parser::finalize_jump_tables()
 
             // Adjust jump table end
             jti->tableEnd = nextTableAddr;
+        }
+    }
+
+    // Final step: collect all jump tables in a map
+    // so that during function boundary finalization,
+    // we can get the correct jump tables in a fucntion
+    for (auto f : hint_funcs) {
+        for (auto jit = f->getJumpTables().begin(); jit != f->getJumpTables().end(); ++jit) {
+            Address jumpAddr = jit->first;
+            dyn_c_hash_map<Address, Function::JumpTableInstance>::accessor a;
+            jumpTableMap.insert(a, make_pair(jumpAddr, jit->second));
+        }
+    }
+    for (auto f : discover_funcs) {
+        for (auto jit = f->getJumpTables().begin(); jit != f->getJumpTables().end(); ++jit) {
+            Address jumpAddr = jit->first;
+            dyn_c_hash_map<Address, Function::JumpTableInstance>::accessor a;
+            jumpTableMap.insert(a, make_pair(jumpAddr, jit->second));
         }
     }
 }

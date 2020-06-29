@@ -301,6 +301,7 @@ namespace Dyninst {
             vector<Function*> funcs_to_ranges;            
 
             dyn_c_hash_map<Block*, std::set<Function* > > funcsByBlockMap;
+            dyn_c_hash_map<Address, Function::JumpTableInstance> jumpTableMap;
         };
 
     }
