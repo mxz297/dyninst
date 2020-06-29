@@ -39,7 +39,6 @@ void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
     processed_funcs.insert(func);
     parse_func * f = func->ifunc();
     map<Address,ParseAPI::Function::JumpTableInstance>& jt_list = f->getJumpTables();
-
     for (auto& jit : jt_list) {
         moveOneJumpTable(func, jit.first, jit.second);
     }
@@ -265,10 +264,18 @@ bool JumpTableMover::modifyJumpTargetBase(func_instance* func, Address newBase, 
 
                 instruction ugly_insn(s->assign()->insn().ptr(), (gen.width() == 8));
                 insnCodeGen::modifyData(newBase, ugly_insn, gen);
-                // Currently, we do jump table relocation after normal relocation is done.
-                // So, this PC relative is compensated to reference original jump base,
-                // which does not fit in one instruction
-                insnCodeGen::generateNOOP(gen, 4);
+
+                // The next relocated instruction may be emitted to compensate
+                // the PC adjustment. If it maps back to the same original instruction,
+                // we need to void this instruction.
+                Address origNextAddr = 0;
+                std::vector<func_instance*> origFuncs;
+                baseTramp* bt;
+                as->getAddrInfo(relocated_insn_addr + 4, origNextAddr, origFuncs, bt);
+                if (origNextAddr == s->assign()->addr()) {
+                    relocation_cerr << "\t next relocated instruction has the same original address, change it to nop" << endl;
+                    insnCodeGen::generateNOOP(gen, 4);
+                }
                 codeGens.emplace_back(gen);
                 break;
             }
