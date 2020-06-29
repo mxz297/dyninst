@@ -171,14 +171,52 @@ bool IA_aarch64::isTailCall(const Function* context, EdgeTypeEnum type, unsigned
 	}
     }
 
-
-
     if(allInsns.size() < 2) {
         parsing_printf("\ttoo few insns to detect tail call\n");
         context->obj()->cs()->incrementCounter(PARSE_TAILCALL_FAIL);
         tailCalls[type] = false;
         return false;
     }
+
+
+
+    if ((curInsn().getCategory() == c_BranchInsn))
+    {
+        //std::map<Address, Instruction::Ptr>::const_iterator prevIter
+                //allInsns.find(current);
+
+        allInsns_t::const_iterator prevIter = curInsnIter;
+        --prevIter;
+        Instruction prevInsn = prevIter->second;
+
+        // If the previous instruction is
+        // ldp     x29, x30, [sp], #x,
+        // which is the standard frame tear down instruction,
+        // it is a tail call
+        if (prevInsn.getOperation().getID() == aarch64_op_ldp_gen) {
+            bool writeX29 = false;
+            bool writeX30 = false;
+            bool readSP = false;
+
+            std::set<RegisterAST::Ptr> regs;
+            prevInsn.getWriteSet(regs);
+            for (auto& r : regs) {
+                if (r->getID() == aarch64::x29) writeX29 = true;
+                if (r->getID() == aarch64::x30) writeX30 = true;
+            }
+            regs.clear();
+            prevInsn.getReadSet(regs);
+            for (auto& r: regs) {
+                if (r->getID() == aarch64::sp) readSP = true;
+            }
+            if (writeX29 && writeX30 && readSP) {
+                parsing_printf("\tprev insn was frame tear down instruction, TAIL CALL\n");
+                tailCalls[type] = true;
+                return true;
+            }
+        }
+    }
+
     tailCalls[type] = false;
     context->obj()->cs()->incrementCounter(PARSE_TAILCALL_FAIL);
     return false;

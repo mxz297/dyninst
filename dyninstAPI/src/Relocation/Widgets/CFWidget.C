@@ -274,9 +274,12 @@ bool CFWidget::generate(const codeGen &templ,
          // this for the memory emulation effort. Huzzah!
          if (!generateAddressTranslator(buffer, templ, reg, trace))
             return false;
-	 // If this is an indirect tail call, we still treat it
-	 // as an indirect call
-         if (isCall_ || trace->block()->llb()->isIndirectTailCallBlock()) {
+         // On x86, indirect tail calls can be PC-relative, so
+         // we need to generate a CFPatch to adjust the displacment. 
+         Architecture arch = templ.getArch();
+         if (isCall_ || 
+                 ((arch == Arch_x86_64 || arch == Arch_x86) &&
+                 trace->block()->llb()->isIndirectTailCallBlock())) {
             if (!generateIndirectCall(buffer, 
                                       reg, 
                                       insn_, 
