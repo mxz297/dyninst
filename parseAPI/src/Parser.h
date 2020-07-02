@@ -263,6 +263,8 @@ namespace Dyninst {
             bool set_edge_parsing_status(ParseFrame&, Address addr, Block *b);
             void update_function_ret_status(ParseFrame &, Function*, ParseWorkElem* );
             void record_hint_functions();
+            void trim_jump_tables_with_pcpointers();
+            void trim_jump_table(Function::JumpTableInstance*, Address);
 
 
 

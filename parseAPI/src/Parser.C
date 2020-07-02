@@ -58,6 +58,8 @@
 
 #include "tbb/concurrent_vector.h"
 
+#include "PCPointerAnalysis.h"
+
 using namespace std;
 using namespace Dyninst;
 using namespace Dyninst::ParseAPI;
@@ -1060,7 +1062,108 @@ Parser::finalize()
                 funcs_to_ranges.push_back(*it);
             }
         jumpTableMap.clear();
+
+        trim_jump_tables_with_pcpointers();
         _parse_state = FINALIZED;
+    }
+}
+
+void
+Parser::trim_jump_tables_with_pcpointers()
+{
+    if (!sorted_funcs.empty()) {
+        Function* f = *(sorted_funcs.begin());
+        if (f->region()->getArch() != Arch_aarch64) return;
+    }
+    std::vector<Function*> funcs;
+    for (auto f : sorted_funcs) {
+        funcs.emplace_back(f);
+    }
+
+    int size = funcs.size();
+    dyn_c_hash_map<Address, bool> memoryAccessAddrs;
+#pragma omp parallel for schedule(dynamic)
+    for(int i = 0; i < size; ++i) {
+        Function *f = funcs[i];
+        DataflowAPI::PCPointerAnalyzer pca(f);
+        for (auto b : f->blocks()) {
+            Block::Insns insns;
+            b->getInsns(insns);
+            Address prevAddr = 0;
+            for (auto & it : insns) {
+                Instruction &i = it.second;
+                if (!i.readsMemory() && !i.writesMemory()) {
+                    prevAddr = it.first;
+                    continue;
+                }
+                std::set<Expression::Ptr> memAccesses;
+                i.getMemoryReadOperands(memAccesses);
+                i.getMemoryWriteOperands(memAccesses);
+                assert(memAccesses.size() == 1);
+                Expression::Ptr mem = *(memAccesses.begin());
+
+                bool canEval = true;
+                std::set<RegisterAST::Ptr> regs;
+                i.getReadSet(regs);
+                for (auto &r : regs) {
+                    Address val;
+                    if (prevAddr == 0) {                       
+                        if (!pca.queryBlockInputValue(b, r->getID().getBaseRegister(), val)) {
+                            canEval = false;
+                            break;                            
+                        }
+                    } else {
+                        if (!pca.queryPostInstructionValue(prevAddr, r->getID().getBaseRegister(), val)) {
+                            canEval = false;
+                            break;
+                        }
+                    }
+                    if (!mem->bind(r.get(), Result(s64, val))) {
+                        canEval = false;
+                        break;
+                    }
+                }
+
+                if (!canEval) {
+                    prevAddr = it.first;
+                    continue;
+                }
+
+                Result res = mem->eval();
+                assert(res.defined);
+                Address effectiveAddr = res.convert<Address>();
+
+                dyn_c_hash_map<Address, bool>::accessor a;
+                memoryAccessAddrs.insert(a, make_pair(effectiveAddr, true));
+                prevAddr = it.first;
+            }
+        }
+    }
+
+    parsing_printf("Second pass of trimming jump tables. Add PC-relative memory accesses as separators\n");
+    std::set<Address> separators;
+    for (auto &it : memoryAccessAddrs) {
+        separators.insert(it.first);
+        parsing_printf("PC-relative memory access effective address %lx\n", it.first);
+    }
+    
+    for (auto f : funcs) {
+        for (auto& it : f->getJumpTables()) {
+            separators.insert(it.second.tableStart);
+        }
+    }
+
+#pragma omp parallel for schedule(dynamic)
+    for(int i = 0; i < size; ++i) {
+        Function *f = funcs[i];
+        for (auto &it : f->getJumpTables()) {
+            Function::JumpTableInstance* jti = &(it.second);
+            parsing_printf("Inspect jump table at %lx\n", jti->block->last()); 
+            auto start_it = separators.find(jti->tableStart);
+            ++start_it;
+            if (start_it == separators.end()) continue;
+            trim_jump_table(jti, *start_it);
+        }
     }
 }
 
@@ -1122,39 +1225,7 @@ Parser::finalize_jump_tables()
         }
 
         if (start_it == jumpTableStart.end()) continue;
-        Address nextTableAddr = start_it->first;
-        parsing_printf("\t nextTableAddr %lx, current end %lx\n", nextTableAddr, jti->tableEnd);
-        if (nextTableAddr < jti->tableEnd) {
-            std::set<Address> validTargets;
-            // Non-overlapping entries are valid targets.
-            // We record these valid targets and do not remove target edges
-            // even if overlapping entries lead to valid targets.
-            for (Address addr = jti->tableStart; addr < nextTableAddr; addr += jti->indexStride) {
-                parsing_printf("\t valid entry at %lx, target addr %lx\n", addr, jti->tableEntryMap[addr]);
-                validTargets.insert(jti->tableEntryMap[addr]);
-            }
-
-            // Build a target address to ParseAPI::Edge* map
-            std::map<Address, Edge*> edgeMap;
-            jti->block->copy_targets(targets);
-            for (auto eit = targets.begin(); eit != targets.end(); ++eit) {
-                if ((*eit)->type() != INDIRECT || (*eit)->sinkEdge()) continue;
-                edgeMap.insert(make_pair((*eit)->trg_addr(), *eit));
-            }
-
-            // Enumerate every overlapping entries and attempt to delete bogus edges
-            for (Address addr = nextTableAddr; addr < jti->tableEnd; addr += jti->indexStride) {
-                parsing_printf("\t invalid entry at %lx, target addr %lx\n", addr, jti->tableEntryMap[addr]);
-
-                if (validTargets.find(jti->tableEntryMap[addr]) != validTargets.end()) continue;
-                if (edgeMap.find(jti->tableEntryMap[addr]) == edgeMap.end()) continue;
-                Edge * e = edgeMap[jti->tableEntryMap[addr]];
-                delete_bogus_blocks(e);
-            }
-
-            // Adjust jump table end
-            jti->tableEnd = nextTableAddr;
-        }
+        trim_jump_table(jti, start_it->first);
     }
 
     // Final step: collect all jump tables in a map
@@ -1173,6 +1244,44 @@ Parser::finalize_jump_tables()
             dyn_c_hash_map<Address, Function::JumpTableInstance>::accessor a;
             jumpTableMap.insert(a, make_pair(jumpAddr, jit->second));
         }
+    }
+}
+
+void
+Parser::trim_jump_table(Function::JumpTableInstance* jti, Address nextTableAddr)
+{
+    parsing_printf("\t nextTableAddr %lx, current end %lx\n", nextTableAddr, jti->tableEnd);
+    if (nextTableAddr < jti->tableEnd) {
+        std::set<Address> validTargets;
+        // Non-overlapping entries are valid targets.
+        // We record these valid targets and do not remove target edges
+        // even if overlapping entries lead to valid targets.
+        for (Address addr = jti->tableStart; addr < nextTableAddr; addr += jti->indexStride) {
+            parsing_printf("\t valid entry at %lx, target addr %lx\n", addr, jti->tableEntryMap[addr]);
+            validTargets.insert(jti->tableEntryMap[addr]);
+        }
+
+        // Build a target address to ParseAPI::Edge* map
+        std::map<Address, Edge*> edgeMap;
+        Block::edgelist targets;
+        jti->block->copy_targets(targets);
+        for (auto eit = targets.begin(); eit != targets.end(); ++eit) {
+            if ((*eit)->type() != INDIRECT || (*eit)->sinkEdge()) continue;
+            edgeMap.insert(make_pair((*eit)->trg_addr(), *eit));
+        }
+        
+        // Enumerate every overlapping entries and attempt to delete bogus edges
+        for (Address addr = nextTableAddr; addr < jti->tableEnd; addr += jti->indexStride) {
+            parsing_printf("\t invalid entry at %lx, target addr %lx\n", addr, jti->tableEntryMap[addr]);
+            
+            if (validTargets.find(jti->tableEntryMap[addr]) != validTargets.end()) continue;
+            if (edgeMap.find(jti->tableEntryMap[addr]) == edgeMap.end()) continue;
+            Edge * e = edgeMap[jti->tableEntryMap[addr]];
+            delete_bogus_blocks(e);
+        }
+
+        // Adjust jump table end
+        jti->tableEnd = nextTableAddr;
     }
 }
 

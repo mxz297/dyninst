@@ -59,6 +59,7 @@ set(ROSE_SRC
         ../dataflowAPI/src/SymEvalPolicy.C
         ../dataflowAPI/src/templates.C
         ../dataflowAPI/src/Visitors.C
+        ../dataflowAPI/src/PCPointerAnalysis.C
         ../dataflowAPI/rose/ExtentMap.C
         ../dataflowAPI/rose/rangemap.C
         ../dataflowAPI/rose/util/Assert.C

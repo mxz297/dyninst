@@ -47,6 +47,7 @@ static int df_debug_stackanalysis = 0;
 static int df_debug_convert = 0;
 static int df_debug_expand = 0;
 static int df_debug_liveness = 0;
+static int df_debug_pcpointer = 0;
 
 void set_debug_flag(int &flag)
 {
@@ -89,6 +90,11 @@ static int check_debug_flag(int &flag)
     set_debug_flag(df_debug_liveness);
   }
 
+  if ((getenv("DATAFLOW_DEBUG_PCPOINTER"))) {
+    fprintf(stderr, "Enabling DataflowAPI pcpointer debugging\n");
+    set_debug_flag(df_debug_pcpointer);
+  }
+
   });
 
 #if defined(_MSC_VER)
@@ -121,6 +127,11 @@ int df_debug_expand_on()
 int df_debug_liveness_on()
 {
   return check_debug_flag(df_debug_liveness);
+}
+
+int df_debug_pcpointer_on()
+{
+  return check_debug_flag(df_debug_pcpointer);
 }
 
 int stackanalysis_printf_int(const char *format, ...)
@@ -178,6 +189,19 @@ int expand_printf_int(const char *format, ...)
 int liveness_printf_int(const char *format, ...)
 {
   if (!df_debug_liveness_on()) return 0;
+  if (NULL == format) return -1;
+
+  va_list va;
+  va_start(va, format);
+  int ret = vfprintf(stderr, format, va);
+  va_end(va);
+
+  return ret;
+}
+
+int pcpointer_printf_int(const char *format, ...)
+{
+  if (!df_debug_pcpointer_on()) return 0;
   if (NULL == format) return -1;
 
   va_list va;

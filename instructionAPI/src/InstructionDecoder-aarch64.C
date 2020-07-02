@@ -1206,7 +1206,7 @@ namespace Dyninst {
         Expression::Ptr InstructionDecoder_aarch64::makeMemRefIndex_offset9() {
             unsigned int immVal = 0, immLen = 0;
             getMemRefIndexPrePost_ImmImmlen(immVal, immLen);
-            return Immediate::makeImmediate(Result(u32, sign_extend32(immLen, immVal)));
+            return Immediate::makeImmediate(Result(s32, sign_extend32(immLen, immVal)));
         }
 
 // scale = 2 + opc<1>
