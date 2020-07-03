@@ -89,7 +89,8 @@ void insnCodeGen::generateIllegal(codeGen &gen) { // instP.h
 }
 
 void insnCodeGen::generateTrap(codeGen &gen) {
-    instruction insn(BREAK_POINT_INSN);
+    instruction insn;
+    //instruction insn(BREAK_POINT_INSN);
     generate(gen,insn);
 }
 
@@ -157,27 +158,20 @@ void insnCodeGen::generateLongBranch(codeGen &gen,
         insnCodeGen::generate(gen, branchInsn);
     };
 
-    Register scratch = REG_NULL;
+    Register scratch;
 
     if(isCall)
     {
         // use Link Register as scratch since it will be overwritten at return
         scratch = 30;
         //load disp to r30
-        loadImmIntoReg<Address>(gen, scratch, to);
+        generatePCRelativeAddress(gen , scratch, to);
         //generate call
         generateBReg(scratch);
         return;
     }
-
-    instPoint *point = gen.point();
-    if(point)
-    {
-        registerSpace *rs = registerSpace::actualRegSpace(point);
-        gen.setRegisterSpace(rs);
-
-        scratch = rs->getScratchRegister(gen, true);
-    }
+    
+    scratch = gen.getScratchGPR();
 
     if (scratch == REG_NULL)
     {
@@ -185,8 +179,7 @@ void insnCodeGen::generateLongBranch(codeGen &gen,
         generateBranchViaTrap(gen, from, to, isCall);
         return;
     }
-
-    loadImmIntoReg<Address>(gen, scratch, to);
+    generatePCRelativeAddress(gen , scratch, to);
     generateBReg(scratch);
 }
 
@@ -713,23 +706,7 @@ assert(0);
 bool insnCodeGen::modifyJump(Address target,
                              NS_aarch64::instruction &insn,
                              codeGen &gen) {
-    long disp = target - gen.currAddr();
-
-    if(INSN_GET_ISCALL(insn))
-    {
-        generateBranch(gen, gen.currAddr(), target, INSN_GET_ISCALL(insn));
-        return true;
-    }
-
-    if (labs(disp) > MAX_BRANCH_OFFSET) {
-        generateBranchViaTrap(gen, gen.currAddr(), target, INSN_GET_ISCALL(insn));
-        return true;
-    }
-
-    generateBranch(gen,
-                   gen.currAddr(),
-                   target,
-                   INSN_GET_ISCALL(insn));
+    generateBranch(gen, gen.currAddr(), target, INSN_GET_ISCALL(insn));
     return true;
 }
 
@@ -907,3 +884,43 @@ bool insnCodeGen::modifyData(Address target,
     return true;
 }
 
+bool insnCodeGen::generatePCRelativeAddress(codeGen &gen, Register r, Address target) {
+    bool isneg = false;
+    Address cur = gen.currAddr();
+    if (target < cur)
+        isneg = true;
+
+    Address offset = isneg ? (cur - target) : (target - cur);
+    signed long imm = isneg ? -((signed long)offset) : offset;
+
+    if (offset <= (1 << 20)) {
+        // One ADR instruction
+        instruction newInsn;
+        INSN_SET(newInsn, 0, 4, r & 0x1F);
+        INSN_SET(newInsn, 5, 23, ((offset >> 2) & 0x7FFFF));
+        INSN_SET(newInsn, 24, 28, 0x10);
+        INSN_SET(newInsn, 29, 30, (offset & 0x3));
+        INSN_SET(newInsn, 31, 31, 0);
+
+    } else {
+        // ADRP and ADD
+        instruction newInsn;
+        instruction newInsn2;
+        newInsn.clear();
+        signed long page_rel = ((long)(target >> 12)) - ((long)(cur >> 12));
+        signed long off = target & 0xFFFF;
+        INSN_SET(newInsn, 0, 4, r & 0x1F);
+        INSN_SET(newInsn, 5, 23, ((page_rel >> 2) & 0x7FFFF));
+        INSN_SET(newInsn, 24, 28, 0x10);
+        INSN_SET(newInsn, 29, 30, (page_rel & 0x3));
+        INSN_SET(newInsn, 31, 31, 1);
+        generate(gen, newInsn);
+        newInsn2.clear();
+        INSN_SET(newInsn2, 0, 4, r & 0x1F);
+        INSN_SET(newInsn2, 5, 9, r & 0x1F);
+        INSN_SET(newInsn2, 10, 21, off);
+        INSN_SET(newInsn2, 22, 31, 0x244);
+        generate(gen , newInsn2);
+    }
+    return true;
+}

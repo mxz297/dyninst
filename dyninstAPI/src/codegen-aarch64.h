@@ -231,6 +231,9 @@ public:
     static bool modifyData(Address target,
                            NS_aarch64::instruction &insn,
                            codeGen &gen);
+
+    static bool generatePCRelativeAddress(codeGen &gen, Register r, Address targ);
+
 };
 
 #endif
