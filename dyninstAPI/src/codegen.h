@@ -258,6 +258,7 @@ class codeGen {
     void registerRemovedInstrumentation(baseTramp *bt, Address loc) { removedInstrumentation_[bt] = loc; }
     std::map<baseTramp *, Address> &getRemovedInstrumentation() { return removedInstrumentation_; }
     int getScratchGPR();
+    bool isPLTSection(Address);
 
  private:
     void realloc(unsigned newSize); 

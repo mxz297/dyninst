@@ -175,9 +175,12 @@ void insnCodeGen::generateLongBranch(codeGen &gen,
 
     if (scratch == REG_NULL)
     {
-        //fprintf(stderr, " %s[%d] No registers. Calling generateBranchViaTrap...\n", FILE__, __LINE__);
-        generateBranchViaTrap(gen, from, to, isCall);
-        return;
+        if (gen.isPLTSection(to)) {
+            scratch = 16;
+        } else {
+            generateBranchViaTrap(gen, from, to, isCall);
+            return;
+        }
     }
     generatePCRelativeAddress(gen , scratch, to);
     generateBReg(scratch);

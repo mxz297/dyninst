@@ -48,6 +48,8 @@
 #include "liveness.h"
 #include "Location.h"
 #include "debug.h"
+#include "mapped_object.h"
+#include "image.h"
 
 #include "instructionAPI/h/InstructionDecoder.h"
 
@@ -810,6 +812,13 @@ int codeGen::getScratchGPR() {
     return ret;
 }
 
+bool codeGen::isPLTSection(Address addr) {
+    for (auto mo : aSpace_->mappedObjects()) {
+        ParseAPI::CodeObject* co = mo->parse_img()->codeObject();
+        if (co->cs()->linkage().find(addr) != co->cs()->linkage().end()) return true;
+    }
+    return false;
+}
 
 #include "InstructionDecoder.h"
 using namespace InstructionAPI;
