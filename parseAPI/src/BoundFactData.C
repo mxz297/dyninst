@@ -9,6 +9,7 @@
 #include "CFG.h"
 #include "SymbolicExpression.h"
 #include <iostream>
+#include <boost/assign/list_of.hpp>
 
 #define MAX_TABLE_ENTRY 1000000
 
@@ -571,6 +572,21 @@ BoundFact::BoundFact(const BoundFact &bf) {
     *this = bf;
 }   
 
+thread_local dyn_hash_map<std::string, entryID> aarch64CondCodeMap =
+    boost::assign::map_list_of
+    ("b.eq", e_jz)
+    ("b.ne", e_jnz)
+    ("b.cs", e_jnb)
+    ("b.cc", e_jb)
+    ("b.mi", e_jb)
+    ("b.pl", e_jnb)
+    ("b.hi", e_jnbe)
+    ("b.ls", e_jbe)
+    ("b.ge", e_jnl)
+    ("b.lt", e_jl)
+    ("b.gt", e_jnle)
+    ("b.le", e_jle)
+    ;
 
 bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
     if (!pred.valid) {
@@ -578,6 +594,13 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 	return true;
     }
     entryID id = insn.getOperation().getID();
+    if (id == aarch64_op_b_cond) {
+        auto it = aarch64CondCodeMap.find(insn.getOperation().format());
+        if (it != aarch64CondCodeMap.end()) {
+            parsing_printf("aarch64 conditional branch %s\n", insn.getOperation().format().c_str());
+            id = it->second;
+        }
+    }
     parsing_printf("\t\tproduce conditional bound for %s, edge type %d\n", insn.format().c_str(), type);
     if (type == COND_TAKEN) {
         switch (id) {
@@ -639,7 +662,6 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 		}
 		break;
 	    }
-	    case aarch64_op_b_cond:
 	    case power_op_bc:
 	    case e_jbe: {
 	        if (pred.e1->getID() == AST::V_ConstantAST) {
@@ -829,7 +851,6 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 		}
 		break;
 	    }
-	    case aarch64_op_b_cond:
 	    case power_op_bc:
 	    case e_jnbe: {
 	        if (pred.e1->getID() == AST::V_ConstantAST) {
