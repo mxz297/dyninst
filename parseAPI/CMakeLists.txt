@@ -60,6 +60,7 @@ set(ROSE_SRC
         ../dataflowAPI/src/templates.C
         ../dataflowAPI/src/Visitors.C
         ../dataflowAPI/src/PCPointerAnalysis.C
+        ../dataflowAPI/src/InterModuleCallGraph.C
         ../dataflowAPI/rose/ExtentMap.C
         ../dataflowAPI/rose/rangemap.C
         ../dataflowAPI/rose/util/Assert.C
