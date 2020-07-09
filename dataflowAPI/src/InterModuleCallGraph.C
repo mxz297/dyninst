@@ -7,10 +7,21 @@
 #include "CodeObject.h"
 #include "CodeSource.h"
 
+#include "Instruction.h"
+#include "InstructionCategories.h"
+
 using namespace std;
 using namespace Dyninst;
 using namespace ParseAPI;
 using namespace DataflowAPI;
+using namespace InstructionAPI;
+
+static set<string> ignoreFuncs {
+    "malloc_printerr",
+    "__libc_message",
+    "__cxa_allocate_exception",
+    "__cxa_throw"
+};
 
 static string terminal_command(string command) {
    char buffer[128];
@@ -93,8 +104,8 @@ void InterModuleCallGraphAnalyzer::retrievePLTs() {
     for (auto & it : objectMap) {
         CodeObject * co = it.second;
         for (auto & PLTit : co->cs()->linkage()) {
-            if (PLTMap.find(PLTit.second) != PLTMap.end()) continue;            
-            PLTMap[PLTit.second] = std::vector<PLTInfo>();             
+            if (PLTMap.find(PLTit.second) != PLTMap.end()) continue;
+            PLTMap[PLTit.second] = std::vector<Function*>();
         }
     }
 }
@@ -104,7 +115,7 @@ void InterModuleCallGraphAnalyzer::resolvePLTs() {
         CodeObject * co = it.second;
         dyn_hash_map<Address, set<string> > globalFuncSymbols;
         analyzeSymbols(co, globalFuncSymbols);
-        for (auto f : co->funcs()) {            
+        for (auto f : co->funcs()) {
             // Ignore function definitions in .plt.
             // We need to find actual functions
             if (co->cs()->linkage().find(f->addr()) != co->cs()->linkage().end()) continue;
@@ -115,24 +126,21 @@ void InterModuleCallGraphAnalyzer::resolvePLTs() {
             auto nit = globalFuncSymbols.find(f->addr());
             if (nit == globalFuncSymbols.end()) continue;
 
-            // A global function may have several alias names. 
+            // A global function may have several alias names.
             // For example, fwrite can also be named as _IO_fwrite
             for (auto& name : nit->second) {
                 auto plt_it = PLTMap.find(name);
                 if (plt_it == PLTMap.end()) continue;
-                PLTInfo info;
-                info.obj = co;
-                info.f = f;
 
-                /* A symbol can have multiple definitions due to symbol versioning.                
-                * Example, 
+                /* A symbol can have multiple definitions due to symbol versioning.
+                * Example,
                 * 1030: 000000000013e5a0    38 FUNC    GLOBAL DEFAULT   12 pthread_cond_broadcast@GLIBC_2.2.5
                 * 1031: 000000000010c2b0    38 FUNC    GLOBAL DEFAULT   12 pthread_cond_broadcast@@GLIBC_2.3.2
                 *
                 * Here pthread_cond_broadcast has two different versions.
-                * Ideally, our implementation should reolsve symbol versioning as the dynamic loader.            
+                * Ideally, our implementation should reolsve symbol versioning as the dynamic loader.
                 */
-                plt_it->second.emplace_back(info);
+                plt_it->second.emplace_back(f);
             }
         }
     }
@@ -146,7 +154,7 @@ bool InterModuleCallGraphAnalyzer::analyzeSymbols(ParseAPI::CodeObject* co, dyn_
     symObj->getAllSymbolsByType(symbols, SymtabAPI::Symbol::ST_FUNCTION);
 
     // How to hanlde ifunc?
-    
+
     for (auto s : symbols) {
         if (!s->isInDynSymtab()) continue;
         if (s->getLinkage() == SymtabAPI::Symbol::SL_LOCAL) continue;
@@ -155,7 +163,7 @@ bool InterModuleCallGraphAnalyzer::analyzeSymbols(ParseAPI::CodeObject* co, dyn_
     }
 }
 
-bool InterModuleCallGraphAnalyzer::queryPLTCallTargets(std::string& name, std::vector<PLTInfo>& targets) {
+bool InterModuleCallGraphAnalyzer::queryPLTCallTargets(std::string& name, std::vector<Function*>& targets) {
     auto it = PLTMap.find(name);
     if (it == PLTMap.end()) return false;
     targets = it->second;
@@ -178,3 +186,133 @@ void InterModuleCallGraphAnalyzer::getAllObjects(vector<CodeObject*>& v) {
         v.emplace_back(it.second);
     }
 }
+
+void InterModuleCallGraphAnalyzer::buildCallGraphFromMainObject(bool intermodule) {
+    CodeObject* mainObj = getMainObject();
+    for (auto f: mainObj->funcs()) {        
+        buildCallGraphFromFunction(f, intermodule);
+    }
+
+    buildSCC();
+}
+
+void InterModuleCallGraphAnalyzer::buildCallGraphFromFunction(Function* func, bool intermodule) {
+    if (ignoreFuncs.find(func->name()) != ignoreFuncs.end()) return;
+    auto it = trg.find(func);
+    auto plts = func->obj()->cs()->linkage();
+    if (it != trg.end()) return;
+
+    vector<Edge*> calls;
+    for (auto b : func->blocks()) {
+        for (auto e : b->targets()) {
+            if (e->interproc() && e->type() != RET) {                
+                if (e->type() == CALL && e->sinkEdge()) {
+                    Instruction i = b->getInsn(b->last());
+                    if (i.getCategory() == c_SyscallInsn) continue;
+                }
+                calls.emplace_back(e);
+            }
+        }
+    }
+
+    for (auto e : calls) {
+        if (e->sinkEdge()) {
+            // Find an indirect call or indirect tail call
+            trg[func].insert(nullptr);
+        } else if (plts.find(e->trg()->start()) != plts.end()) {
+            // Find a plt call.
+            bool findCallee = false;
+            if (intermodule) {
+                /// Get the PLT callee
+                std::string & name = plts[e->trg()->start()];
+                vector<Function*> targets;
+                if (queryPLTCallTargets(name, targets)) {
+                    for (auto callee : targets) {
+                        trg[func].insert(callee);
+                        src[callee].insert(func);
+                        buildCallGraphFromFunction(callee, intermodule);
+                    }
+                    findCallee = true;
+                }
+            }
+            if (!findCallee) {
+                // We either do not build intermodule call graph, or fail to resolve PLT.
+                // Treat this as an indirect call
+                trg[func].insert(nullptr);
+            }
+        } else {
+            // Find a call inside the module
+            Function* callee = func->obj()->findFuncByEntry(func->region(), e->trg()->start());
+            assert(callee);
+            trg[func].insert(callee);
+            src[callee].insert(func);
+            buildCallGraphFromFunction(callee, intermodule);
+        }
+    }
+}
+
+void InterModuleCallGraphAnalyzer::buildSCC() {
+    nodeColor.clear();
+    reverseOrder.clear();
+    sccIndex.clear();
+
+    for (auto & fit : trg) {
+        Function* f = fit.first;
+        if (nodeColor.find(f) == nodeColor.end()) {
+            NaturalDFS(f);
+        }
+    }
+
+    nodeColor.clear();
+    orderStamp = 0;
+    for (auto fit = reverseOrder.rbegin(); fit != reverseOrder.rend(); ++fit) {
+        if (nodeColor.find(*fit) == nodeColor.end()) {
+            ++orderStamp;
+            ReverseDFS(*fit);
+        }
+    }
+}
+
+void InterModuleCallGraphAnalyzer::NaturalDFS(Function* cur) {
+    if (cur == nullptr) return;
+    nodeColor[cur] = true;
+    auto it = trg.find(cur);
+    if (it != trg.end()) {
+        for (auto f: it->second) {
+            if (nodeColor.find(f) == nodeColor.end()) {
+                NaturalDFS(f);
+            }
+        }
+    }
+    reverseOrder.emplace_back(cur);
+}
+
+void InterModuleCallGraphAnalyzer::ReverseDFS(Function* cur) {
+    if (cur == nullptr) return;
+    nodeColor[cur] = true;
+    sccIndex[cur] = orderStamp;
+    auto it = src.find(cur);
+    if (it == src.end()) return;
+    for (auto f : it->second) {
+        if (nodeColor.find(f) == nodeColor.end()) {
+            ReverseDFS(f);
+        }
+    }
+}
+
+void InterModuleCallGraphAnalyzer::getCallGraphSCC(std::vector< std::vector<ParseAPI::Function* > > & scc) {
+    scc.clear();
+    scc.resize(orderStamp);
+    for (auto & fit : sccIndex) {
+        scc[fit.second - 1].emplace_back(fit.first);
+    }
+}
+
+std::set<ParseAPI::Function*>& InterModuleCallGraphAnalyzer::getCalleeFunctions(Function* f) {
+    return trg[f];
+}
+
+std::set<ParseAPI::Function*>& InterModuleCallGraphAnalyzer::getCallerFunctions(Function* f) {
+    return src[f];
+}
+
