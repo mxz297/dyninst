@@ -380,7 +380,7 @@ void CodeMover::OptimizeSpringboards() {
 
 void CodeMover::refillSafeBlockWithInvalidInsns(block_instance* b) {
 #if defined(arch_x86) || defined(arch_x86_64)
-#define INVALID 0x63
+#define INVALID 0x62
 #else
 #define INVALID 0x0
 #endif

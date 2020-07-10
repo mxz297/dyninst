@@ -300,10 +300,13 @@ bool baseTramp::generateCodeInlined(codeGen &gen,
 
    pdvector<AstNodePtr> miniTramps;
 
+   bool onlyReloc = true;
+
    if (point_) {
       for (instPoint::instance_iter iter = point_->begin(); 
            iter != point_->end(); ++iter) {
          AstNodePtr ast = DCAST_AST((*iter)->snippet());
+         if (ast->usesAppRegister()) onlyReloc = false;
          if (ast) 
             miniTramps.push_back(ast);
          else
@@ -324,7 +327,7 @@ bool baseTramp::generateCodeInlined(codeGen &gen,
    baseTrampElements.push_back(minis);
    vector<AstNodePtr> empty_args;
     
-   if (guarded() &&
+   if (!onlyReloc && guarded() &&
        minis->containsFuncCall()) {
      baseTrampElements.push_back(AstNode::funcCallNode("DYNINST_unlock_tramp_guard", empty_args));
    }
@@ -335,7 +338,7 @@ bool baseTramp::generateCodeInlined(codeGen &gen,
 
    // If trampAddr is non-NULL, then we wrap this with an IF. If not, 
    // we just run the minitramps.
-   if (guarded() &&
+   if (!onlyReloc && guarded() &&
        minis->containsFuncCall()) {
       baseTrampAST = AstNode::operatorNode(ifOp,
                                            // trampGuardAddr,
@@ -354,7 +357,7 @@ bool baseTramp::generateCodeInlined(codeGen &gen,
    // MUST HAPPEN BEFORE THE SAVES, and state should not
    // be reset until AFTER THE RESTORES.
    bool retval = baseTrampAST->initRegisters(gen);
-   if (!gen.insertNaked()) {
+   if (!onlyReloc && !gen.insertNaked()) {
        generateSaves(gen, gen.rs());
    }
 
@@ -363,7 +366,7 @@ bool baseTramp::generateCodeInlined(codeGen &gen,
       retval = false;
    }
 
-   if (!gen.insertNaked()) {
+   if (!onlyReloc && !gen.insertNaked()) {
        generateRestores(gen, gen.rs());
    }
 

@@ -3332,11 +3332,8 @@ bool AstScrambleRegistersNode::containsFuncCall() const
    return false;
 }
 
-bool AstCallNode::usesAppRegister() const {
-   for (unsigned i=0; i<args_.size(); i++) {
-      if (args_[i] && args_[i]->usesAppRegister()) return true;
-   }
-   return false;
+bool AstCallNode::usesAppRegister() const {    
+    return true;
 }
 
 bool AstOperatorNode::usesAppRegister() const {
