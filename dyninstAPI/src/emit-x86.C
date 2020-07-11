@@ -1779,7 +1779,8 @@ Register EmitterAMD64::emitCall(opCode op, codeGen &gen, const pdvector<AstNodeP
    pdvector <Register> srcs;
 
    bool inInstrumentation = true;
-   InstSpec *is = gen.point()->instSpec();
+   InstSpec *is = nullptr;
+   if (gen.point() != nullptr) is = gen.point()->instSpec();
    if (is) inInstrumentation = false;
    //  Sanity check for NULL address arg
    if (!callee) {
@@ -2477,7 +2478,8 @@ void EmitterAMD64::emitStackAlign(int offset, codeGen &gen)
 bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
 {    
    gen.setInInstrumentation(true);
-   InstSpec* s = bt->instP()->instSpec();
+   InstSpec* s = nullptr;
+   if (bt != nullptr && bt->instP() != nullptr) s = bt->instP()->instSpec();
    if (s) {
        // Create a user specified instrumentation set up,
        // bypassing all Dyninst internal analysis.
@@ -2751,7 +2753,8 @@ bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
 
 bool EmitterAMD64::emitBTRestores(baseTramp* bt, codeGen &gen)
 {    
-   InstSpec* s = bt->instP()->instSpec();
+   InstSpec* s = nullptr;
+   if (bt != nullptr && bt->instP() != nullptr) s = bt->instP()->instSpec();
    if (s) {
        for (auto rit = s->saveRegs.rbegin(); rit != s->saveRegs.rend(); ++rit) {
            if (*rit == x86_64::fs) {

@@ -36,6 +36,7 @@
 #include "dyninstAPI/src/addressSpace.h"
 #include "dyninstAPI/src/binaryEdit.h"
 #include "dyninstAPI/src/function.h"
+#include "dyninstAPI/src/mapped_object.h"
 #include "common/src/arch.h"
 
 using namespace Dyninst;
@@ -200,6 +201,7 @@ bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, Bloc
     SpringboardInfo *id = NULL;
     Address start = bbl->start();
     Address end = bbl->end();
+    Address offset_end = end - func->obj()->codeBase();
     springboard_cerr << "trampoline block :" << hex << start << " - " << end << dec << endl;
 
 
@@ -217,7 +219,7 @@ bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, Bloc
     ParseAPI::CodeObject* co = func->ifunc()->obj();
     ParseAPI::CodeRegion* cr = func->ifunc()->region();
     std::set<ParseAPI::Block*> blocks;
-    co->findBlocks(cr, end, blocks);
+    co->findBlocks(cr, offset_end, blocks);
 
     // Extend the block if the block end:
     // (1) does not overrun into another block;
@@ -226,11 +228,12 @@ bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, Bloc
     // If all conditions are true, then we can extend this block end
     // so that we can have more space to trampoline installation
     bool ignored_bool;
-    while (isNoneContained(blocks) && cr->contains(end) && !jumpTableRanges_.find(end, LB, UB, ignored_bool)) {
+    while (isNoneContained(blocks) && cr->contains(offset_end) && !jumpTableRanges_.find(offset_end, LB, UB, ignored_bool)) {
         end++;
         size++;
+        offset_end++;
         blocks.clear();
-        co->findBlocks(cr, end, blocks);
+        co->findBlocks(cr, offset_end, blocks);
     }
 
     SpringboardInfo* info = new SpringboardInfo(func->addr(), func);

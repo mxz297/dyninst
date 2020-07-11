@@ -204,14 +204,13 @@ static const unsigned char trapRep[8] = {0xCC};
 
 void insnCodeGen::generateIllegal(codeGen &gen) {
     GET_PTR(insn, gen);
-    *insn++ = 0x0f;
-    *insn++ = 0x0b;
+    *insn++ = 0x62;
     SET_PTR(insn, gen);
 }
 
 void insnCodeGen::generateTrap(codeGen &gen) {
-    GET_PTR(insn, gen);
-    *insn++ = 0x62;
+    GET_PTR(insn, gen);    
+    *insn++ = 0xcc;
     SET_PTR(insn, gen);
 }
 

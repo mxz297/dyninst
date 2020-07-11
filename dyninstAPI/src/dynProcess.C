@@ -3264,10 +3264,10 @@ bool PCProcess::continueSyncRPCThreads() {
 
 void PCProcess::addTrap(Address from, Address to, codeGen &gen) {
    gen.invalidate();
-   gen.allocate(4);
+   gen.allocate(64);
    gen.setAddrSpace(this);
    gen.setAddr(from);
-   insnCodeGen::generateTrap(gen);
+   insnCodeGen::generateIllegal(gen);
    trapMapping.addTrapMapping(from, to, true);
    springboard_cerr << "Generated springboard trap " << hex << from << "->" << to << dec << endl;
 }
