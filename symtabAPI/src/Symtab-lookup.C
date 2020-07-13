@@ -351,7 +351,7 @@ bool Symtab::getAllVariables(std::vector<Variable *> &ret)
 
 bool Symtab::getAllModules(std::vector<Module *> &ret)
 {
-    dyn_mutex::unique_lock l(im_lock);
+    dyn_rwlock::shared_lock l(im_lock);
     if (indexed_modules.size() >0 )
     {
         std::copy(indexed_modules.begin(), indexed_modules.end(), std::back_inserter(ret));
@@ -362,12 +362,29 @@ bool Symtab::getAllModules(std::vector<Module *> &ret)
     return false;
 }
 
+ModRangeLookup* Symtab::getModuleRangeLookup() {
+    ModRangeLookup *lookup = nullptr;
+    {
+        // Start as a reader and if the module lookup has been initialized
+        dyn_rwlock::shared_lock l(im_lock);
+        lookup = mod_lookup_;
+    }
+    if (lookup == nullptr) {
+        // If not, try to acquire the writer lock and initialize it.
+        // It is OK that if multiple threads attempt to acquire the writer lock,
+        // as only the first writer will do the initialization and all other writers
+        // will just reuse the result.
+        dyn_rwlock::unique_lock l(im_lock);
+        lookup = mod_lookup();
+    }
+    return lookup;
+}
 
 bool Symtab::findModuleByOffset(Module *&ret, Offset off)
 {
-    dyn_mutex::unique_lock l(im_lock);
+    ModRangeLookup *lookup = getModuleRangeLookup();    
     std::set<ModRange*> mods;
-    mod_lookup()->find(off, mods);
+    lookup->find(off, mods);
     if(!mods.empty())
     {
         ret = (*mods.begin())->id();
@@ -376,11 +393,11 @@ bool Symtab::findModuleByOffset(Module *&ret, Offset off)
 }
 
 bool Symtab::findModuleByOffset(std::set<Module *>&ret, Offset off)
-{
-    dyn_mutex::unique_lock l(im_lock);
+{   
+    ModRangeLookup *lookup = getModuleRangeLookup();
     std::set<ModRange*> mods;
     ret.clear();
-    mod_lookup()->find(off, mods);
+    lookup->find(off, mods);
     for(auto i = mods.begin();
             i != mods.end();
             ++i)
@@ -392,7 +409,7 @@ bool Symtab::findModuleByOffset(std::set<Module *>&ret, Offset off)
 
 bool Symtab::findModuleByName(Module *&ret, const std::string name)
 {
-   dyn_mutex::unique_lock l(im_lock);
+   dyn_rwlock::shared_lock l(im_lock);
    auto loc = indexed_modules.get<3>().find(name);
 
    if (loc != indexed_modules.get<3>().end())
@@ -864,7 +881,7 @@ bool Symtab::getContainingInlinedFunction(Offset offset, FunctionBase* &func)
 }
 
 Module *Symtab::getDefaultModule() {
-    dyn_mutex::unique_lock l(im_lock);
+    dyn_rwlock::unique_lock l(im_lock);
     if(indexed_modules.empty()) createDefaultModule();
     return indexed_modules[0];
 }
