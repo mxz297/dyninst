@@ -362,9 +362,12 @@ void CodeMover::OptimizeSpringboards() {
         for (auto bit : f->blocks()) {
             block_instance* b = dynamic_cast<block_instance*>(bit);
             if (trampolineLocs.find(b) != trampolineLocs.end()) continue;
-            if (safeBlocks.find(b) != safeBlocks.end()) continue;
-            set<block_instance*> visited;
-            findSafeBlocks(b, safeBlocks, trampolineLocs, visited); 
+            // For a block b, if we pretend to install a trampoline in b,
+            // and find that it is not necessary  based on current trampolines, 
+            // then it is a safe block
+            if (canRemoveTrampoline(b, trampolineLocs)) {
+                springboard_cerr << "identify safe block " << hex << b->start() << " - " << b->end() << dec << endl;
+            }
         }
         f->setSafeBlocks(safeBlocks);
 
@@ -463,40 +466,4 @@ bool CodeMover::canMoveTrampoline(block_instance* cur,
         if (!ret) break;
     }
     return ret;
-}
-
-bool CodeMover::findSafeBlocks(block_instance* cur, 
-        set<block_instance*> &safeBlocks, 
-        set<block_instance*> &tBlocks, 
-        set<block_instance*> &visited) {
-    if (tBlocks.find(cur) != tBlocks.end()) return true;
-    if (visited.find(cur) != visited.end()) return true;
-    if (safeBlocks.find(cur) != safeBlocks.end()) return true;
-    visited.insert(cur);
-
-    vector<edge_instance*> edges;
-    for (auto eit : cur->sources()) {
-        edge_instance* e = dynamic_cast<edge_instance*>(eit);
-        if (e->sinkEdge()) continue;
-        if (e->interproc()) continue;
-        if (e->type() == ParseAPI::CATCH) return false;
-        if (e->type() == ParseAPI::INDIRECT && !BPatch::bpatch->relocateJumpTable()) {
-            return false;
-        }
-        edges.push_back(e);
-    }
-    if (edges.size() == 0) {
-        return false;
-    }
-    bool ret = true;
-    for (auto e : edges) {
-        ret = ret && findSafeBlocks(e->src(), safeBlocks, tBlocks, visited);
-        if (!ret) break;
-    }
-    if (ret) {
-        springboard_cerr << "identify safe block " << hex << cur->start() << " - " << cur->end() << dec << endl;
-        safeBlocks.insert(cur);
-    }
-    return ret;
-
 }

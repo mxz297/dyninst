@@ -153,8 +153,7 @@ void insnCodeGen::generateIllegal(codeGen &gen) { // instP.h
 }
 
 void insnCodeGen::generateTrap(codeGen &gen) {
-    instruction insn;
-    //instruction insn(BREAK_POINT_INSN);
+    instruction insn(BREAK_POINT_INSN);
     generate(gen,insn);
 }
 

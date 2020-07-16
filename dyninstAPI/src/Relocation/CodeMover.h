@@ -143,10 +143,6 @@ class CodeMover {
                   std::set<block_instance*>&,
                   std::set<block_instance*>&,
                   std::set<block_instance*>&);
-  bool findSafeBlocks(block_instance*,
-                  std::set<block_instance*>&,
-                  std::set<block_instance*>&,
-                  std::set<block_instance*>&);
   void refillSafeBlockWithInvalidInsns(block_instance*);
 
 
