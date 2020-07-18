@@ -43,7 +43,7 @@ typedef struct {
     unsigned long total;
     Address min;
     Address max;
-    Address entries[][2]; 
+    Address entries[][2];
 } RAMappingInBinary;
 
 RAMappingTable* ra_table = NULL;
@@ -75,6 +75,7 @@ RAMappingTable* ParseAModule(struct link_map *l) {
 }
 
 RAMappingTable* ExtractRAMapping() {
+   rtdebug_printf("Enter ExtractRAMapping\n");
    RAMappingTable* table;
    struct link_map *l_current;
    l_current = _r_debug.r_map;
@@ -86,19 +87,30 @@ RAMappingTable* ExtractRAMapping() {
    return NULL;
 }
 
-unw_word_t DyninstRATranslation(unw_word_t ip) {
+DLLEXPORT Address DyninstRATranslation(Address ip) {
     rtdebug_printf("input ip %lx\n", ip);
     if (parsed == 0) {
         ra_table = ExtractRAMapping();
-        parsed = 1;        
+        parsed = 1;
     }
     if (ra_table == NULL) return ip;
-    Address a = (Address)ip;
-    unw_word_t newip = 0;
+    Address a = ip;
+    Address newip = 0;
+    if (a < ra_table->loadAddr) return ip;
     a -= ra_table->loadAddr;
     if (ra_table->min <= a && a <= ra_table->max) {
         if (ra_table->entries[a - ra_table->min] != 0) {
-            newip = (unw_word_t) ra_table->entries[a - ra_table->min];
+            newip = (Address) ra_table->entries[a - ra_table->min];
+        }
+    }
+    if (newip == 0) {
+        // Go runtime may substract the RA by 1 to lookup which 
+        // function the RA belongs.
+        if (ra_table->min <= a + 1 && a + 1 <= ra_table->max) {
+            if (ra_table->entries[a + 1 - ra_table->min] != 0) {
+                newip = (Address) ra_table->entries[a - ra_table->min];
+                newip -= 1;
+            }
         }
     }
     rtdebug_printf("input ip %lx, found ip %lx, loadd addr %lx , calculated ip %lx\n",

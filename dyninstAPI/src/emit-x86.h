@@ -64,6 +64,7 @@ class Emitterx86 : public Emitter {
 
         virtual bool emitCallInstruction(codeGen &, func_instance *, Register) = 0;
         virtual bool emitPadding(int p, codeGen&);
+        virtual bool emitGoUnwindTranslate(int, codeGen&) = 0;
 };
 
 // 32-bit class declared here since its implementation is in both inst-x86.C and emit-x86.C
@@ -144,6 +145,7 @@ public:
     bool emitXorRegReg(Register dest, Register base, codeGen& gen);
     bool emitXorRegImm(Register dest, int imm, codeGen& gen);
     bool emitXorRegSegReg(Register dest, Register base, int disp, codeGen& gen);
+    bool emitGoUnwindTranslate(int, codeGen&)  { return true; }
 
 
  protected:
@@ -264,6 +266,7 @@ public:
     bool emitXorRegReg(Register dest, Register base, codeGen& gen);
     bool emitXorRegImm(Register dest, int imm, codeGen& gen);
     bool emitXorRegSegReg(Register dest, Register base, int disp, codeGen& gen);
+    bool emitGoUnwindTranslate(int, codeGen&);
 
  protected:
     virtual bool emitCallInstruction(codeGen &gen, func_instance *target, Register ret) = 0;

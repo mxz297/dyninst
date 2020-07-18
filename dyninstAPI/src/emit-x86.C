@@ -3307,4 +3307,32 @@ bool Emitterx86::emitPadding(int p, codeGen& gen)
     return true;
 }
 
+bool EmitterAMD64::emitGoUnwindTranslate(int paramIndex, codeGen& gen) {
+    int off = 0x10 + 8 * paramIndex;  
+    emitPush(gen, REGNUM_RAX);
+    emitPush(gen, REGNUM_RDI);
+    emitLoadRelative(REGNUM_RDI, off, REGNUM_RSP, 8, gen);
+    emitPush(gen, REGNUM_RSI);
+    emitPush(gen, REGNUM_RCX);
+    emitPush(gen, REGNUM_RDX);
+    emitPush(gen, REGNUM_R8);
+    emitPush(gen, REGNUM_R9);
+    emitPush(gen, REGNUM_R10);
+    emitPush(gen, REGNUM_R11);
+
+    func_instance *func = gen.addrSpace()->findOnlyOneFunction("DyninstRATranslation");
+    emitCallInstruction(gen, func, REGNUM_RAX);
+
+    emitPop(gen, REGNUM_R11);
+    emitPop(gen, REGNUM_R10);
+    emitPop(gen, REGNUM_R9);
+    emitPop(gen, REGNUM_R8);
+    emitPop(gen, REGNUM_RDX);
+    emitPop(gen, REGNUM_RCX);
+    emitPop(gen, REGNUM_RSI);
+    emitStoreRelative(REGNUM_RAX, off, REGNUM_RSP, 8, gen);
+    emitPop(gen, REGNUM_RDI);
+    emitPop(gen, REGNUM_RAX);
+}
+
 

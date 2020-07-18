@@ -498,6 +498,9 @@ void Function::setEntryBlock(Block *new_entry)
 void Function::set_retstatus(FuncReturnStatus rs) 
 {
     boost::lock_guard<Function> g(*this);
+    // TODO: Understand how Go handles stack.
+    if (name() == "runtime.morestack_noctxt") rs = RETURN;
+    if (name() == "runtime.morestack") rs = RETURN;
     // If this function is a known non-returning function,
     // we should ignore this result.
     // A exmaple is .Unwind_Resume, which is non-returning.

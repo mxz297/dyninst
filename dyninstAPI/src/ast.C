@@ -292,6 +292,10 @@ AstNodePtr AstNode::paddingNode(int p) {
     return AstNodePtr(new AstPaddingNode(p));
 }
 
+AstNodePtr AstNode::goRuntimeUnwindNode(AddressSpace * as, int i) {
+    return AstNodePtr(new AstGoRuntimeUnwindNode(as, i));
+}
+
 bool isPowerOf2(int value, int &result)
 {
   if (value<=0) return(false);
@@ -3601,6 +3605,14 @@ bool AstSnippetNode::generateCode_phase2(codeGen &gen,
    if (!snip_->generate(gen.point(), buf)) return false;
    gen.copy(buf.start_ptr(), buf.size());
    return true;
+}
+
+bool AstGoRuntimeUnwindNode::generateCode_phase2(codeGen &gen,
+                                         bool,
+                                         Address &,
+                                         Register &) {
+    gen.emitter()->emitGoUnwindTranslate(paramIndex_, gen);
+    return true;
 }
 
 std::string AstNode::format(std::string indent) {

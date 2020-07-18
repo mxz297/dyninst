@@ -1,28 +1,28 @@
 /*
  * See the dyninst/COPYRIGHT file for copyright information.
- * 
+ *
  * We provide the Paradyn Tools (below described as "Paradyn")
  * on an AS IS basis, and do not warrant its validity or performance.
  * We reserve the right to update, modify, or discontinue this
  * software at any time.  We shall have no obligation to supply such
  * updates or modifications or any other form of support to you.
- * 
+ *
  * By your use of Paradyn, you understand and agree that we (or any
  * other person or entity with proprietary rights in Paradyn) are
  * under no obligation to provide either maintenance services,
  * update services, notices of latent defects, or correction of
  * defects for Paradyn.
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
- * 
+ *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
@@ -81,12 +81,12 @@ class image_variable;
 // 1) Iterate over the AST tree and see if any node is reached more than once;
 // if so, mark it as potentially being worth keeping around. We can do this
 // because we use pointers; a better approach would be a comparison operator.
-// 2) Start generation at "level 0". 
+// 2) Start generation at "level 0".
 // 3) When a conditional AST is reached, generate each child at level+1.
 // 4) When the AST is reached during code generation, and doesn't have a register:
 // 4a) Allocate a register for it;
 // 4b) Enter that register, the AST node, and the current level in the global table.
-// 5) If it does have a register, reuse it. 
+// 5) If it does have a register, reuse it.
 // 6) When the conditionally executed branch is finished, clean all entries in
 // the table with that level value (undoing all kept registers along that
 // path).
@@ -112,13 +112,13 @@ class regTracker_t {
 public:
 	class commonExpressionTracker {
 	public:
-		Register keptRegister;	
+		Register keptRegister;
 		int keptLevel;
 		commonExpressionTracker() : keptRegister(REG_NULL), keptLevel(-1) {};
 	};
 
 	int condLevel;
-	
+
 	static unsigned astHash(AstNode * const &ast);
 
   regTracker_t() : condLevel(0) {};
@@ -128,7 +128,7 @@ public:
 	void addKeptRegister(codeGen &gen, AstNode *n, Register reg);
 	void removeKeptRegister(codeGen &gen, AstNode *n);
 	Register hasKeptRegister(AstNode *n);
-	bool stealKeptRegister(Register reg); 
+	bool stealKeptRegister(Register reg);
 
 	void reset();
 
@@ -136,7 +136,7 @@ public:
 	void decreaseAndClean(codeGen &gen);
 	void cleanKeptRegisters(int level);
 	void debugPrint();
-	
+
 
 };
 
@@ -144,21 +144,21 @@ class dataReqNode;
 class AstNode : public Dyninst::PatchAPI::Snippet {
  public:
    enum nodeType { sequenceNode_t, opCodeNode_t, operandNode_t, callNode_t, scrambleRegisters_t};
-   enum operandType { Constant, 
+   enum operandType { Constant,
                       ConstantString,
                       DataReg,
                       DataIndir,
                       Param,
                       ParamAtCall,
                       ParamAtEntry,
-                      ReturnVal, 
+                      ReturnVal,
                       ReturnAddr, // address of a return instruction
                       DataAddr,  // Used to represent a variable in memory
-                      FrameAddr, // Calculate FP 
-                      RegOffset, // Calculate *reg + offset; oValue is reg, loperand->oValue is offset. 
+                      FrameAddr, // Calculate FP
+                      RegOffset, // Calculate *reg + offset; oValue is reg, loperand->oValue is offset.
                       //PreviousStackFrameDataReg,
                       //RegValue, // A possibly spilled, possibly saved register.
-                      // Both the above are now: origRegister 
+                      // Both the above are now: origRegister
                       origRegister,
                       variableAddr,
                       variableValue,
@@ -201,7 +201,7 @@ class AstNode : public Dyninst::PatchAPI::Snippet {
    bool hasLineInfo();
    bool hasColumnInfo();
    bool hasNameInfo();
-   
+
    AstNode(); // mdl.C
 
    // Factory methods....
@@ -222,12 +222,12 @@ class AstNode : public Dyninst::PatchAPI::Snippet {
    static AstNodePtr memoryNode(memoryType ot, int which, int size = 8);
 
    static AstNodePtr sequenceNode(pdvector<AstNodePtr > &sequence);
-        
+
    static AstNodePtr variableNode(std::vector<AstNodePtr>&ast_wrappers_, std::vector<std::pair<Offset, Offset> > *ranges = NULL);
 
-   static AstNodePtr operatorNode(opCode ot, 
-                                  AstNodePtr l = AstNodePtr(), 
-                                  AstNodePtr r = AstNodePtr(), 
+   static AstNodePtr operatorNode(opCode ot,
+                                  AstNodePtr l = AstNodePtr(),
+                                  AstNodePtr r = AstNodePtr(),
                                   AstNodePtr e = AstNodePtr());
 
    static AstNodePtr funcCallNode(const std::string &func, pdvector<AstNodePtr > &args, AddressSpace *addrSpace = NULL);
@@ -240,7 +240,7 @@ class AstNode : public Dyninst::PatchAPI::Snippet {
    static AstNodePtr threadIndexNode();
 
    static AstNodePtr scrambleRegistersNode();
-   
+
    // TODO...
    // Needs some way of marking what to save and restore... should be a registerSpace, really
 
@@ -258,25 +258,26 @@ class AstNode : public Dyninst::PatchAPI::Snippet {
    static AstNodePtr paddingNode(int);
 
    static AstNodePtr snippetNode(Dyninst::PatchAPI::SnippetPtr snip);
+   static AstNodePtr goRuntimeUnwindNode(AddressSpace *addrSpace, int i);
 
    AstNode(AstNodePtr src);
    //virtual AstNode &operator=(const AstNode &src);
-        
+
    virtual ~AstNode();
-        
-   virtual bool generateCode(codeGen &gen, 
-                             bool noCost, 
+
+   virtual bool generateCode(codeGen &gen,
+                             bool noCost,
                              Address &retAddr,
                              Register &retReg);
 
    // Can't use default references....
-   virtual bool generateCode(codeGen &gen, 
+   virtual bool generateCode(codeGen &gen,
                              bool noCost);
 
    // Can't use default references....
-   virtual bool generateCode(codeGen &gen, 
-                             bool noCost, 
-                             Register &retReg) { 
+   virtual bool generateCode(codeGen &gen,
+                             bool noCost,
+                             Register &retReg) {
       Address unused = ADDR_NULL;
       return generateCode(gen, noCost,  unused, retReg);
    }
@@ -290,7 +291,7 @@ class AstNode : public Dyninst::PatchAPI::Snippet {
 
    // Perform whatever pre-processing steps are necessary.
    virtual bool initRegisters(codeGen &gen);
-        
+
    // Select the appropriate Variable AST as part of pre-processing
    // steps before code generation.
    virtual void setVariableAST(codeGen &) {}
@@ -319,7 +320,7 @@ class AstNode : public Dyninst::PatchAPI::Snippet {
    int maxCost() const {  return costHelper(Max);  }
 
 	// return the # of instruction times in the ast.
-	virtual int costHelper(enum CostStyleType) const { return 0; };	
+	virtual int costHelper(enum CostStyleType) const { return 0; };
 
    int referenceCount;     // Reference count for freeing memory
    int useCount;           // Reference count for generating code
@@ -334,14 +335,14 @@ class AstNode : public Dyninst::PatchAPI::Snippet {
 
    virtual void setChildren(pdvector<AstNodePtr > &children);
    virtual AstNodePtr deepCopy() { return AstNodePtr(this);};
-   
+
 
 	// Occasionally, we do not call .generateCode_phase2 for the
 	// referenced node, but generate code by hand. This routine decrements
 	// its use count properly
 	void decUseCount(codeGen &gen);
 
-	// Our children may have incorrect useCounts (most likely they 
+	// Our children may have incorrect useCounts (most likely they
 	// assume that we will not bother them again, which is wrong)
 	void fixChildrenCounts();
 
@@ -357,11 +358,11 @@ class AstNode : public Dyninst::PatchAPI::Snippet {
    bool stealRegister(Register reg);
 
 	// Check to see if path1 is a subpath of path2
-	bool subpath(const pdvector<AstNode*> &path1, 
+	bool subpath(const pdvector<AstNode*> &path1,
                 const pdvector<AstNode*> &path2) const;
 
 	// Return all children of this node ([lre]operand, ..., operands[])
-	virtual void getChildren(pdvector<AstNodePtr> &); 
+	virtual void getChildren(pdvector<AstNodePtr> &);
 
    void printRC(void);
 	virtual bool accessesParam(void);
@@ -371,15 +372,15 @@ class AstNode : public Dyninst::PatchAPI::Snippet {
 	virtual const image_variable* getOVar() const {
       return NULL;
 	}
-	
-	virtual void emitVariableStore(opCode, Register, Register, codeGen&, 
-                                  bool, registerSpace*, 
+
+	virtual void emitVariableStore(opCode, Register, Register, codeGen&,
+                                  bool, registerSpace*,
                                   int, const instPoint*, AddressSpace*)
 	{
       assert(!"Never call this on anything but an operand");
 	}
-	virtual void emitVariableLoad(opCode, Register, Register, codeGen&, 
-                                 bool, registerSpace*, 
+	virtual void emitVariableLoad(opCode, Register, Register, codeGen&,
+                                 bool, registerSpace*,
                                  int, const instPoint*, AddressSpace*)
 	{
       assert(!"Never call this on anything but an operand");
@@ -411,10 +412,10 @@ class AstNode : public Dyninst::PatchAPI::Snippet {
 	void		  setType(BPatch_type *t);
 	void		  setTypeChecking(bool x) { doTypeCheck = x; }
 	virtual BPatch_type	  *checkType(BPatch_function* func = NULL);
-	
+
 
         // PatchAPI compatibility
-        virtual bool generate(Dyninst::PatchAPI::Point *, 
+        virtual bool generate(Dyninst::PatchAPI::Point *,
                               Dyninst::Buffer &);
 
  private:
@@ -432,7 +433,7 @@ class AstNullNode : public AstNode {
    virtual std::string format(std::string indent);
     virtual bool containsFuncCall() const;
     virtual bool usesAppRegister() const;
-    
+
     bool canBeKept() const { return true; }
  private:
     virtual bool generateCode_phase2(codeGen &gen,
@@ -533,7 +534,7 @@ class AstOperatorNode : public AstNode {
  public:
 
     AstOperatorNode(opCode opC, AstNodePtr l, AstNodePtr r = AstNodePtr(), AstNodePtr e = AstNodePtr());
-    
+
     ~AstOperatorNode() {
         //printf("at ~AstOperatorode()\n");
         //debugPrint();
@@ -541,7 +542,7 @@ class AstOperatorNode : public AstNode {
 
 
    virtual std::string format(std::string indent);
-    virtual int costHelper(enum CostStyleType costStyle) const;	
+    virtual int costHelper(enum CostStyleType costStyle) const;
 
     virtual BPatch_type	  *checkType(BPatch_function* func = NULL);
     virtual bool accessesParam(void);         // Does this AST access "Param"
@@ -549,17 +550,17 @@ class AstOperatorNode : public AstNode {
     virtual bool canBeKept() const;
 
     virtual void getChildren(pdvector<AstNodePtr> &children);
-    
+
     virtual void setChildren(pdvector<AstNodePtr> &children);
     virtual AstNodePtr deepCopy();
 
     virtual bool containsFuncCall() const;
     virtual bool usesAppRegister() const;
- 
+
 
     // We override initRegisters in the case of writing to an original register.
     virtual bool initRegisters(codeGen &gen);
-    
+
     virtual void setVariableAST(codeGen &gen);
 
  private:
@@ -590,13 +591,13 @@ class AstOperandNode : public AstNode {
     AstOperandNode(operandType ot, AstNodePtr l);
 
     AstOperandNode(operandType ot, const image_variable* iv);
-    
+
     ~AstOperandNode() {
         //printf("at ~AstOperandNode()\n");
         //debugPrint();
         if (oType == ConstantString) free((char *)oValue);
     }
-        
+
     // Arguably, the previous should be an operation...
     // however, they're kinda endemic.
 
@@ -606,23 +607,23 @@ class AstOperandNode : public AstNode {
 
     virtual void setOValue(void *o) { oValue = o; }
     virtual const void *getOValue() const { return oValue; };
-    virtual const image_variable* getOVar() const 
+    virtual const image_variable* getOVar() const
     {
       return oVar;
     }
-    
+
 
     virtual AstNodePtr operand() const { return operand_; }
 
-    virtual int costHelper(enum CostStyleType costStyle) const;	
-        
+    virtual int costHelper(enum CostStyleType costStyle) const;
+
     virtual BPatch_type	  *checkType(BPatch_function* func = NULL);
 
     virtual bool accessesParam(void) { return (oType == Param || oType == ParamAtEntry || oType == ParamAtCall); };
     virtual bool canBeKept() const;
-        
+
     virtual void getChildren(pdvector<AstNodePtr> &children);
-    
+
     virtual void setChildren(pdvector<AstNodePtr> &children);
     virtual AstNodePtr deepCopy();
 
@@ -631,23 +632,23 @@ class AstOperandNode : public AstNode {
     virtual bool containsFuncCall() const;
 
     virtual bool usesAppRegister() const;
- 
-    virtual void emitVariableStore(opCode op, Register src1, Register src2, codeGen& gen, 
-			   bool noCost, registerSpace* rs, 
+
+    virtual void emitVariableStore(opCode op, Register src1, Register src2, codeGen& gen,
+			   bool noCost, registerSpace* rs,
 			   int size, const instPoint* point, AddressSpace* as);
-    virtual void emitVariableLoad(opCode op, Register src2, Register dest, codeGen& gen, 
-			  bool noCost, registerSpace* rs, 
+    virtual void emitVariableLoad(opCode op, Register src2, Register dest, codeGen& gen,
+			  bool noCost, registerSpace* rs,
 			  int size, const instPoint* point, AddressSpace* as);
 
     virtual bool initRegisters(codeGen &gen);
-        
+
  private:
     virtual bool generateCode_phase2(codeGen &gen,
                                      bool noCost,
                                      Address &retAddr,
                                      Register &retReg);
     int_variable* lookUpVar(AddressSpace* as);
-    
+
     AstOperandNode(): oType(undefOperandType), oValue(NULL), oVar(NULL) {};
 
     operandType oType;
@@ -664,26 +665,26 @@ class AstCallNode : public AstNode {
     AstCallNode(const std::string &str, pdvector<AstNodePtr>&args);
     AstCallNode(Address addr, pdvector<AstNodePtr> &args);
     AstCallNode(func_instance *func);
-    
+
     ~AstCallNode() {}
 
    virtual std::string format(std::string indent);
 
-    virtual int costHelper(enum CostStyleType costStyle) const;	
-        
+    virtual int costHelper(enum CostStyleType costStyle) const;
+
     virtual BPatch_type	  *checkType(BPatch_function* func = NULL);
-    virtual bool accessesParam(); 
+    virtual bool accessesParam();
     virtual bool canBeKept() const;
 
     virtual void getChildren(pdvector<AstNodePtr> &children);
-    
+
     virtual void setChildren(pdvector<AstNodePtr> &children);
     virtual AstNodePtr deepCopy();
 
     virtual void setVariableAST(codeGen &gen);
-    virtual bool containsFuncCall() const; 
+    virtual bool containsFuncCall() const;
     virtual bool usesAppRegister() const;
- 
+
     void setConstFunc(bool val) { constFunc_ = val; }
 
     virtual bool initRegisters(codeGen &gen);
@@ -698,14 +699,14 @@ class AstCallNode : public AstNode {
     // Sometimes we just don't have enough information...
     const std::string func_name_;
     Address func_addr_;
-    
+
     func_instance *func_;
     pdvector<AstNodePtr> args_;
 
     bool callReplace_; // Node is intended for function call replacement
-    bool constFunc_;  // True if the output depends solely on 
+    bool constFunc_;  // True if the output depends solely on
     // input parameters, or can otherwise be guaranteed to not change
-    // if executed multiple times in the same sequence - AKA 
+    // if executed multiple times in the same sequence - AKA
     // "can be kept".
 };
 
@@ -718,21 +719,21 @@ class AstSequenceNode : public AstNode {
 
    virtual std::string format(std::string indent);
 
-    virtual int costHelper(enum CostStyleType costStyle) const;	
+    virtual int costHelper(enum CostStyleType costStyle) const;
 
     virtual BPatch_type	  *checkType(BPatch_function* func = NULL);
     virtual bool accessesParam();
     virtual bool canBeKept() const;
 
     virtual void getChildren(pdvector<AstNodePtr> &children);
-    
+
     virtual void setChildren(pdvector<AstNodePtr> &children);
     virtual AstNodePtr deepCopy();
 
     virtual void setVariableAST(codeGen &gen);
     virtual bool containsFuncCall() const;
     virtual bool usesAppRegister() const;
- 
+
 
  private:
     virtual bool generateCode_phase2(codeGen &gen,
@@ -752,7 +753,7 @@ class AstVariableNode : public AstNode {
 
     virtual std::string format(std::string indent);
 
-    virtual int costHelper(enum CostStyleType costStyle) const;	
+    virtual int costHelper(enum CostStyleType costStyle) const;
 
     virtual BPatch_type	  *checkType(BPatch_function* = NULL) { return getType(); }
     virtual bool accessesParam();
@@ -764,13 +765,13 @@ class AstVariableNode : public AstNode {
     virtual void setVariableAST(codeGen &gen);
 
     virtual void getChildren(pdvector<AstNodePtr> &children);
-    
+
     virtual void setChildren(pdvector<AstNodePtr> &children);
     virtual AstNodePtr deepCopy();
 
     virtual bool containsFuncCall() const;
     virtual bool usesAppRegister() const;
- 
+
 
  private:
     virtual bool generateCode_phase2(codeGen &gen,
@@ -795,16 +796,16 @@ class AstMiniTrampNode : public AstNode {
     }
 
 
-    Address generateTramp(codeGen &gen, 
-                          int &trampCost, 
+    Address generateTramp(codeGen &gen,
+                          int &trampCost,
                           bool noCost);
-            
-    virtual ~AstMiniTrampNode() {}    
 
-    virtual bool accessesParam(void) { return ast_->accessesParam(); } 
+    virtual ~AstMiniTrampNode() {}
+
+    virtual bool accessesParam(void) { return ast_->accessesParam(); }
 
     virtual void getChildren(pdvector<AstNodePtr> &children);
-    
+
     virtual void setChildren(pdvector<AstNodePtr> &children);
     virtual AstNodePtr deepCopy();
 
@@ -812,7 +813,7 @@ class AstMiniTrampNode : public AstNode {
 
     virtual bool containsFuncCall() const;
     virtual bool usesAppRegister() const;
- 
+
 
     bool canBeKept() const;
 
@@ -832,14 +833,14 @@ class AstMemoryNode : public AstNode {
    virtual std::string format(std::string indent);
    virtual bool containsFuncCall() const;
    virtual bool usesAppRegister() const;
- 
+
 
  private:
     virtual bool generateCode_phase2(codeGen &gen,
                                      bool noCost,
                                      Address &retAddr,
                                      Register &retReg);
-    
+
     AstMemoryNode() {};
     memoryType mem_;
     unsigned which_;
@@ -856,7 +857,7 @@ class AstOriginalAddrNode : public AstNode {
     virtual bool canBeKept() const { return true; }
     virtual bool containsFuncCall() const;
     virtual bool usesAppRegister() const;
- 
+
 
  private:
     virtual bool generateCode_phase2(codeGen &gen,
@@ -876,7 +877,7 @@ class AstActualAddrNode : public AstNode {
     virtual bool canBeKept() const { return false; }
     virtual bool containsFuncCall() const;
     virtual bool usesAppRegister() const;
- 
+
  private:
     virtual bool generateCode_phase2(codeGen &gen,
                                      bool noCost,
@@ -895,7 +896,7 @@ class AstDynamicTargetNode : public AstNode {
     virtual bool canBeKept() const { return false; }
     virtual bool containsFuncCall() const;
     virtual bool usesAppRegister() const;
- 
+
  private:
     virtual bool generateCode_phase2(codeGen &gen,
                                      bool noCost,
@@ -911,7 +912,7 @@ class AstScrambleRegistersNode : public AstNode {
     virtual bool canBeKept() const { return false; }
     virtual bool containsFuncCall() const;
     virtual bool usesAppRegister() const;
- 
+
  private:
     virtual bool generateCode_phase2(codeGen &gen,
                                      bool noCost,
@@ -928,7 +929,7 @@ class AstPaddingNode : public AstNode {
     virtual bool canBeKept() const { return false; }
     virtual bool containsFuncCall() const { return false; }
     virtual bool usesAppRegister() const { return false; }
- 
+
  private:
     int padding_;
     virtual bool generateCode_phase2(codeGen &gen,
@@ -939,21 +940,37 @@ class AstPaddingNode : public AstNode {
 
 class AstSnippetNode : public AstNode {
    // This is a little odd, since an AstNode _is_
-   // a Snippet. It's a compatibility interface to 
+   // a Snippet. It's a compatibility interface to
    // allow generic PatchAPI snippets to play nice
-   // in our world. 
+   // in our world.
   public:
   AstSnippetNode(Dyninst::PatchAPI::SnippetPtr snip) : snip_(snip) {};
    bool canBeKept() const { return false; }
    bool containsFuncCall() const { return false; }
    bool usesAppRegister() const { return false; }
-   
+
   private:
     virtual bool generateCode_phase2(codeGen &gen,
                                      bool noCost,
                                      Address &retAddr,
                                      Register &retReg);
     Dyninst::PatchAPI::SnippetPtr snip_;
+};
+
+class AstGoRuntimeUnwindNode : public AstNode {
+    public:
+    AstGoRuntimeUnwindNode(AddressSpace* as, int i) : as_(as), paramIndex_(i) {};
+    bool canBeKept() const { return false; }
+    bool containsFuncCall() const { return false; }
+    bool usesAppRegister() const { return false; }
+
+    private:
+    virtual bool generateCode_phase2(codeGen &gen,
+                                     bool noCost,
+                                     Address &retAddr,
+                                     Register &retReg);
+    AddressSpace * as_;
+    int paramIndex_;
 };
 
 void emitLoadPreviousStackFrameRegister(Address register_num,
