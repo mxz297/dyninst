@@ -118,6 +118,7 @@ class EmitterPOWER : public Emitter {
                                          func_instance *);
     void emitCallWithSaves(codeGen &gen, Address dest, bool saveToc, bool saveLR, bool saveR12);
     virtual bool emitPadding(int p, codeGen&);
+    virtual bool emitGoUnwindTranslate(int, codeGen&) { assert(0); return true; }
     
  protected:
     virtual bool emitCallInstruction(codeGen &, func_instance *,

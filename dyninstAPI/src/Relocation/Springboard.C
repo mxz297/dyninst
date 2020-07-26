@@ -236,6 +236,15 @@ bool InstalledSpringboards::addBlocks(func_instance* func, BlockIter begin, Bloc
         co->findBlocks(cr, offset_end, blocks);
     }
 
+    std::vector<SymtabAPI::Symbol *> symbols = ((ParseAPI::SymtabCodeSource*)(co->cs()))->getSymtabObject()->findSymbolByOffset(end);
+
+    for (auto s : symbols) {
+        if (s->getMangledName() == "__glink_PLTresolve") {
+            end = bbl->end();
+            break;
+        }
+    }
+
     SpringboardInfo* info = new SpringboardInfo(func->addr(), func);
 
     // If we extended the block, remember that range
