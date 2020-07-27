@@ -367,6 +367,7 @@ void CodeMover::OptimizeSpringboards() {
             // then it is a safe block
             if (canRemoveTrampoline(b, trampolineLocs)) {
                 springboard_cerr << "identify safe block " << hex << b->start() << " - " << b->end() << dec << endl;
+                safeBlocks.insert(b);
             }
         }
         f->setSafeBlocks(safeBlocks);
