@@ -172,6 +172,7 @@ public:
 
     virtual bool clobberAllFuncCall(registerSpace *rs, func_instance *callee);
     virtual bool emitPadding(int, codeGen&);
+    virtual bool emitGoUnwindTranslate(int, codeGen&) { assert(0); return true; }
 
 protected:
     virtual bool emitCallInstruction(codeGen &, func_instance *,
