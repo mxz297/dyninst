@@ -128,12 +128,12 @@ boost::make_lock_guard(*func);
 	    StridedInterval target;
 	    jtip.IsIndexBounded(g, bfc, target);
         }
-        if (jtip.findBound) {
+        if (jtip.findBound && func->obj()->cs()->getArch() != Arch_ppc64) {
             parsing_printf(" find bound %s for %lx\n", jtip.bound.format().c_str(), block->last());
 	    b = jtip.bound;
         } else {
-            parsing_printf(" Cannot find bound, assume there are at most 256 entries and scan the table for indirect jump at %lx\n", block->last());
-	    b = StridedInterval(1, 0, 255);
+            parsing_printf(" Cannot find bound, assume there are at most 1024 entries and scan the table for indirect jump at %lx\n", block->last());
+	    b = StridedInterval(1, 0, 1023);
 	    scanTable = true;
         }
     } else {
