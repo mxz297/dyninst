@@ -299,6 +299,7 @@ class parse_func : public ParseAPI::Function
 
    bool isInstrumentable();
    bool hasUnresolvedCF();
+   bool hasLargeGaps();
 
    // ----------------------------------------------------------------------
 
