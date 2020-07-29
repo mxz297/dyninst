@@ -609,7 +609,11 @@ bool parse_func::isInstrumentable() {
           return false;
       }
     }
-
+   if (name() == "__glink_PLTresolve") {
+       // On ppc64le, this function has a conditinal PC thunk.
+       // We cannot handle it propertly
+       return false;
+   }
    if (hasUnresolvedCF() && hasLargeGaps()) {
       return false;
    }
