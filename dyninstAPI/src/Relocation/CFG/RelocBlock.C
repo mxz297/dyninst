@@ -314,13 +314,9 @@ void RelocBlock::processEdge(EdgeDirection e, edge_instance *edge, RelocGraph *c
 
 
 bool RelocBlock::determineSpringboards(PriorityMap &p) {
-   // We _require_ a springboard if:
-   // 1) We are a function entry block;
-   // 2) We are the target of an indirect branch;
-   // 3) We are the target of an edge not from a trace. 
-   if (func_ &&
-       func_->entryBlock() == block_ &&
-       func_->isEntryInstrumented()) {
+   // We initially place trampolines at function entry
+   // and every instrumented block
+   if (func_ && func_->entryBlock() == block_) {
      relocation_cerr << "determineSpringboards (entry block): " << func_->symTabName()
 		     << " / " << hex << block_->start() << " is required" << dec << endl;
       p[std::make_pair(block_, func_)] = FuncEntry;
@@ -332,46 +328,11 @@ bool RelocBlock::determineSpringboards(PriorityMap &p) {
        p[std::make_pair(block_, func_)] = FuncEntry;
        return true;
    }
-   if ( (block_->isFuncExit() && func_->isExitInstrumented()) ||
-        block_->isInstrumented() ) {
-       if (block_->isInstrumented()) {
-           relocation_cerr << "determineSpringboards (block instrumented): " << func_->symTabName()
+   if ( (block_->isFuncExit() && func_->isExitInstrumented()) ) {
+       relocation_cerr << "determineSpringboards (exit block): " << func_->symTabName()
                << " / " << hex << block_->start() << " is required" << dec << endl;
-       } else {
-           relocation_cerr << "determineSpringboards (exit block): " << func_->symTabName()
-               << " / " << hex << block_->start() << " is required" << dec << endl;
-       }
-       if (inEdges_.contains(ParseAPI::INDIRECT) || 
-           inEdges_.contains(ParseAPI::CATCH) ||
-           inEdges_.contains(ParseAPI::CALL_FT) ||
-           inEdges_.contains(ParseAPI::RET) ||
-           inEdges_.contains(ParseAPI::CALL) ||
-           (block_->end() - block_->start() >= 5)) {
-           p[std::make_pair(block_, func_)] = FuncEntry;
-           return true;
-       } else {
-           bool allCanHoldBranch = true;
-           for (auto eit = block_->sources().begin(); eit != block_->sources().end(); ++eit) {
-               if ((*eit)->type() == ParseAPI::CALL) continue;
-               block_instance* srcBlock = (block_instance*) ((*eit)->src());
-               if (srcBlock->end() - srcBlock->start() < 5) {
-                   allCanHoldBranch = false;
-                   break;
-               }
-           }
-           if (allCanHoldBranch) {
-               for (auto eit = block_->sources().begin(); eit != block_->sources().end(); ++eit) {
-                   if ((*eit)->type() == ParseAPI::CALL) continue;
-                   block_instance* srcBlock = (block_instance*) ((*eit)->src());
-           relocation_cerr << "determineSpringboards (move trampolines): " << func_->symTabName()
-               << " / " << hex << srcBlock->start() << " is required" << dec << endl;
-
-                   p[std::make_pair(srcBlock, func_)] = FuncEntry;
-               }
-           } else {
-               p[std::make_pair(block_, func_)] = FuncEntry;
-           }
-       }
+       p[std::make_pair(block_, func_)] = FuncEntry;
+       return true;
    }
    if (inliningCall) {
        p[std::make_pair(block_, func_)] = FuncEntry;
