@@ -243,8 +243,20 @@ SpringboardMap &CodeMover::sBoardMap(AddressSpace *) {
              sboardMap_.addFromOrigCode(bbl->start() + 0x8, to, p, func, bbl);
          }
          else {
-             relocation_cerr << "\t" << hex << "springboard target " << bbl->start() << endl;
-             sboardMap_.addFromOrigCode(bbl->start(), to, p, func, bbl);
+             Address from = bbl->start();
+             if (func->entryBlock() == bbl) {
+                 ParseAPI::Block::Insns insns;
+                 bbl->llb()->getInsns(insns);
+                 for (auto & it : insns) {
+                     if (it.second.getOperation().getID() == e_nop) {
+                         relocation_cerr << "skip nop at function entry block " << endl;
+                         from += it.second.size();
+                         break;
+                     }
+                 }
+             }
+             relocation_cerr << "\t" << hex << "springboard target " << from << endl;
+             sboardMap_.addFromOrigCode(from, to, p, func, bbl);
          }
       }
       
