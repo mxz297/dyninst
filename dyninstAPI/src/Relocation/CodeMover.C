@@ -249,10 +249,10 @@ SpringboardMap &CodeMover::sBoardMap(AddressSpace *) {
                  bbl->llb()->getInsns(insns);
                  for (auto & it : insns) {
                      if (it.second.getOperation().getID() == e_nop) {
-                         relocation_cerr << "skip nop at function entry block " << endl;
-                         from += it.second.size();
-                         break;
+                         relocation_cerr << "skip nop at function entry block at " << std::hex << it.first << std::dec << endl;
+                         from += it.second.size();                         
                      }
+                     break;
                  }
              }
              relocation_cerr << "\t" << hex << "springboard target " << from << endl;
