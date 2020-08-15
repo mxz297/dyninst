@@ -357,6 +357,8 @@ bool Parser::getGapRange(CodeRegion* cr, Address curAddr, Address& gapStart, Add
 }
 
 void Parser::probabilistic_gap_parsing(CodeRegion *cr) {
+    char * hpcfnbound = getenv("DYNINST_PARSE_USE_HPCFNBOUND");
+    if (hpcfnbound != NULL) return;
     // 0. ensure that we've parsed and finalized all vanilla parsing.
     // We also locate all the gaps
     

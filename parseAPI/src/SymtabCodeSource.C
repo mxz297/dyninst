@@ -1,28 +1,28 @@
 /*
  * See the dyninst/COPYRIGHT file for copyright information.
- * 
+ *
  * We provide the Paradyn Tools (below described as "Paradyn")
  * on an AS IS basis, and do not warrant its validity or performance.
  * We reserve the right to update, modify, or discontinue this
  * software at any time.  We shall have no obligation to supply such
  * updates or modifications or any other form of support to you.
- * 
+ *
  * By your use of Paradyn, you understand and agree that we (or any
  * other person or entity with proprietary rights in Paradyn) are
  * under no obligation to provide either maintenance services,
  * update services, notices of latent defects, or correction of
  * defects for Paradyn.
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
- * 
+ *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
@@ -49,6 +49,22 @@
 using namespace std;
 using namespace Dyninst;
 using namespace Dyninst::ParseAPI;
+
+#include <iostream>
+#include <stdexcept>
+#include <stdio.h>
+#include <string>
+
+std::string exe_command(const char* cmd) {
+    char buffer[128];
+    std::string result = "";
+    FILE* pipe = popen(cmd, "r");
+    while (fgets(buffer, sizeof buffer, pipe) != NULL) {
+        result += buffer;
+    }
+    pclose(pipe);
+    return result;
+}
 
 typedef dyn_c_hash_map<Address, bool> SeenMap;
 
@@ -187,7 +203,7 @@ SymtabCodeRegion::isCode(const Address addr) const
     }
     // XXX this is the predicate from Symtab::isCode(a) +
     //     the condition by which Symtab::codeRegions_ is filled
-    return !_region->isBSS() && 
+    return !_region->isBSS() &&
            (_region->getRegionType() == SymtabAPI::Region::RT_TEXT ||
             _region->getRegionType() == SymtabAPI::Region::RT_TEXTDATA ||
             (_symtab->isDefensiveBinary() && _region->isLoadable()) );
@@ -200,7 +216,7 @@ SymtabCodeRegion::isData(const Address addr) const
 
     // XXX Symtab::isData(a) tests both RT_DATA (Region::isData(a))
     //     and RT_TEXTDATA. Mimicking that behavior
-    return _region->isData() || 
+    return _region->isData() ||
            _region->getRegionType()==SymtabAPI::Region::RT_TEXTDATA;
 }
 
@@ -238,9 +254,9 @@ SymtabCodeSource::~SymtabCodeSource()
         delete _regions[i];
 }
 
-SymtabCodeSource::SymtabCodeSource(SymtabAPI::Symtab * st, 
+SymtabCodeSource::SymtabCodeSource(SymtabAPI::Symtab * st,
                                    hint_filt * filt,
-                                   bool allLoadedRegions) : 
+                                   bool allLoadedRegions) :
     _symtab(st),
     owns_symtab(false),
     stats_parse(new ::StatContainer()),
@@ -250,7 +266,7 @@ SymtabCodeSource::SymtabCodeSource(SymtabAPI::Symtab * st,
     init(filt,allLoadedRegions);
 }
 
-SymtabCodeSource::SymtabCodeSource(SymtabAPI::Symtab * st) : 
+SymtabCodeSource::SymtabCodeSource(SymtabAPI::Symtab * st) :
     _symtab(st),
     owns_symtab(false),
     stats_parse(new ::StatContainer()),
@@ -267,7 +283,7 @@ SymtabCodeSource::SymtabCodeSource(char * file) :
     _have_stats(false)
 {
     init_stats();
-    
+
     bool valid;
 
     valid = SymtabAPI::Symtab::openFile(_symtab,file);
@@ -287,7 +303,7 @@ SymtabCodeSource::init_stats() {
         // General counts
         stats_parse->add(PARSE_BLOCK_COUNT, CountStat);
         stats_parse->add(PARSE_FUNCTION_COUNT, CountStat);
-        
+
         // Basic block size information
         stats_parse->add(PARSE_BLOCK_SIZE, CountStat);
 
@@ -315,21 +331,21 @@ SymtabCodeSource::init_stats() {
 
 void
 SymtabCodeSource::print_stats() const {
-    
+
     if (_have_stats) {
         fprintf(stderr, "[%s] Printing ParseAPI statistics\n", FILE__);
         fprintf(stderr, "\t Basic Stats:\n");
         fprintf(stderr, "\t\t Block Count: %ld\n", (*stats_parse)[PARSE_BLOCK_COUNT]->value());
         fprintf(stderr, "\t\t Function Count: %ld\n", (*stats_parse)[PARSE_FUNCTION_COUNT]->value());
-        
+
         long int blockSize = (*stats_parse)[PARSE_BLOCK_SIZE]->value();
         if (blockSize) {
             fprintf(stderr, "\t Basic Block Stats:\n");
             fprintf(stderr, "\t\t Sum of block sizes (in bytes): %ld\n", blockSize);
             fprintf(stderr, "\t\t Average block size (in bytes): %lf\n", (double)blockSize/(double)(*stats_parse)[PARSE_BLOCK_COUNT]->value());
-            fprintf(stderr, "\t\t Average blocks per function: %lf\n", 
+            fprintf(stderr, "\t\t Average blocks per function: %lf\n",
                     (double)(*stats_parse)[PARSE_BLOCK_COUNT]->value()/(double)(*stats_parse)[PARSE_FUNCTION_COUNT]->value());
-        } 
+        }
         fprintf(stderr, "\t Function Return Status Stats:\n");
         fprintf(stderr, "\t\t NORETURN Count: %ld", (*stats_parse)[PARSE_NORETURN_COUNT]->value());
         long int noretHeuristicCount = (*stats_parse)[PARSE_NORETURN_HEURISTIC]->value();
@@ -360,7 +376,7 @@ SymtabCodeSource::incrementCounter(const std::string& name) const
     }
 }
 
-void 
+void
 SymtabCodeSource::addCounter(const std::string& name, int num) const
 {
     if (_have_stats) {
@@ -408,7 +424,7 @@ SymtabCodeSource::init(hint_filt * filt , bool allLoadedRegions)
     _table_of_contents = _symtab->getTOCoffset();
 }
 
-void 
+void
 SymtabCodeSource::init_regions(hint_filt * filt , bool allLoadedRegions)
 {
     RegionMap rmap;
@@ -436,7 +452,7 @@ SymtabCodeSource::init_regions(hint_filt * filt , bool allLoadedRegions)
         SymtabAPI::Region *r = regs[i];
         parsing_printf("   %lx %s",r->getMemOffset(),
             r->getRegionName().c_str());
-    
+
         // XXX only TEXT, DATA, TEXTDATA?
         SymtabAPI::Region::RegionType rt = r->getRegionType();
         if(false == allLoadedRegions &&
@@ -568,6 +584,47 @@ SymtabCodeSource::init_hints(RegionMap &rmap, hint_filt * filt)
             }
         }
     }
+
+    updateHintsWithHpcfnbounds(rmap, seen);
+}
+
+void
+SymtabCodeSource::updateHintsWithHpcfnbounds(RegionMap &rmap, SeenMap& seen)
+{
+    char * hpcfnbound = getenv("DYNINST_PARSE_USE_HPCFNBOUND");
+    if (hpcfnbound == NULL) return;
+
+    string cmd = string(hpcfnbound);
+    cmd = cmd + " " + getSymtabObject()->file();
+    string contents = exe_command(cmd.c_str());
+
+    SymtabAPI::Region* textReg = nullptr;
+    CodeRegion * cr = nullptr;
+    if (_symtab->findRegion(textReg, ".text")) {
+        RegionMap::const_accessor a;
+        if (rmap.find(a, textReg)) cr = a->second;
+    }
+    if (cr == nullptr) return;
+    std::istringstream iss(contents);
+    bool inText = false;
+    string line;
+    while (std::getline(iss, line, '\n')) {
+        if (line.find("start .text section()") != string::npos) inText = true;
+        if (line.find("end .text section()") != string::npos) break;
+        if (!inText) continue;
+        std::istringstream line_iss(line);
+        string addr_str;
+        std::getline(line_iss, addr_str, ' ');
+        addr_str = addr_str.substr(2);
+        Address addr = std::stoull(addr_str, 0, 16);
+        if (!seen.insert(std::make_pair(addr, true))) continue;
+        if(cr->isCode(addr)) {
+            char fname[128];
+            snprintf(fname, sizeof(fname), "targ%lx", addr);
+            _hints.push_back(Hint(addr, 0, cr, fname));
+            parsing_printf("\tnew function found in .eh_frame <%lx>\n", addr);            
+        }
+    }
 }
 
 void
@@ -583,7 +640,7 @@ SymtabCodeSource::init_linkage()
 
     for(fbtit = fbt.begin(); fbtit != fbt.end(); ++fbtit){
         //fprintf( stderr, "%lx %s\n", (*fbtit).target_addr(), (*fbtit).name().c_str());
-        _linkage[(*fbtit).target_addr()] = (*fbtit).name(); 
+        _linkage[(*fbtit).target_addr()] = (*fbtit).name();
     }
     if (getArch() != Arch_x86_64) return;
     SymtabAPI::Region * plt_sec = NULL;
@@ -639,7 +696,7 @@ SymtabCodeSource::init_linkage()
         SymtabAPI::relocationEntry &r = *re_it;
         rel_addr_to_name[r.rel_addr()] = r.name();
     }
-    const unsigned char* buffer = (const unsigned char*)plt_got->getPtrToRawData(); 
+    const unsigned char* buffer = (const unsigned char*)plt_got->getPtrToRawData();
     InstructionAPI::InstructionDecoder dec(buffer,plt_got->getMemSize(), getArch());
     int decoded = 0;
     while (decoded < plt_got->getMemSize()) {
@@ -678,8 +735,8 @@ bool
 SymtabCodeSource::nonReturning(Address addr)
 {
     SymtabAPI::Function * f = NULL;
-   
-    _symtab->findFuncByEntryOffset(f,addr); 
+
+    _symtab->findFuncByEntryOffset(f,addr);
 
     if(f) {
       for(auto i = f->mangled_names_begin();
@@ -741,21 +798,21 @@ SymtabCodeSource::lookup_region(const Address addr) const
     else {
         set<CodeRegion *> stab;
         int rcnt = findRegions(addr,stab);
-    
+
         assert(rcnt <= 1 || regionsOverlap());
 
         if(rcnt) {
           ret = *stab.begin();
           _lookup_cache.set(ret);
-        } 
+        }
     }
     return ret;
 }
 
-inline void 
+inline void
 SymtabCodeSource::overlapping_warn(const char * file, unsigned line) const
 {
-    
+
     if(regionsOverlap()) {
         parsing_printf("Invocation of routine at %s:%d is ambiguous for "
                        "binaries with overlapping code regions\n",
@@ -862,13 +919,13 @@ SymtabCodeSource::length() const
 }
 
 
-void 
+void
 SymtabCodeSource::removeRegion(CodeRegion &cr)
 {
     _region_tree.remove( &cr );
 
-    for (vector<CodeRegion*>::iterator rit = _regions.begin(); 
-         rit != _regions.end(); rit++) 
+    for (vector<CodeRegion*>::iterator rit = _regions.begin();
+         rit != _regions.end(); rit++)
     {
         if ( &cr == *rit ) {
             _regions.erase( rit );
@@ -879,7 +936,7 @@ SymtabCodeSource::removeRegion(CodeRegion &cr)
 
 // fails and returns false if it can't find a CodeRegion
 // to match the SymtabAPI::region
-// has to remove the region before modifying the region's size, 
+// has to remove the region before modifying the region's size,
 // otherwise the region can't be found
 bool
 SymtabCodeSource::resizeRegion(SymtabAPI::Region *sr, Address newDiskSize)
@@ -913,7 +970,7 @@ SymtabCodeSource::addNonReturning(std::string func_name)
     non_returning_funcs[func_name] = true;
 }
 
-bool 
+bool
 SymtabCodeSource::findCatchBlockByTryRange(Address addr, std::set<Address> & catchStarts) const {
     try_block target(addr, 0, 0);
     catchStarts.clear();
@@ -921,7 +978,7 @@ SymtabCodeSource::findCatchBlockByTryRange(Address addr, std::set<Address> & cat
     if (bit == try_blocks.begin()) return false;
     --bit;
     if (bit->tryStart <= addr && addr < bit->tryEnd)
-        catchStarts.insert(bit->catchStart); 
+        catchStarts.insert(bit->catchStart);
     return true;
 }
 

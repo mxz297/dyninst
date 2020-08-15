@@ -204,7 +204,8 @@ bool baseTramp::generateCode(codeGen &gen,
    if (instP()) {
       //iRPCs already have this set
       gen.setPoint(instP());
-      gen.setRegisterSpace(registerSpace::actualRegSpace(instP()));
+      //gen.setRegisterSpace(registerSpace::actualRegSpace(instP()));
+      gen.setRegisterSpace(registerSpace::conservativeRegSpace(gen.addrSpace()));
    }
    int count = 0;
 
@@ -296,8 +297,9 @@ bool baseTramp::generateCodeInlined(codeGen &gen,
 
    // Specialize for the instPoint...
 	
-   gen.setRegisterSpace(registerSpace::actualRegSpace(instP()));
-
+   //gen.setRegisterSpace(registerSpace::actualRegSpace(instP()));
+   gen.setRegisterSpace(registerSpace::conservativeRegSpace(gen.addrSpace()));
+   
    pdvector<AstNodePtr> miniTramps;
 
    bool onlyReloc = true;

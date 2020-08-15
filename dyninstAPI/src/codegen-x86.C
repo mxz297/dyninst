@@ -1160,7 +1160,31 @@ bool insnCodeGen::modifyCall(Address targetAddr, NS_x86::instruction &insn, code
    return true;
 }
 
-bool insnCodeGen::modifyData(Address targetAddr, instruction &insn, codeGen &gen) 
+bool insnCodeGen::modifyData(Address targetAddr, instruction &insn, codeGen &gen)
+{
+    if (modifyDataUsingDyninstInstructionDecoder(targetAddr, insn, gen)) {
+        return true;
+    }
+    const unsigned char *origInsn = insn.ptr();   
+    Address from = gen.currAddr();
+    signed long newDisp = targetAddr - from;
+    
+    InstructionAPI::InstructionDecoder d(origInsn, 30, Arch_x86_64);
+    InstructionAPI::Instruction ins = d.decode();
+    int size = ins.size() - 4;
+
+    GET_PTR(newInsn, gen);
+    for (int i = 0; i < size; ++i) {
+        *newInsn = origInsn[i];
+        ++newInsn;
+    }
+    *((int32_t*)(newInsn)) = newDisp;
+    newInsn += 4;
+    SET_PTR(newInsn, gen);
+    return true;
+}
+
+bool insnCodeGen::modifyDataUsingDyninstInstructionDecoder(Address targetAddr, instruction &insn, codeGen &gen) 
 {
     // We may need to change these from 32-bit relative
     // to 64-bit absolute. This happens with the jumps and calls
@@ -1192,7 +1216,7 @@ bool insnCodeGen::modifyData(Address targetAddr, instruction &insn, codeGen &gen
      * We are only going to do the prefix and opcode decodings
      */
     if(!ia32_decode_prefixes(origInsn, instruct, gen.width() == 8))
-        assert(!"Couldn't decode prefix of already known instruction!\n");
+        return false;
 
     /* get the prefix count */
     size_t pref_count = instruct.getSize();
@@ -1200,7 +1224,7 @@ bool insnCodeGen::modifyData(Address targetAddr, instruction &insn, codeGen &gen
 
     /* Decode the opcode */
     if(ia32_decode_opcode(0, origInsn, instruct, NULL, (gen.width() == 8)) < 0)
-        assert(!"Couldn't decode opcode of already known instruction!\n");
+        return false;
 
     /* Calculate the amount of opcode bytes */
     size_t opcode_len = instruct.getLocationInfo().opcode_size;
@@ -1259,7 +1283,7 @@ bool insnCodeGen::modifyData(Address targetAddr, instruction &insn, codeGen &gen
         newInsn += 4;
     } else {
         /* Impossible case */
-        assert(0);
+        return false;
     }
 
     // there may be an immediate after the displacement for RIP-relative

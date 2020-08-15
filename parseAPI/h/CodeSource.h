@@ -332,6 +332,7 @@ class PARSER_EXPORT SymtabCodeSource : public CodeSource, public boost::lockable
     void init_hints(RegionMap &, hint_filt*);
     void init_linkage();
     void init_try_blocks();
+    void updateHintsWithHpcfnbounds(RegionMap &, dyn_c_hash_map<Address, bool>&);
 
     CodeRegion * lookup_region(const Address addr) const;
     void removeRegion(CodeRegion &); // removes from region tree
