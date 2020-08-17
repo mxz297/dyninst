@@ -90,7 +90,8 @@ bool RelDataPatch::apply(codeGen &gen, CodeBuffer *) {
   if (!point || (point->type() != instPoint::PreInsn && point->insnAddr() != orig)) {
       point = instPoint::preInsn(func, block, orig, orig_insn, true);
   }
-  registerSpace *rs = registerSpace::actualRegSpace(point);
+  //registerSpace *rs = registerSpace::actualRegSpace(point);
+  registerSpace *rs = registerSpace::conservativeRegSpace(gen.addrSpace());
   gen.setRegisterSpace(rs);
 
   if (!insnCodeGen::modifyData(target_addr, ugly_insn, gen)) {
