@@ -1,28 +1,28 @@
 /*
  * See the dyninst/COPYRIGHT file for copyright information.
- * 
+ *
  * We provide the Paradyn Tools (below described as "Paradyn")
  * on an AS IS basis, and do not warrant its validity or performance.
  * We reserve the right to update, modify, or discontinue this
  * software at any time.  We shall have no obligation to supply such
  * updates or modifications or any other form of support to you.
- * 
+ *
  * By your use of Paradyn, you understand and agree that we (or any
  * other person or entity with proprietary rights in Paradyn) are
  * under no obligation to provide either maintenance services,
  * update services, notices of latent defects, or correction of
  * defects for Paradyn.
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
- * 
+ *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
@@ -69,7 +69,7 @@ Block::~Block()
 }
 
 bool
-Block::consistent(Address addr, Address & prev_insn) 
+Block::consistent(Address addr, Address & prev_insn)
 {
     if (addr >= end() || addr < start()) return false;
     InstructionSource * isrc;
@@ -121,7 +121,7 @@ Intraproc::pred_impl(Edge * e) const
     return base && (e->type() != CALL) && (e->type() != RET) && (!e->interproc());
 }
 
-bool Interproc::pred_impl(Edge *e) const 
+bool Interproc::pred_impl(Edge *e) const
 {
     bool base = EdgePredicate::pred_impl(e);
 
@@ -132,7 +132,7 @@ bool
 SingleContext::pred_impl(Edge * e) const
 {
     bool base = EdgePredicate::pred_impl(e);
-    return base && !e->interproc() && 
+    return base && !e->interproc() &&
         (!_forward || _context->contains(e->trg())) &&
         (!_backward || _context->contains(e->src()));
 }
@@ -142,7 +142,7 @@ SingleContextOrInterproc::pred_impl(Edge * e) const
 {
     bool base = EdgePredicate::pred_impl(e);
 
-    bool singleContext = base && 
+    bool singleContext = base &&
         (!_forward || _context->contains(e->trg())) &&
         (!_backward || _context->contains(e->src()));
 
@@ -156,7 +156,7 @@ int Block::containingFuncs() const {
     return _func_cnt;
 }
 
-void Block::removeFunc(Function *) 
+void Block::removeFunc(Function *)
 {
     if ((0 == _func_cnt) && _obj) {
         _obj->finalize();
@@ -168,7 +168,7 @@ void Block::removeFunc(Function *)
 void Block::updateEnd(Address addr)
 {
     if(!_obj) return;
-    _obj->cs()->addCounter(PARSE_BLOCK_SIZE, -1*size());   
+    _obj->cs()->addCounter(PARSE_BLOCK_SIZE, -1*size());
     _end = addr;
     high_ = addr;
     _obj->cs()->addCounter(PARSE_BLOCK_SIZE, size());
@@ -186,20 +186,20 @@ void Edge::install()
 
 void Edge::uninstall()
 {
-    mal_printf("Uninstalling edge [%lx]->[%lx]\n", 
+    mal_printf("Uninstalling edge [%lx]->[%lx]\n",
                src()->lastInsnAddr(), _target_off);
     // if it's a call edge, it's cached in the function object, remove it
     if (CALL == type()) {
         vector<Function*> srcFs;
         src()->getFuncs(srcFs);
-        for (vector<Function*>::iterator fit = srcFs.begin(); 
-             fit != srcFs.end(); fit++) 
+        for (vector<Function*>::iterator fit = srcFs.begin();
+             fit != srcFs.end(); fit++)
         {
             if ( ! (*fit)->_cache_valid ) {
                 continue;
             }
             for (set<Edge*>::iterator eit = (*fit)->_call_edge_list.begin();
-                 eit != (*fit)->_call_edge_list.end(); eit++) 
+                 eit != (*fit)->_call_edge_list.end(); eit++)
             {
                 if (this == (*eit)) {
                     (*fit)->_call_edge_list.erase(*eit);
@@ -239,7 +239,7 @@ std::string format(EdgeTypeEnum e) {
 }
 
 bool ParseAPI::Block::wasUserAdded() const {
-   return region()->wasUserAdded(); 
+   return region()->wasUserAdded();
 }
 
 void
@@ -286,7 +286,7 @@ bool Block::operator!=(const Block &rhs) const {
     return !(rhs == *this);
 }
 
-void Block::addSource(Edge * e) 
+void Block::addSource(Edge * e)
 {
     boost::lock_guard<Block> g(*this);
     _srclist.insert(e);
@@ -321,7 +321,7 @@ void Block::moveTargetEdges(Block* B) {
     if (this == B) return;
     boost::lock_guard<Block> g(*this);
     Block* A = this;
-    /* We move outgoing edges from this block to block B, which is 
+    /* We move outgoing edges from this block to block B, which is
      * necessary when spliting blocks.
      * The start of block B should be consistent with block A.
      *
@@ -338,8 +338,8 @@ void Block::moveTargetEdges(Block* B) {
 }
 
 bool EdgeCompare::operator() (Edge* const &a, Edge* const &b) const {
-    if (a->src()->start() != b->src()->start())
-        return a->src()->start() < b->src()->start();
+    if (a->src()->last() != b->src()->last())
+        return a->src()->last() < b->src()->last();
     if (a->trg_addr() != b->trg_addr())
         return a->trg_addr() < b->trg_addr();
     return a->type() < b->type();
