@@ -315,15 +315,17 @@ void CodeMover::OptimizeSpringboards() {
         funcMap[f].insert(b);
     }
 
-    for (auto it : funcMap) {
+    for (auto& it : funcMap) {
         func_instance* f = it.first;
-        set<block_instance*>& trampolineLocs = it.second;
-        for (auto b : trampolineLocs) {
+        set<block_instance*> trampolineLocs = it.second;
+        for (auto b : it.second) {
             if (canRemoveTrampoline(b, trampolineLocs)) {
                 priorityMap_.erase(make_pair(b, f));
+                trampolineLocs.erase(b);
                 springboard_cerr << " remove trampoline at " << hex << b->start() << dec << endl;
             }
         }
+        it.second = trampolineLocs;
     }
 
     /*
@@ -405,6 +407,7 @@ void CodeMover::refillSafeBlockWithInvalidInsns(block_instance* b) {
 }
 
 bool CodeMover::canRemoveTrampoline(block_instance* b, const set<block_instance*>& tBlocks) {
+    springboard_cerr << "canRemoveTrampoline " << hex << b->start() << " - " << b->end() << dec << endl;                               
     set<block_instance*> visited;
     return ReverseDFS(b, b, visited, tBlocks);
 }
@@ -413,10 +416,17 @@ bool CodeMover::ReverseDFS(block_instance* cur,
                            block_instance* origin,
                            set<block_instance*> &visited,
                            const set<block_instance*> &tBlocks) {
+    springboard_cerr << "\tReverseDFS " << hex << cur->start() << " - " << cur->end() << dec << endl;                               
     if (cur != origin) {
-        if (tBlocks.find(cur) != tBlocks.end()) return true;
+        if (tBlocks.find(cur) != tBlocks.end()) {
+            springboard_cerr << "\t\t trampoline block " << hex << cur->start() << " - " << cur->end() << dec << endl;                               
+            return true;
+        }
     }
-    if (visited.find(cur) != visited.end()) return true;
+    if (visited.find(cur) != visited.end()) {
+        springboard_cerr << "\t\t visited block " << hex << cur->start() << " - " << cur->end() << dec << endl;                               
+        return true;
+    }
     visited.insert(cur);
 
     vector<edge_instance*> edges;
