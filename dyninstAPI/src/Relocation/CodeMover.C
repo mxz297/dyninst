@@ -294,75 +294,7 @@ void CodeMover::extractDefensivePads(AddressSpace *AS) {
 }
 
 void CodeMover::OptimizeSpringboards() {
-    // Before the execution enters this function,
-    // trampolines are installed based on where the instrumentations are installed
-    // 
-    // However, the locations to install trampolines can be further optimized
-    // by considering where the the control flow may get back to the orignial code:
-    //
-    // (1) function entry
-    // (2) jump table target blocks when jump table relocation is disabled
-    // (3) catch blocks 
-    //
-    // We do a control flow analysis to determine the minimal number of required
-    // trampolines for each function. The idea is that if we know control flow will not
-    // come back to original code at an instrumentation point, we do not need trampolines.
-    block_instance* b = priorityMap_.begin()->first.first;
     map<func_instance*, set<block_instance*> > funcMap;
-    for (auto it : priorityMap_) {
-        func_instance* f = it.first.second;
-        block_instance* b = it.first.first;
-        funcMap[f].insert(b);
-    }
-
-    for (auto& it : funcMap) {
-        func_instance* f = it.first;
-        set<block_instance*> trampolineLocs = it.second;
-        for (auto b : it.second) {
-            if (canRemoveTrampoline(b, trampolineLocs)) {
-                priorityMap_.erase(make_pair(b, f));
-                trampolineLocs.erase(b);
-                springboard_cerr << " remove trampoline at " << hex << b->start() << dec << endl;
-            }
-        }
-        it.second = trampolineLocs;
-    }
-
-    /*
-    // We now determine the blocks that hold a trampoline can hold a trampoline.
-    // If not, we try to find a safe, pre-dominator block to hold a trampoline
-    funcMap.clear();
-    for (auto it = priorityMap_.begin(); it != priorityMap_.end(); ++it) {
-        func_instance* f = it->first.second;
-        block_instance* b = it->first.first;
-        funcMap[f].insert(b);
-    }
-    for (auto it = funcMap.begin(); it != funcMap.end(); ++it) {
-        func_instance* f = it->first;
-        set<block_instance*>& trampolineLocs = it->second;
-        for (auto bit = trampolineLocs.begin(); bit != trampolineLocs.end(); ++bit) {
-            block_instance *b = *bit;
-            if (b->end() - b->start() >= 5) continue;
-            set<block_instance*> newLocs;
-            set<block_instance*> visited;
-            if (canMoveTrampoline(b, b, newLocs, trampolineLocs, visited)) {
-                priorityMap_.erase(make_pair(b, f));
-                for (auto newIt = newLocs.begin(); newIt != newLocs.end(); ++newIt) {
-                    block_instance* newB = *newIt;
-                    priorityMap_[make_pair(newB,f)] = FuncEntry;
-                }
-            }
-        }
-    }
-    */
-
-
-
-    // Finally, we identify safe blocks that do not hold trampolines
-    // and will never be executed in the original code because the program
-    // will hit a trampoline first. These safe blocks can be used to extend trampoline
-    // blocks to avoid signal based trampoline
-    funcMap.clear();
     for (auto it : priorityMap_) {
         func_instance* f = it.first.second;
         block_instance* b = it.first.first;
@@ -376,13 +308,8 @@ void CodeMover::OptimizeSpringboards() {
         for (auto bit : f->blocks()) {
             block_instance* b = dynamic_cast<block_instance*>(bit);
             if (trampolineLocs.find(b) != trampolineLocs.end()) continue;
-            // For a block b, if we pretend to install a trampoline in b,
-            // and find that it is not necessary  based on current trampolines, 
-            // then it is a safe block
-            if (canRemoveTrampoline(b, trampolineLocs)) {
-                springboard_cerr << "identify safe block " << hex << b->start() << " - " << b->end() << dec << endl;
-                safeBlocks.insert(b);
-            }
+            springboard_cerr << "identify safe block " << hex << b->start() << " - " << b->end() << dec << endl;
+            safeBlocks.insert(b);            
         }
         f->setSafeBlocks(safeBlocks);
 

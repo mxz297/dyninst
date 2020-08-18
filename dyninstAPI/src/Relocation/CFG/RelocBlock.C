@@ -322,19 +322,27 @@ bool RelocBlock::determineSpringboards(PriorityMap &p) {
       p[std::make_pair(block_, func_)] = FuncEntry;
       return true;
    }
-   if (block_->isInstrumented()) {
-       relocation_cerr << "determineSpringboards (block instrumented): " << func_->symTabName()
-               << " / " << hex << block_->start() << " is required" << dec << endl;
-       p[std::make_pair(block_, func_)] = FuncEntry;
-       return true;
+
+   bool hasIndirect = false;
+   bool hasCatch = false;   
+   for (auto e : block_->sources()) {
+       if (e->interproc()) continue;
+       if (e->type() == ParseAPI::INDIRECT) hasIndirect = true;
+       if (e->type() == ParseAPI::CATCH) hasCatch = true;
    }
-   if ( (block_->isFuncExit() && func_->isExitInstrumented()) ) {
-       relocation_cerr << "determineSpringboards (exit block): " << func_->symTabName()
+   if (hasIndirect && !BPatch::bpatch->relocateJumpTable()) {
+       relocation_cerr << "determineSpringboards (jump table target & not performing jump table relocation): " << func_->symTabName()
                << " / " << hex << block_->start() << " is required" << dec << endl;
-       p[std::make_pair(block_, func_)] = FuncEntry;
-       return true;
+       p[std::make_pair(block_, func_)] = FuncEntry;   
+   }
+   if (hasCatch) {
+       relocation_cerr << "determineSpringboards (catch block): " << func_->symTabName()
+               << " / " << hex << block_->start() << " is required" << dec << endl;
+       p[std::make_pair(block_, func_)] = FuncEntry;          
    }
    if (inliningCall) {
+       relocation_cerr << "determineSpringboards (call inlining block): " << func_->symTabName()
+           << " / " << hex << block_->start() << " is required" << dec << endl;
        p[std::make_pair(block_, func_)] = FuncEntry;
    }
    return true;
