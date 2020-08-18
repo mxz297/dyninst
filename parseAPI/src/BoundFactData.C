@@ -93,7 +93,7 @@ void StridedInterval::Join(const StridedInterval &rhs) {
 	    low = *(values.begin());
 	    high = *cur;
 	    stride = newStride;
-	}	
+	}
     }
 }
 
@@ -106,8 +106,8 @@ void StridedInterval::Neg() {
 
 void StridedInterval::Not() {
     if (stride < 0) return;
-    // Assume not is always used to 
-    // calculates its two's complement to 
+    // Assume not is always used to
+    // calculates its two's complement to
     // do a subtraction
     int64_t tmpLow = low;
     low = -high-1;
@@ -116,7 +116,7 @@ void StridedInterval::Not() {
 }
 
 void StridedInterval::Add(const StridedInterval &rhs) {
-    // It is not clear what it means to 
+    // It is not clear what it means to
     // add a number with a number in empy set.
     // Assume to be bottom
     if (stride < 0 || rhs.stride < 0) {
@@ -138,7 +138,7 @@ void StridedInterval::Add(const StridedInterval &rhs) {
     high += rhs.high;
 
     // This is likely to be caused by arithmetic overflow.
-    // In this case, a strided interval cannot accurately 
+    // In this case, a strided interval cannot accurately
     // capture the value range. Set to top.
     if (low > high) {
         *this = top;
@@ -304,7 +304,7 @@ void StridedInterval::Intersect(StridedInterval &rhs) {
 	    // Both are intervals
 	    int64_t gcd = GCD(stride, rhs.stride);
 	    if (low > rhs.high || high < rhs.low || (low - rhs.low) % gcd != 0) {
-	        *this = bottom;		
+	        *this = bottom;
 	    } else {
 		int64_t x, k1, k2;
 		ExtendEuclidean(stride / gcd, rhs.stride / gcd, k1, k2);
@@ -379,7 +379,7 @@ void BoundFact::Meet(BoundFact &bf, Block* b) {
 	    }
 	}
 
-	// Meet the relation vector 	
+	// Meet the relation vector
 	for (auto rit = relation.begin(); rit != relation.end();) {
 	    bool find = false;
 	    for (auto it = bf.relation.begin(); it != bf.relation.end(); ++it) {
@@ -458,7 +458,7 @@ void BoundFact::GenFact(const AST::Ptr ast, StridedInterval* bv, bool isConditio
 	    }
 	    if (*((*rit)->right) == *ast) {
 	        KillFact((*rit)->left, isConditionalJump);
-	        fact.insert(make_pair((*rit)->left, new StridedInterval(*bv))); 
+	        fact.insert(make_pair((*rit)->left, new StridedInterval(*bv)));
 	    }
 	}
     }
@@ -484,7 +484,7 @@ static bool IsSubTree(AST::Ptr tree, AST::Ptr sub) {
     unsigned totalChildren = tree->numChildren();
     for (unsigned i = 0 ; i < totalChildren && !ret; ++i) {
         ret |= IsSubTree(tree->child(i), sub);
-    } 
+    }
     return ret;
 }
 */
@@ -515,8 +515,8 @@ void BoundFact::KillFact(const AST::Ptr ast, bool isConditionalJump) {
 }
 
 
-bool BoundFact::operator != (const BoundFact &bf) const {    
-    if (pred != bf.pred) return true; 
+bool BoundFact::operator != (const BoundFact &bf) const {
+    if (pred != bf.pred) return true;
     if (stackTop != bf.stackTop) return true;
     if (fact.size() != bf.fact.size()) return true;
     if (relation.size() != bf.relation.size()) return true;
@@ -541,7 +541,7 @@ BoundFact::~BoundFact() {
     for (auto fit = fact.begin(); fit != fact.end(); ++fit)
         if (fit->second != NULL)
 	    delete fit->second;
-    fact.clear();   
+    fact.clear();
     for (auto rit = relation.begin(); rit != relation.end(); ++rit)
         if (*rit != NULL)
 	    delete *rit;
@@ -555,7 +555,7 @@ BoundFact& BoundFact::operator = (const BoundFact &bf) {
     for (auto fit = fact.begin(); fit != fact.end(); ++fit)
         if (fit->second != NULL) delete fit->second;
     fact.clear();
-    for (auto fit = bf.fact.begin(); fit != bf.fact.end(); ++fit)     
+    for (auto fit = bf.fact.begin(); fit != bf.fact.end(); ++fit)
         fact.insert(make_pair(fit->first, new StridedInterval(*(fit->second))));
 
     for (auto rit = relation.begin(); rit != relation.end(); ++rit)
@@ -570,7 +570,7 @@ BoundFact& BoundFact::operator = (const BoundFact &bf) {
 
 BoundFact::BoundFact(const BoundFact &bf) {
     *this = bf;
-}   
+}
 
 thread_local dyn_hash_map<std::string, entryID> aarch64CondCodeMap =
     boost::assign::map_list_of
@@ -604,13 +604,13 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
     parsing_printf("\t\tproduce conditional bound for %s, edge type %d\n", insn.format().c_str(), type);
     if (type == COND_TAKEN) {
         switch (id) {
-	    // unsigned 
+	    // unsigned
 	    case e_jnbe: {
 	        if (pred.e1->getID() == AST::V_ConstantAST) {
 		    if (pred.e2->getID() == AST::V_ConstantAST) {
 		        // If both elements are constant,
 			// it means the conditional jump is actually unconditional.
-			// It is possible to happen, but should be unlikely 
+			// It is possible to happen, but should be unlikely
 		        parsing_printf("WARNING: both predicate elements are constants!\n");
 		    } else {
 		        ConstantAST::Ptr constAST = boost::static_pointer_cast<ConstantAST>(pred.e1);
@@ -624,7 +624,7 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 		}
 		break;
 	    }
-	    case e_jnb: 
+	    case e_jnb:
 	    case e_jnb_jae_j: {
 	        if (pred.e1->getID() == AST::V_ConstantAST) {
 		    if (pred.e2->getID() == AST::V_ConstantAST) {
@@ -643,7 +643,7 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 		}
 		break;
 	    }
-	    case e_jb: 
+	    case e_jb:
 	    case e_jb_jnaej_j: {
 	        if (pred.e1->getID() == AST::V_ConstantAST) {
 		    if (pred.e2->getID() == AST::V_ConstantAST) {
@@ -654,7 +654,7 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 		    }
 		} else if (pred.e2->getID() == AST::V_ConstantAST) {
 		    ConstantAST::Ptr constAST = boost::static_pointer_cast<ConstantAST>(pred.e2);
-		    // Assuming a-loc pred.e1 is always used as 
+		    // Assuming a-loc pred.e1 is always used as
 		    // unsigned value before it gets rewritten.
 		    IntersectInterval(pred.e1, StridedInterval(1, 0 , constAST->val().val - 1));
 		} else {
@@ -673,7 +673,7 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 		    }
 		} else if (pred.e2->getID() == AST::V_ConstantAST) {
 		    ConstantAST::Ptr constAST = boost::static_pointer_cast<ConstantAST>(pred.e2);
-		    // Assuming a-loc pred.e1 is always used as 
+		    // Assuming a-loc pred.e1 is always used as
 		    // unsigned value before it gets rewritten.
 		    IntersectInterval(pred.e1,StridedInterval(1, 0 , constAST->val().val));
 		} else {
@@ -688,7 +688,7 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 		    } else {
 		        // the predicate sometimes is between the low 8 bits of a register
 			// and a constant. If I simply extends the predicate to the whole
-			// 64 bits of a register. I may get wrong constant value. 
+			// 64 bits of a register. I may get wrong constant value.
 		        // IntersectInterval(pred.e2, StridedInterval(1, constAST->val().val, constAST->val().val));
 			parsing_printf("WARNING: do not track equal predicate\n");
 		    }
@@ -793,13 +793,13 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 	// all cases of e_jnxx corresponds to cases of e_jxx
 	// and cases of e_jxx corresponds to cases of e_jnxx
         switch (id) {
-	    // unsigned 
+	    // unsigned
 	    case e_jbe: {
 	        if (pred.e1->getID() == AST::V_ConstantAST) {
 		    if (pred.e2->getID() == AST::V_ConstantAST) {
 		        // If both elements are constant,
 			// it means the conditional jump is actually unconditional.
-			// It is possible to happen, but should be unlikely 
+			// It is possible to happen, but should be unlikely
 		        parsing_printf("WARNING: both predicate elements are constants!\n");
 		    } else {
 		        ConstantAST::Ptr constAST = boost::static_pointer_cast<ConstantAST>(pred.e1);
@@ -813,7 +813,7 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 		}
 		break;
 	    }
-	    case e_jb: 
+	    case e_jb:
 	    case e_jb_jnaej_j: {
 	        if (pred.e1->getID() == AST::V_ConstantAST) {
 		    if (pred.e2->getID() == AST::V_ConstantAST) {
@@ -842,7 +842,7 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 		    }
 		} else if (pred.e2->getID() == AST::V_ConstantAST) {
 		    ConstantAST::Ptr constAST = boost::static_pointer_cast<ConstantAST>(pred.e2);
-		    // Assuming a-loc pred.e1 is always used as 
+		    // Assuming a-loc pred.e1 is always used as
 		    // unsigned value before it gets rewritten.
 		    parsing_printf("@@@\n");
 		    IntersectInterval(pred.e1, StridedInterval(1, 0 , constAST->val().val - 1));
@@ -862,7 +862,7 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 		    }
 		} else if (pred.e2->getID() == AST::V_ConstantAST) {
 		    ConstantAST::Ptr constAST = boost::static_pointer_cast<ConstantAST>(pred.e2);
-		    // Assuming a-loc pred.e1 is always used as 
+		    // Assuming a-loc pred.e1 is always used as
 		    // unsigned value before it gets rewritten.
 		    IntersectInterval(pred.e1, StridedInterval(1, 0 , constAST->val().val));
 		} else {
@@ -882,7 +882,7 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 		    ConstantAST::Ptr constAST = boost::static_pointer_cast<ConstantAST>(pred.e2);
 		    // the predicate sometimes is between the low 8 bits of a register
 		    // and a constant. If I simply extends the predicate to the whole
-		    // 64 bits of a register. I may get wrong constant value. 
+		    // 64 bits of a register. I may get wrong constant value.
 		    // IntersectInterval(pred.e2, StridedInterval(1, constAST->val().val, constAST->val().val));
 		    parsing_printf("WARNING: do not track equal predicate\n");
 		    //IntersectInterval(pred.e1, StridedInterval(0, constAST->val().val , constAST->val().val));
@@ -1004,7 +1004,7 @@ bool BoundFact::ConditionalJumpBound(Instruction insn, EdgeTypeEnum type) {
 }
 
 
-void BoundFact::SetPredicate(Assignment::Ptr assign,std::pair<AST::Ptr, bool> expandRet ) {   
+void BoundFact::SetPredicate(Assignment::Ptr assign,std::pair<AST::Ptr, bool> expandRet ) {
     Instruction insn = assign->insn();
     entryID id = insn.getOperation().getID();
     pred.valid = true;
@@ -1020,13 +1020,13 @@ void BoundFact::SetPredicate(Assignment::Ptr assign,std::pair<AST::Ptr, bool> ex
     }
     AST::Ptr simplifiedAST = expandRet.first;
     parsing_printf("\t\t semanic expansions: %s\n", simplifiedAST->format().c_str());
-    
+
     // Special handling of test and and instructions on x86
     switch (id) {
 	case e_test: {
 	    if (simplifiedAST->getID() == AST::V_RoseAST) {
 	        RoseAST::Ptr rootRoseAST = boost::static_pointer_cast<RoseAST>(simplifiedAST);
-		if (rootRoseAST->val().op == ROSEOperation::equalToZeroOp && 
+		if (rootRoseAST->val().op == ROSEOperation::equalToZeroOp &&
 		    rootRoseAST->child(0)->getID() == AST::V_RoseAST) {
 		    RoseAST::Ptr childAST = boost::static_pointer_cast<RoseAST>(rootRoseAST->child(0));
 		    if (childAST->val().op == ROSEOperation::andOp) {
@@ -1048,11 +1048,11 @@ void BoundFact::SetPredicate(Assignment::Ptr assign,std::pair<AST::Ptr, bool> ex
 	case e_and: {
 	    if (simplifiedAST->getID() == AST::V_RoseAST) {
 	        RoseAST::Ptr rootRoseAST = boost::static_pointer_cast<RoseAST>(simplifiedAST);
-		if (rootRoseAST->val().op == ROSEOperation::equalToZeroOp && 
+		if (rootRoseAST->val().op == ROSEOperation::equalToZeroOp &&
 		    rootRoseAST->child(0)->getID() == AST::V_RoseAST) {
 		    RoseAST::Ptr childAST = boost::static_pointer_cast<RoseAST>(rootRoseAST->child(0));
 		    if (childAST->val().op == ROSEOperation::andOp) {
-			// The effect of the and instruction can be 
+			// The effect of the and instruction can be
 			// evaluated now. And the predicate is actually
 			// simply comparing value to 0
 		        if (childAST->child(1)->getID() == AST::V_ConstantAST) {
@@ -1088,7 +1088,7 @@ void BoundFact::SetPredicate(Assignment::Ptr assign,std::pair<AST::Ptr, bool> ex
     ComparisonVisitor cv;
     expandRet.first->accept(&cv);
     pred.e1 = cv.subtrahend;
-    pred.e2 = cv.minuend; 
+    pred.e2 = cv.minuend;
     pred.id = id;
     if (pred.e1 == AST::Ptr() || pred.e2 == AST::Ptr()) {
         pred.valid = false;
@@ -1098,7 +1098,7 @@ void BoundFact::SetPredicate(Assignment::Ptr assign,std::pair<AST::Ptr, bool> ex
 void BoundFact::SetToBottom() {
     pred.valid = false;
     relation.clear();
-    for (auto fit = fact.begin(); fit != fact.end(); ++fit) 
+    for (auto fit = fact.begin(); fit != fact.end(); ++fit)
         if (fit->second != NULL)
 	    delete fit->second;
     fact.clear();
@@ -1123,7 +1123,7 @@ StridedInterval* BoundFact::GetBound(const AST* ast) {
 void BoundFact::IntersectInterval(const AST::Ptr ast, StridedInterval si) {
     StridedInterval *bv = GetBound(ast);
     if (bv != NULL) {
-        bv->Intersect(si); 
+        bv->Intersect(si);
         GenFact(ast, new StridedInterval(*bv), true);
     } else {
         // If the fact value does not exist,
@@ -1141,7 +1141,7 @@ void BoundFact::DeleteElementFromInterval(const AST::Ptr ast, int64_t val) {
 
 void BoundFact::InsertRelation(AST::Ptr left, AST::Ptr right, RelationType r) {
     if (r == Equal && *left == *right) return;
-    parsing_printf("\t\t\t inserting relation %s and %s, type %d\n",left->format().c_str(), right->format().c_str(), r); 
+    parsing_printf("\t\t\t inserting relation %s and %s, type %d\n",left->format().c_str(), right->format().c_str(), r);
     if (r == Equal) {
         // We have to consider transitive relations
 	size_t n = relation.size();
@@ -1157,11 +1157,11 @@ void BoundFact::InsertRelation(AST::Ptr left, AST::Ptr right, RelationType r) {
 		    relation.push_back(new Relation(relation[i]->left, left, r));
 	    }
     } else if (r == NotEqual) {
-       // The new added NotEqual relation with an existing relation like UnsignedLessThanOrEqual 
+       // The new added NotEqual relation with an existing relation like UnsignedLessThanOrEqual
        // can be combined to a more strict relation like UnsignedLessThan
        for (auto rit = relation.begin(); rit != relation.end(); ++rit) {
            Relation * re = *rit;
-	   if ((*(re->left) == *left && *(re->right) == *right) || 
+	   if ((*(re->left) == *left && *(re->right) == *right) ||
 	       (*(re->left) == *right && *(re->right) == *left)) {
 	           if (re->type == UnsignedLessThanOrEqual) re->type = UnsignedLessThan;
 		   else if (re->type == UnsignedLargerThanOrEqual) re->type = UnsignedLargerThan;
@@ -1170,15 +1170,15 @@ void BoundFact::InsertRelation(AST::Ptr left, AST::Ptr right, RelationType r) {
 		   else continue;
 		   // If the current relation is combined with an existing one,
 		   // we can return without inserting a new relation
-		   return; 
+		   return;
 	   }
        }
-    } else if (r == UnsignedLessThanOrEqual || r == UnsignedLargerThanOrEqual || 
+    } else if (r == UnsignedLessThanOrEqual || r == UnsignedLargerThanOrEqual ||
                r == SignedLessThanOrEqual || r == SignedLargerThanOrEqual) {
         // Similar to the above case
        for (auto rit = relation.begin(); rit != relation.end(); ++rit) {
            Relation * re = *rit;
-	   if ((*(re->left) == *left && *(re->right) == *right) || 
+	   if ((*(re->left) == *left && *(re->right) == *right) ||
 	       (*(re->left) == *right && *(re->right) == *left)) {
 	       if (re->type == NotEqual) {
 	           r = (RelationType)((int)r - 2);
@@ -1186,7 +1186,7 @@ void BoundFact::InsertRelation(AST::Ptr left, AST::Ptr right, RelationType r) {
 		   break;
 	       }
            }
-       }          
+       }
     }
     relation.push_back(new Relation(left, right, r));
 
@@ -1236,7 +1236,7 @@ AST::Ptr BoundFact::GetAlias(const AST::Ptr ast) {
 
 void BoundFact::TrackAlias(AST::Ptr expr, AST::Ptr outAST, bool findBound) {
     expr = SymbolicExpression::SubstituteAnAST(expr, aliasMap);
-    bool find = false;    
+    bool find = false;
     for (auto ait = aliasMap.begin(); ait != aliasMap.end(); ++ait) {
         if (*(ait->first) == *outAST) {
 	    ait->second = expr;
@@ -1368,12 +1368,18 @@ void BoundFact::SwapFact(AST::Ptr a, AST::Ptr b) {
 
 
 void BoundFact::CheckZeroExtend(AST::Ptr a) {
-/*
     for (auto fit = fact.begin(); fit != fact.end(); ++fit) {
-        if (*(fit->first) == *a) {
+        if (!(*(fit->first) == *a)) continue;
 	    StridedInterval *val = fit->second;
-	    if (val->tableReadSize > 0) val->isZeroExtend = true;
+		if (val->low < 0) {
+			parsing_printf("\t zero-extended value has a negative lower bound [%lx, %lx)\n", val->low, val->high);
+			if (val->high <= 255) {
+				val->high = 255;
+			} else if (val->high <= 65535) {
+				val->high = 65535;
+			}
+			val->low = 0;
+			parsing_printf("\t adjusted to [%lx, %lx)\n", val->low, val->high);
+		}
 	}
-    }
-*/
 }
