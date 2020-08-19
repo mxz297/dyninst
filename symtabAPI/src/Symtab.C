@@ -1590,7 +1590,10 @@ bool Symtab::extractInfo(Object *linkedFile)
     vector<relocationEntry >fbt;
     linkedFile->get_func_binding_table(fbt);
     for(unsigned i=0; i<fbt.size();i++)
-        relocation_table_.push_back(fbt[i]);
+        relocation_table_.push_back(fbt[i]);    
+    for (auto & r : linkedFile->getDynRelocs()) {
+       dyn_relocs.push_back(r);
+    }
     return true;
 }
 
@@ -1761,6 +1764,15 @@ SYMTAB_EXPORT bool Symtab::getFuncBindingTable(std::vector<relocationEntry> &fbt
 {
    fbt = relocation_table_;
    return true;
+}
+
+SYMTAB_EXPORT bool Symtab::getDynRelocations(std::vector<relocationEntry> &relocs) const {
+   relocs = dyn_relocs;
+   return true;
+}
+
+SYMTAB_EXPORT std::vector<relocationEntry> & Symtab::getDynRelocations() {   
+   return getObject()->getDynRelocs();
 }
 
 SYMTAB_EXPORT bool Symtab::updateFuncBindingTable(Offset stub_addr, Offset plt_addr)

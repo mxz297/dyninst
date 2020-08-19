@@ -2,6 +2,7 @@
 #include "dyninstAPI/src/addressSpace.h" 
 #include "dyninstAPI/src/function.h"
 #include "dyninstAPI/src/debug.h"
+#include "dyninstAPI/src/mapped_object.h"
 
 #include "SymEval.h"
 #include "slicing.h"
@@ -15,7 +16,8 @@ using namespace Relocation;
 JumpTableMover::Ptr JumpTableMover::create(FuncSetOrderdByLayout::const_iterator begin,
         FuncSetOrderdByLayout::const_iterator end,
         AddressSpace *s) {
-    Ptr ret = Ptr(new JumpTableMover(s));                      
+    Ptr ret = Ptr(new JumpTableMover(s));
+    ret->setupRelocationEntries();                      
 
     for (; begin != end; ++begin) {
         func_instance *func = *begin;
@@ -32,6 +34,13 @@ JumpTableMover::Ptr JumpTableMover::create(FuncSetOrderdByLayout::const_iterator
     }
 
     return ret;
+}
+
+void JumpTableMover::setupRelocationEntries() {
+    vector<SymtabAPI::relocationEntry> &r = as->getAOut()->parse_img()->getObject()->getDynRelocations();
+    for (size_t i = 0; i < r.size(); ++i) {
+        relocs[r[i].rel_addr()] = &r[i];
+    }    
 }
 
 void JumpTableMover::moveJumpTableInFunction(func_instance *func) {
@@ -178,6 +187,11 @@ void JumpTableMover::fillNewTableEntries(codeGen& gen, Address jumpAddr, int ind
         const Address& addr = it.first;
         const int64_t& newEntry = it.second.second;
         relocation_cerr << "\tnew entry at " << hex << it.first << " with value " << dec << newEntry << endl;
+        auto reloc_it = relocs.find(gen.currAddr());
+        if (reloc_it != relocs.end()) {
+            reloc_it->second->setAddend(newEntry);
+            relocation_cerr << "\t\t modify relocation entry" << endl;
+        }
         switch (indexStride) {
             case 8: {
                 gen.copy(&newEntry, sizeof(int64_t));
@@ -208,7 +222,7 @@ void JumpTableMover::fillNewTableEntries(codeGen& gen, Address jumpAddr, int ind
         // from different jump tabels
         auto oit = overwritten.find(addr);
         if (oit != overwritten.end() && oit->second != newEntry) {
-            fprintf(stderr, "ERROR: jump table relocation twice for address %lx\n", addr);
+            fprintf(stderr, "ERROR: jump table relocation twice for address %lx, old value %lx, new value %lx\n", addr, oit->second, newEntry);
         } else {
             overwritten.emplace(addr, newEntry);
         }

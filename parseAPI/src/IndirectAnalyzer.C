@@ -128,7 +128,7 @@ boost::make_lock_guard(*func);
 	    StridedInterval target;
 	    jtip.IsIndexBounded(g, bfc, target);
         }
-        if (jtip.findBound && func->obj()->cs()->getArch() != Arch_ppc64) {
+        if (jtip.findBound && func->obj()->cs()->getArch() != Arch_ppc64 && func->obj()->cs()->getArch() != Arch_x86_64) {
             parsing_printf(" find bound %s for %lx\n", jtip.bound.format().c_str(), block->last());
 	    b = jtip.bound;
         } else {

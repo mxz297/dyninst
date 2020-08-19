@@ -4,6 +4,7 @@
 #include "dyninstAPI/src/codegen.h"
 #include "dyninstAPI/src/function.h"
 #include "DynAST.h"
+#include "Symtab.h"
 
 namespace Dyninst{
 namespace Relocation {
@@ -14,7 +15,7 @@ public:
     static Ptr create(FuncSetOrderdByLayout::const_iterator begin,
                       FuncSetOrderdByLayout::const_iterator end,
                       AddressSpace * as);
-    vector<codeGen> codeGens;
+    vector<codeGen> codeGens;    
 private:
     JumpTableMover(AddressSpace* s): as(s) {}
     AddressSpace* as;
@@ -27,10 +28,12 @@ private:
     bool computeNewTableEntries(func_instance*, Address, ParseAPI::Function::JumpTableInstance&);
     void fillNewTableEntries(codeGen&, Address, int);
     bool modifyJumpTargetBase(func_instance*, Address, ParseAPI::Function::JumpTableInstance&);
+    void setupRelocationEntries();
     
     // Record all overritten jump table entries 
     // to detect conflict table entry relocation
     std::map<Address, int64_t> overwritten;
+    std::map<Address, SymtabAPI::relocationEntry*> relocs;
 
 
 };
