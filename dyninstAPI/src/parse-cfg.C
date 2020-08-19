@@ -591,6 +591,19 @@ bool parse_func::hasLargeGaps() {
         if (cur_ex->low() - prev_ex->high() > gapSize) {
             gapSize = cur_ex->low() - prev_ex->high();
         }
+        
+        const char* ptr = (const char*)(obj()->cs()->getPtrToInstruction(prev_ex->high()));
+        InstructionAPI::InstructionDecoder d(ptr, cur_ex->low() - prev_ex->high(), obj()->cs()->getArch());
+        bool hasRealCode = false;
+        while (true) {
+            InstructionAPI::Instruction insn = d.decode();
+            if (insn.size() == 0) break;
+            if (!insn.isValid()) break;
+            if (insn.getOperation().getID() == e_nop) continue;
+            hasRealCode = true;
+            break;
+        }
+        if (hasRealCode) return true;
     }
     return (gapSize >= 16);
 }
@@ -614,8 +627,7 @@ bool parse_func::isInstrumentable() {
        // We cannot handle it propertly
        return false;
    }
-//   if (hasUnresolvedCF() && hasLargeGaps()) {
-   if (hasUnresolvedCF()) {
+   if (hasUnresolvedCF() && hasLargeGaps()) {   
       return false;
    }
    return true;
