@@ -316,7 +316,8 @@ void CodeMover::OptimizeSpringboards() {
         // For safe blocks, we overwrite all of them with invalid
         // instructions. In this way, we can catch unintented
         // bouncing from relocated code.
-        for (auto b : safeBlocks) {
+        for (auto bit : f->blocks()) {
+            block_instance* b = dynamic_cast<block_instance*>(bit);
             if (b->_ignorePowerPreamble) continue;
             refillSafeBlockWithInvalidInsns(b);
         }

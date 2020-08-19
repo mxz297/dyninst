@@ -281,7 +281,7 @@ bool JumpTableIndexPred::IsIndexBounded(GraphPtr slice,
     if (tarBoundValue != NULL) {
         target = *(tarBoundValue);
 	uint64_t s = target.size();
-	if (s > 0 && s <= MAX_TABLE_ENTRY) {
+	if (s > 0 && s <= MAX_TABLE_ENTRY && target.stride > 0) {
 	    findBound = true;
 	    bound = target;
 	    return true;

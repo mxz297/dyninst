@@ -1853,6 +1853,19 @@ Parser::parse_frame_one_iteration(ParseFrame &frame, bool recursive) {
             func->_cache_valid = false;
             continue;
         } else {
+            parsing_printf("[%s] shared block, but is a function entry %lx\n",
+                           FILE__,cur->start());
+            if (func->retstatus() < UNKNOWN) {
+                // The current function shares code with a function
+                // but the current funciton creates the block. This should only happen
+                // if this is the function entry block of the current function.
+                region_data::edge_data_map * edm = _parse_data->get_edge_data_map(cur->region());
+                region_data::edge_data_map::accessor a;
+                assert(edm->find(a, cur->last()));
+                Function * other_func = a->second.f;
+                update_function_ret_status(frame, other_func, frame.mkWork(NULL, other_func));
+            }
+            func->_cache_valid = false;
             continue;
         }
 

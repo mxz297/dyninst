@@ -415,6 +415,7 @@ void dyninstTrapHandler(int sig, siginfo_t *sg, ucontext_t *context)
 
    }
    if (trap_to == NULL) {
+       fprintf(stderr, "original ip %p\n", orig_ip);
        assert(0);
        //if (user_trap_handler != NULL) (*user_trap_handler)(SIGILL);
    } else {
@@ -527,7 +528,7 @@ static int parse_link_map(struct link_map *l)
       assert(all_headers[header->pos] == header);
       return ALREADY_PARSED;
    }
-
+   fprintf(stderr, "load address %lx\n", l->l_addr);
    for (i = 0; i < header->num_entries; i++)
    {
       header->traps[i].source = (void *) (((unsigned long) header->traps[i].source) + l->l_addr);

@@ -614,7 +614,8 @@ bool parse_func::isInstrumentable() {
        // We cannot handle it propertly
        return false;
    }
-   if (hasUnresolvedCF() && hasLargeGaps()) {
+//   if (hasUnresolvedCF() && hasLargeGaps()) {
+   if (hasUnresolvedCF()) {
       return false;
    }
    return true;
