@@ -19,7 +19,7 @@ mkdir install
 ./autogen.sh
 ./configure --prefix=`pwd`/install --enable-cxx-exceptions
 make install -j4
-cd ../..
+cd ..
 ```
 
 # Build Dyninst
