@@ -9,43 +9,28 @@
 # $(PLATFORM)/lib directories
 
 # Or uncomment the following line and change the path accordingly
-# DYNINST_ROOT = /change/me
-
-ifeq ($(DYNINST_ROOT),)
-$(error DYNINST_ROOT is not set)
-endif
-
-ifeq ($(PLATFORM),)
-$(error PLATFORM is not set)
-endif
+DYNINST_ROOT = /workspaces/dyninstapi/dyninst/install
 
 DYNINST_INCLUDE = $(DYNINST_ROOT)/include
-DYNINST_LIB =  $(DYNINST_ROOT)/$(PLATFORM)/lib
-
-# These should point to where libelf and libdwarf are installed
-LOCAL_INC_DIR = /usr/local/include
-LOCAL_LIBS_DIR = /usr/local/lib
-
-LIBELF=/p/paradyn/packages/libelf/lib
-LIBDWARF=/p/paradyn/packages/libdwarf/lib
+DYNINST_LIB =  $(DYNINST_ROOT)/lib
 
 CXX = g++
-CXXFLAGS = -g -Wall
+CXXFLAGS = -g -Wall -std=c++11
 LIBFLAGS = -fpic -shared
 
 CC = gcc
-CFLAGS = -Wall -pedantic -g -std=gnu99
+CFLAGS = -Wall -pedantic -g
 
 all: codeCoverage libInst.so testcc
 
 codeCoverage: codeCoverage.o
 	$(CXX) $(CXXFLAGS) -L$(DYNINST_LIB) \
-		-L$(LIBELF) -L$(LIBDWARF) \
+		-o codeCoverage codeCoverage.o \
 		-lcommon \
-		-liberty \
 		-ldyninstAPI \
 		-lpthread \
-		-o codeCoverage codeCoverage.o
+		-lboost_system \
+		-ltbbmalloc
 
 codeCoverage-static: codeCoverage.o
 	$(CXX) $(CXXFLAGS) -I$(DYNINST_INCLUDE) -L$(DYNINST_LIB) \
@@ -66,7 +51,7 @@ libInst.so: libInst.C
 	$(CXX) $(CXXFLAGS) $(LIBFLAGS) libInst.C -o libInst.so  
 
 codeCoverage.o: codeCoverage.C
-	$(CXX) $(CXXFLAGS) -I$(LOCAL_INC_DIR) -I$(DYNINST_INCLUDE) -c codeCoverage.C
+	$(CXX) $(CXXFLAGS) -I$(DYNINST_INCLUDE) -c codeCoverage.C
 
 libtestcc.so: libtestcc.c libtestcc.h
 	$(CC) $(CFLAGS) $(LIBFLAGS) -o libtestcc.so libtestcc.c
