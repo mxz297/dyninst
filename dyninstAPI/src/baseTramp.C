@@ -308,11 +308,13 @@ bool baseTramp::generateCodeInlined(codeGen &gen,
       for (instPoint::instance_iter iter = point_->begin(); 
            iter != point_->end(); ++iter) {
          AstNodePtr ast = DCAST_AST((*iter)->snippet());
-         if (ast->usesAppRegister()) onlyReloc = false;
-         if (ast) 
+         if (ast) {
+            if (ast->usesAppRegister()) onlyReloc = false;
             miniTramps.push_back(ast);
-         else
+         }
+         else {
             miniTramps.push_back(AstNode::snippetNode((*iter)->snippet()));
+         }
       }
    }
    else {

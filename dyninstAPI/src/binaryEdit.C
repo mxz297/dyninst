@@ -1084,13 +1084,17 @@ void BinaryEdit::buildRAMapping() {
       for (Relocation::CodeTracker::TrackerList::const_iterator iter = CT->trackers().begin();
            iter != CT->trackers().end(); ++iter) {
          const Relocation::TrackerElement *tracker = *iter;
-
-         func_instance *tfunc = tracker->func();
+         
          block_instance *tblock = tracker->block();
-         if (tracker->orig() != tblock->block()->last()) continue;
-         InstructionAPI::Instruction i = tblock->getInsn(tracker->orig());
-         if (i.getCategory() != InstructionAPI::c_CallInsn) continue;
-         RAMap[tracker->reloc() + tracker->size()] = tracker->orig() + i.size();
+         Address lastAddr = tblock->block()->last();
+         // Function call should be last instruction of a block.
+         // So, we only need to create RA mapping when the last instruction of a block
+         // is within the tracker's range         
+         if (tracker->orig() <= lastAddr && lastAddr < tracker->orig() + tracker->size()) {
+             InstructionAPI::Instruction i = tblock->getInsn(lastAddr);
+             if (i.getCategory() != InstructionAPI::c_CallInsn) continue;
+             RAMap[tracker->reloc() + tracker->size()] = tracker->orig() + tracker->size();
+         }         
       }
    }
 

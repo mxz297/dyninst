@@ -102,13 +102,13 @@ DLLEXPORT Address DyninstRATranslation(Address ip) {
         if (ra_table->entries[a - ra_table->min] != 0) {
             newip = (Address) ra_table->entries[a - ra_table->min];
         }
-    }
-    if (newip == 0) {
+    }    
+    if (newip == 0) {        
         // Go runtime may substract the RA by 1 to lookup which 
         // function the RA belongs.
         if (ra_table->min <= a + 1 && a + 1 <= ra_table->max) {
             if (ra_table->entries[a + 1 - ra_table->min] != 0) {
-                newip = (Address) ra_table->entries[a - ra_table->min];
+                newip = (Address) ra_table->entries[a + 1 - ra_table->min];
                 newip -= 1;
             }
         }
