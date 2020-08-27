@@ -9,7 +9,7 @@
 # $(PLATFORM)/lib directories
 
 # Or uncomment the following line and change the path accordingly
-DYNINST_ROOT = /workspaces/dyninstapi/dyninst/install
+DYNINST_ROOT = /home/xm13/code-patching/dyninst-install
 
 DYNINST_INCLUDE = $(DYNINST_ROOT)/include
 DYNINST_LIB =  $(DYNINST_ROOT)/lib
@@ -30,7 +30,8 @@ codeCoverage: codeCoverage.o
 		-ldyninstAPI \
 		-lpthread \
 		-lboost_system \
-		-ltbbmalloc
+		-ltbbmalloc \
+		-ltbbmalloc_proxy
 
 codeCoverage-static: codeCoverage.o
 	$(CXX) $(CXXFLAGS) -I$(DYNINST_INCLUDE) -L$(DYNINST_LIB) \

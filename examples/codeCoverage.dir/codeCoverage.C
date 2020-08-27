@@ -427,17 +427,18 @@ int main (int argc, char *argv[])
     
     /* Locate _fini */
     funcs.clear();
-    appImage->findFunction("_fini", funcs);
+    //appImage->findFunction("_fini", funcs);
+
+    //  For Go binaries, the program does not exit through _fini.
+    //  So, we need to install exit print function somewhere else
+    appImage->findFunction("main.main", funcs);
+
     if (funcs.size()) {
         BPatch_Vector<BPatch_function*>::iterator fIter;
         for (fIter = funcs.begin(); fIter != funcs.end(); ++fIter) {
-            BPatch_module * mod = (*fIter)->getModule();
-            char modName[1024];
-            mod->getName(modName, 1024);
-             if (!mod->isSharedLib ()) {
-                mod->getObject()->insertFiniCallback(instExitExpr);
-                cerr << "insertFiniCallback on " << modName << endl;
-            }
+            BPatch_function* f = *fIter;
+            vector < BPatch_point * >*funcExit = f->findPoint (BPatch_exit);
+            appBin->insertSnippet (instExitExpr, *funcExit, BPatch_callAfter, BPatch_lastSnippet);
         }
     }
     
