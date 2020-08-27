@@ -37,5 +37,6 @@ make install -j4
 
 ```
 export LD_LIBRARY_PATH=<PATH_TO_LIBUNWIND_INSTALL>/lib:<PATH_TO_DYNINST_INSTALL>/lib:$LD_LIBRARY_PATH
-LD_PRELOAD=<PATH_TO_DYNINST_INSTALL>/lib/libdyninstAPI_RT.so:<PATH_TO_LIBUNWIND_INSTALL>/lib/libunwind.so ./rewritten
+export LD_PRELOAD=<PATH_TO_DYNINST_INSTALL>/lib/libdyninstAPI_RT.so:<PATH_TO_LIBUNWIND_INSTALL>/lib/libunwind.so
+./rewritten
 ```
