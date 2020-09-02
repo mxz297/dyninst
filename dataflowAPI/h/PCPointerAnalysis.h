@@ -26,13 +26,18 @@ class DATAFLOW_EXPORT PCPointerFact {
     // Registers in this set have determined PC values
     std::map<MachRegister, Address> val;
 
+    // Tracks where the value comes from
+    std::map<MachRegister, Address> origin;
+
     // Registers not in top or val are bottom
 public:
     void join(PCPointerFact& rhs);
     bool operator==(const PCPointerFact& rhs) const;
-    void update(const MachRegister &, const Address &);
+    void update(const MachRegister &, const Address &, const Address &);
     void setTop(const MachRegister &);
     bool query(const MachRegister&, Address&);
+    bool queryOrigin(const MachRegister&, Address&);
+    void print();
 };
 
 class DATAFLOW_EXPORT PCPointerAnalyzer {
@@ -45,6 +50,10 @@ class DATAFLOW_EXPORT PCPointerAnalyzer {
     // Dataflow fact for post-instruction
     std::map<Address, PCPointerFact> instructionData;
 
+    std::map<Address, ParseAPI::Block*> blockMap;
+
+    // ppc64 specific
+    Address r2TOC;
     void analyze();
     bool pathJoin(ParseAPI::Block*b, PCPointerFact&);
     bool analyzeInstruction(Address&,
@@ -59,12 +68,13 @@ class DATAFLOW_EXPORT PCPointerAnalyzer {
             InstructionAPI::Instruction&,
             MachRegister&,
             Address&);
-
-
 public:
     PCPointerAnalyzer(ParseAPI::Function*);
     bool queryPostInstructionValue(Address, MachRegister, Address&); 
-    bool queryBlockInputValue(ParseAPI::Block*, MachRegister, Address&);
+    bool queryPreInstructionValue(Address, MachRegister, Address&);
+    bool queryPostInstructionValueOrigin(Address, MachRegister, Address&); 
+    bool queryPreInstructionValueOrigin(Address, MachRegister, Address&);
+
 
 };
 

@@ -1089,11 +1089,9 @@ Parser::trim_jump_tables_with_pcpointers()
         for (auto b : f->blocks()) {
             Block::Insns insns;
             b->getInsns(insns);
-            Address prevAddr = 0;
             for (auto & it : insns) {
                 Instruction &i = it.second;
                 if (!i.readsMemory() && !i.writesMemory()) {
-                    prevAddr = it.first;
                     continue;
                 }
                 std::set<Expression::Ptr> memAccesses;
@@ -1107,16 +1105,9 @@ Parser::trim_jump_tables_with_pcpointers()
                 i.getReadSet(regs);
                 for (auto &r : regs) {
                     Address val;
-                    if (prevAddr == 0) {
-                        if (!pca.queryBlockInputValue(b, r->getID().getBaseRegister(), val)) {
-                            canEval = false;
-                            break;
-                        }
-                    } else {
-                        if (!pca.queryPostInstructionValue(prevAddr, r->getID().getBaseRegister(), val)) {
-                            canEval = false;
-                            break;
-                        }
+                    if (!pca.queryPreInstructionValue(it.first, r->getID().getBaseRegister(), val)) {
+                        canEval = false;
+                        break;
                     }
                     if (!mem->bind(r.get(), Result(s64, val))) {
                         canEval = false;
@@ -1125,7 +1116,6 @@ Parser::trim_jump_tables_with_pcpointers()
                 }
 
                 if (!canEval) {
-                    prevAddr = it.first;
                     continue;
                 }
 
@@ -1135,7 +1125,6 @@ Parser::trim_jump_tables_with_pcpointers()
 
                 dyn_c_hash_map<Address, bool>::accessor a;
                 memoryAccessAddrs.insert(a, make_pair(effectiveAddr, true));
-                prevAddr = it.first;
             }
         }
     }

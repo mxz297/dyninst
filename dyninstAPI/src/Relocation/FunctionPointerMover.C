@@ -8,6 +8,9 @@
 #include "InstructionDecoder.h"
 #include "Expression.h"
 #include "Result.h"
+#include "Register.h"
+
+#include "PCPointerAnalysis.h"
 
 using namespace std;
 using namespace Dyninst;
@@ -70,6 +73,20 @@ static unsigned char* buf = NULL;
 static int bufSize = 0;
 
 void FunctionPointerMover::movePointersInCodeSection() {
+    switch (as->getArch()) {
+        case Arch_x86:
+        case Arch_x86_64:
+            movePointersInCodeSectionX86();
+            break;
+        case Arch_ppc64:
+            movePointersInCodeSectionPPC64();
+            break;
+        default:
+            break;
+    }
+}
+
+void FunctionPointerMover::movePointersInCodeSectionX86() {
     AddressSpace::CodeTrackers& trackers = as->relocatedCode_;
     CodeTracker* tracker = trackers.back();
     for (auto code_tracker_iter = tracker->trackers().begin(); code_tracker_iter != tracker->trackers().end(); ++code_tracker_iter) {
@@ -166,4 +183,129 @@ Address FunctionPointerMover::getImmediateOperand(InstructionAPI::Instruction &i
     }
     return 0;
 
+}
+
+void FunctionPointerMover::movePointersInCodeSectionPPC64() {
+    std::map<ParseAPI::Function*, DataflowAPI::PCPointerAnalyzer*> pointerAnalysisMap;
+    AddressSpace::CodeTrackers& trackers = as->relocatedCode_;    
+    CodeTracker* tracker = trackers.back();
+    buildTrackerMap(tracker);
+
+    for (auto code_tracker_iter = tracker->trackers().begin(); code_tracker_iter != tracker->trackers().end(); ++code_tracker_iter) {
+        // Only need to rewrite fucntion pointers in origina code
+        const TrackerElement *t = *code_tracker_iter;
+        if (t->type() != TrackerElement::original) continue;
+
+        // Get PCPointerAnalyzer pointer
+        ParseAPI::Function* parse_f = static_cast<ParseAPI::Function*>(t->func()->ifunc());
+        ParseAPI::SymtabCodeSource* scs = (ParseAPI::SymtabCodeSource*)(parse_f->obj()->cs());
+        Address tocBase = scs->getSymtabObject()->getObjectTOCAddress();
+
+        auto it = pointerAnalysisMap.find(parse_f);
+        DataflowAPI::PCPointerAnalyzer* pca = NULL;
+        if (it == pointerAnalysisMap.end()) {
+            DataflowAPI::PCPointerAnalyzer* new_pca = new DataflowAPI::PCPointerAnalyzer(parse_f);
+            pointerAnalysisMap.emplace(parse_f, new_pca);
+            pca = new_pca;
+        } else {
+            pca = it->second;
+        }
+
+        if (t->size() > bufSize) {
+            if (buf != NULL) free(buf);
+            buf = (unsigned char*) malloc(t->size());
+            bufSize = t->size();
+        }
+        as->readTextSpace((const void*)t->reloc(), t->size(), (void*)buf);
+        InstructionAPI::InstructionDecoder dec(buf, t->size(), as->getArch());
+        InstructionAPI::Instruction ins;
+        long curOffset = 0;
+	    while (curOffset < t->size()) {
+            ins = dec.decode();
+            if (!ins.isValid()) break;
+            Address relocAddr = t->reloc() + curOffset;
+            Address origAddr = t->relocToOrig(relocAddr);
+            curOffset += ins.size();
+
+            // Check if the dst reg has a pre-determined value
+            MachRegister dstReg;
+            std::set<InstructionAPI::RegisterAST::Ptr> regs;           
+            ins.getWriteSet(regs);
+            for (auto &r : regs) {
+                dstReg = r->getID().getBaseRegister();
+            }
+            if (dstReg == ppc64::r2) continue;
+            Address val;
+            if (!pca->queryPostInstructionValue(origAddr, dstReg, val)) continue;
+
+            // Check if the dst reg matches a function entry
+            Address newValue = movePointer(val, origAddr);
+            if (newValue == 0) continue;
+
+            MachRegister srcReg;
+            regs.clear();
+            ins.getReadSet(regs);
+            for (auto &r : regs) {
+                srcReg = r->getID().getBaseRegister();
+            }
+            if (srcReg == ppc64::r2) continue;
+            Address origin;
+            if (!pca->queryPreInstructionValueOrigin(origAddr, srcReg, origin)) continue;
+            //fprintf(stderr, "original one %lx, two %lx\n", origin, origAddr);
+            rewritePPCPointer(relocAddr, origin, newValue, tocBase);
+        }
+    }
+    for (auto& it : pointerAnalysisMap) {
+        delete it.second;
+    }
+}
+
+void FunctionPointerMover::rewritePPCPointer(Address reloc1, Address orig2, Address newValue, Address tocBase) {
+     
+    const TrackerElement *t = lookupTrackerElement(orig2);
+    assert(t);
+    Address reloc2 = t->origToReloc(orig2);
+
+    //fprintf(stderr, "PPC Function pointer rewriting, high address at %lx, low address at %lx, new value %lx\n", reloc2, reloc1, newValue);
+
+    // Assume that the reloc2 is the addis dst2, r2, IMM@high
+    // and reloc1 is the addi dst1, dst2, IMM@low
+    uint64_t val = newValue - tocBase;
+    uint16_t high = (uint16_t)((val + 0x8000) >> 16);
+    uint16_t low = (uint16_t)(val & 0xFFFF);
+    
+    codeGen gen1;
+    gen1.invalidate();
+    gen1.allocate(4);
+    gen1.setAddrSpace(as);
+    gen1.setAddr(reloc1);
+    gen1.copy(&low, 2);
+    newPointers.push_back(gen1);
+
+    codeGen gen2;
+    gen2.invalidate();
+    gen2.allocate(4);
+    gen2.setAddrSpace(as);
+    gen2.setAddr(reloc2);
+    gen2.copy(&high, 2);
+    newPointers.push_back(gen2);
+}
+
+void FunctionPointerMover::buildTrackerMap(CodeTracker* ct) {
+    trackerMap.clear();
+    for (const auto *te : ct->trackers()) {
+        if (te->type() != TrackerElement::original) continue;
+        trackerMap[make_pair(te->orig(), te->orig() + te->size())] = te;
+    }
+}
+
+const TrackerElement* FunctionPointerMover::lookupTrackerElement(Address orig) {
+    auto it = trackerMap.upper_bound( make_pair(orig, std::numeric_limits<Address>::max()) );
+    if (it == trackerMap.end()) return NULL;
+    --it;
+    if (it->first.first <= orig && orig < it->first.second) {
+        return it->second;
+    } else {
+        return NULL;
+    }
 }

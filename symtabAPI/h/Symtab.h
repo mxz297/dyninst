@@ -411,6 +411,7 @@ class SYMTAB_EXPORT Symtab : public LookupInterface,
    bool deleteSymbol(Symbol *sym); 
 
    Symbol *getSymbolByIndex(unsigned);
+   Offset getObjectTOCAddress();
 
    /***** Private Member Functions *****/
    private:
@@ -658,6 +659,7 @@ class SYMTAB_EXPORT Symtab : public LookupInterface,
 
    FuncRangeLookup *func_lookup;
     ModRangeLookup *mod_lookup_;
+   Offset objectTOC;
 
    //Don't use obj_private, use getObject() instead.
  public:

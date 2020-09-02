@@ -948,3 +948,52 @@ Dyninst::Offset Symtab::fileToMemOffset(Dyninst::Offset fileOffset) const {
    }
    return (Dyninst::Offset) -1;
 }
+
+static bool CheckForPowerPreamble(uint32_t buf1, uint32_t buf2, Offset &tocBase, Offset curOff) {
+
+    uint32_t p1 = buf1 >> 16;
+    uint32_t p2 = buf2 >> 16;
+
+    // Check for two types of preamble
+    // Preamble 1: used in executables
+    // lis r2, IMM       bytes: IMM1 IMM2 40 3c 
+    // addi r2, r2, IMM  bytes: IMM1 IMM2 42 38
+    if (p1 == 0x3c40 && p2 == 0x3842) {
+        tocBase = buf1 & 0xffff;
+        tocBase <<= 16;
+        tocBase += (int16_t)(buf2 & 0xffff);
+        return true;
+    }
+    
+    // Preamble 2: used in libraries
+    // addis r2, r12, IMM   bytes: IMM1 IMM2 4c 3c
+    // addi r2, r2,IMM      bytes: IMM1 IMM2 42 38
+    if (p1 == 0x3c4c && p2 == 0x3842) {
+        tocBase = buf1 & 0xffff;
+        tocBase <<= 16;
+        tocBase += (int16_t)(buf2 & 0xffff);
+        // Base on the Power ABI V2, r12 should the entry address of the function     
+        tocBase += curOff;
+        return true;
+    }
+    return false;
+}
+
+
+
+Dyninst::Offset Symtab::getObjectTOCAddress() {
+    if (getArchitecture() != Arch_ppc64) return 0;
+    if (objectTOC != 0) return objectTOC;
+    Region* textReg = NULL;
+    if (!findRegion(textReg, ".text")) return 0;
+    if (textReg == NULL) return 0;
+    uint32_t* buf = (uint32_t*)(textReg->getPtrToRawData());
+    Offset curOff = textReg->getMemOffset();
+    for (size_t i = 1; i < textReg->getMemSize() / 4; ++i) {
+        if (CheckForPowerPreamble(buf[i - 1], buf[i], objectTOC, curOff)) {
+            return objectTOC;
+        }
+        curOff += 4;
+    }
+    return 0;
+}
