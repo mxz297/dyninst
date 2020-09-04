@@ -79,7 +79,8 @@ void FunctionPointerMover::movePointersInCodeSection() {
             movePointersInCodeSectionX86();
             break;
         case Arch_ppc64:
-            movePointersInCodeSectionPPC64();
+        case Arch_aarch64:
+            movePointersInCodeSectionWithPCPointerAnalysis();
             break;
         default:
             break;
@@ -185,14 +186,14 @@ Address FunctionPointerMover::getImmediateOperand(InstructionAPI::Instruction &i
 
 }
 
-void FunctionPointerMover::movePointersInCodeSectionPPC64() {
+void FunctionPointerMover::movePointersInCodeSectionWithPCPointerAnalysis() {
     std::map<ParseAPI::Function*, DataflowAPI::PCPointerAnalyzer*> pointerAnalysisMap;
     AddressSpace::CodeTrackers& trackers = as->relocatedCode_;    
     CodeTracker* tracker = trackers.back();
     buildTrackerMap(tracker);
 
     for (auto code_tracker_iter = tracker->trackers().begin(); code_tracker_iter != tracker->trackers().end(); ++code_tracker_iter) {
-        // Only need to rewrite fucntion pointers in origina code
+        // Only need to rewrite fucntion pointers in original code
         const TrackerElement *t = *code_tracker_iter;
         if (t->type() != TrackerElement::original) continue;
 
@@ -252,7 +253,17 @@ void FunctionPointerMover::movePointersInCodeSectionPPC64() {
             Address origin;
             if (!pca->queryPreInstructionValueOrigin(origAddr, srcReg, origin)) continue;
             //fprintf(stderr, "original one %lx, two %lx\n", origin, origAddr);
-            rewritePPCPointer(relocAddr, origin, newValue, tocBase);
+            switch (as->getArch()) {
+                case Arch_ppc64:
+                    rewritePPCPointer(relocAddr, origin, newValue, tocBase);
+                    break;
+                case Arch_aarch64:
+                    rewriteARMPointer(relocAddr, origin, newValue);
+                    break;
+                default:
+                    fprintf(stderr, "Unsupport architecture\n");
+                    assert(0);
+            }
         }
     }
     for (auto& it : pointerAnalysisMap) {
@@ -291,10 +302,55 @@ void FunctionPointerMover::rewritePPCPointer(Address reloc1, Address orig2, Addr
     newPointers.push_back(gen2);
 }
 
+void FunctionPointerMover::rewriteARMPointer(Address reloc1, Address orig2, Address newValue) {
+    const TrackerElement *t = lookupTrackerElement(orig2);
+    assert(t);
+    Address reloc2 = t->origToReloc(orig2);
+
+    //fprintf(stderr, "ARM Function pointer rewriting, high address at %lx, low address at %lx, new value %lx\n", reloc2, reloc1, newValue);
+
+#define UNSET_BITS(inst, x, y) \
+    (inst) &= ~(((1UL << ((y) - (x) + 1)) - 1) << (x));
+#define SET_BITS(inst, x, v) \
+    (inst) |= (((uint32_t)(v)) << (x));
+    // Rewrite adrp instruction
+    int32_t pageOffset = (newValue >> 12) - (reloc2 >> 12);
+    uint32_t inst;
+    as->readTextSpace((const void*)reloc2, 4, (void*)(&inst));
+    UNSET_BITS(inst, 29, 30);
+    SET_BITS(inst, 29, pageOffset & 0x3);
+    UNSET_BITS(inst, 5, 23);
+    SET_BITS(inst, 5, (pageOffset >> 2) & 0x7FFFF);
+
+    codeGen gen2;
+    gen2.invalidate();
+    gen2.allocate(4);
+    gen2.setAddrSpace(as);
+    gen2.setAddr(reloc2);
+    gen2.copy(&inst, 4);
+    newPointers.push_back(gen2);
+
+    // Rewrite add instruction
+    as->readTextSpace((const void*)reloc1, 4, (void*)(&inst));
+    UNSET_BITS(inst, 10, 21);
+    SET_BITS(inst, 10, newValue & 0xFFF);
+
+    codeGen gen1;
+    gen1.invalidate();
+    gen1.allocate(4);
+    gen1.setAddrSpace(as);
+    gen1.setAddr(reloc1);
+    gen1.copy(&inst, 4);
+    newPointers.push_back(gen1);
+#undef SET_BITS
+#undef UNSET_BITS
+}
+
 void FunctionPointerMover::buildTrackerMap(CodeTracker* ct) {
     trackerMap.clear();
     for (const auto *te : ct->trackers()) {
-        if (te->type() != TrackerElement::original) continue;
+        if (te->type() != TrackerElement::original &&
+            te->type() != TrackerElement::emulated) continue;
         trackerMap[make_pair(te->orig(), te->orig() + te->size())] = te;
     }
 }

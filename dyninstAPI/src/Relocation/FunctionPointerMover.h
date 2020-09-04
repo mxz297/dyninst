@@ -27,12 +27,14 @@ private:
     Address getOriginalPCAddress(InstructionAPI::Instruction&, Address);
     Address getImmediateOperand(InstructionAPI::Instruction&);
     void movePointersInCodeSectionX86();
-    void movePointersInCodeSectionPPC64();
+    void movePointersInCodeSectionWithPCPointerAnalysis();
 
     std::map< std::pair<Address, Address>, const TrackerElement* > trackerMap;
     const TrackerElement* lookupTrackerElement(Address);
     void buildTrackerMap(CodeTracker*);
     void rewritePPCPointer(Address, Address, Address, Address);
+    void rewriteARMPointer(Address, Address, Address);
+
 };
 
 

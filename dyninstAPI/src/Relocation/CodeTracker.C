@@ -151,6 +151,7 @@ void CodeTracker::addTracker(TrackerElement *e) {
       if (previous->mergeable() &&
           e->mergeable() && 
           previous->type() == e->type() &&
+          e->type() == TrackerElement::original &&
           e->orig() == (previous->orig()+previous->size()) &&
           e->block() == previous->block() &&
           e->func() == previous->func()) {
