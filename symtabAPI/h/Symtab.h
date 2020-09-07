@@ -372,6 +372,11 @@ class SYMTAB_EXPORT Symtab : public LookupInterface,
    //   char*  data_ptr ()  const;
    Offset getInitOffset();
    Offset getFiniOffset();
+   
+   Offset getNewInitOffset();
+   Offset getNewFiniOffset();
+   void setNewInitOffset(Offset);
+   void setNewFiniOffset(Offset);
 
    const char*  getInterpreterName() const;
 
@@ -412,6 +417,8 @@ class SYMTAB_EXPORT Symtab : public LookupInterface,
 
    Symbol *getSymbolByIndex(unsigned);
    Offset getObjectTOCAddress();
+   Offset getNewEntryOffset();
+   void setNewEntryOffset(Offset);
 
    /***** Private Member Functions *****/
    private:
@@ -660,6 +667,9 @@ class SYMTAB_EXPORT Symtab : public LookupInterface,
    FuncRangeLookup *func_lookup;
     ModRangeLookup *mod_lookup_;
    Offset objectTOC;
+   Offset newEntryOffset;
+   Offset newInitOffset;
+   Offset newFiniOffset;
 
    //Don't use obj_private, use getObject() instead.
  public:

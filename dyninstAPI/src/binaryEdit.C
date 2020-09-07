@@ -511,6 +511,12 @@ bool BinaryEdit::writeFile(const std::string &newFileName)
 
       Symtab *symObj = mobj->parse_img()->getObject();
 
+      if (BPatch::bpatch->relocateFunctionPointer()) {          
+          symObj->setNewEntryOffset(getRelocatedFunctionEntry(symObj->getEntryOffset()));
+          symObj->setNewInitOffset(getRelocatedFunctionEntry(symObj->getInitOffset()));
+          symObj->setNewFiniOffset(getRelocatedFunctionEntry(symObj->getFiniOffset()));
+      }
+
       // link to the runtime library if tramp guards are currently enabled
       if ( !symObj->isStaticBinary() && !BPatch::bpatch->isTrampRecursive() ) {
           assert(!runtime_lib.empty());
@@ -1084,17 +1090,17 @@ void BinaryEdit::buildRAMapping() {
       for (Relocation::CodeTracker::TrackerList::const_iterator iter = CT->trackers().begin();
            iter != CT->trackers().end(); ++iter) {
          const Relocation::TrackerElement *tracker = *iter;
-         
+
          block_instance *tblock = tracker->block();
          Address lastAddr = tblock->block()->last();
          // Function call should be last instruction of a block.
          // So, we only need to create RA mapping when the last instruction of a block
-         // is within the tracker's range         
+         // is within the tracker's range
          if (tracker->orig() <= lastAddr && lastAddr < tracker->orig() + tracker->size()) {
              InstructionAPI::Instruction i = tblock->getInsn(lastAddr);
              if (i.getCategory() != InstructionAPI::c_CallInsn) continue;
              RAMap[tracker->reloc() + tracker->size()] = tracker->orig() + tracker->size();
-         }         
+         }
       }
    }
 
@@ -1137,7 +1143,7 @@ void BinaryEdit::buildRAMapping() {
    }
 }
 
-void BinaryEdit::instrumentGoRuntimeStackTrace(string func_to_inst, int index) {    
+void BinaryEdit::instrumentGoRuntimeStackTrace(string func_to_inst, int index) {
     std::vector<func_instance*> funcs;
     findFuncsByMangled(func_to_inst, funcs);
     if (funcs.size() != 1) {
@@ -1146,7 +1152,7 @@ void BinaryEdit::instrumentGoRuntimeStackTrace(string func_to_inst, int index) {
     }
     func_instance* func = funcs[0];
     block_instance* block = func->entryBlock();
-    block_instance* ft_block = block->getFallthroughBlock();        
+    block_instance* ft_block = block->getFallthroughBlock();
     if (ft_block == nullptr) {
         fprintf(stderr, "cannot find fallthrough block\n");
         return;
@@ -1158,7 +1164,7 @@ void BinaryEdit::instrumentGoRuntimeStackTrace(string func_to_inst, int index) {
     if (points.size() != 1) {
        fprintf(stderr, "Find %u entry point\n", points.size());
        return;
-    }    
+    }
     Point * p = points[0];
     */
 
@@ -1183,4 +1189,10 @@ bool BinaryEdit::isGoBinary() {
         if (r->getRegionName() == ".go.buildinfo") return true;
     }
     return false;
+}
+
+Address BinaryEdit::getRelocatedFunctionEntry(Address entry) {
+    func_instance *f = findFuncByEntry(entry);
+    if (f == NULL) return 0;
+    return getRelocPreAddr(entry, f->entryBlock(), f);
 }

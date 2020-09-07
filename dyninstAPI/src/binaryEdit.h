@@ -242,6 +242,7 @@ class BinaryEdit : public AddressSpace {
     std::vector<memoryTracker*> freeRegions;
     void instrumentGoRuntimeStackTrace(std::string, int);
     bool isGoBinary();
+    Address getRelocatedFunctionEntry(Address);
 };
 
 class depRelocation {

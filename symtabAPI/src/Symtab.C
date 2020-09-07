@@ -386,6 +386,9 @@ SYMTAB_EXPORT Symtab::Symtab() :
    _ref_cnt(1)
 {  
     objectTOC = 0;
+    newEntryOffset = 0;
+    newInitOffset = 0;
+    newFiniOffset = 0;
     init_debug_symtabAPI();
     create_printf("%s[%d]: Created symtab via default constructor\n", FILE__, __LINE__);
 }
@@ -1262,6 +1265,10 @@ Symtab::Symtab(std::string filename, bool defensive_bin, bool &err) :
    _ref_cnt(1)
 {
     objectTOC = 0;
+    newEntryOffset = 0;
+    newInitOffset = 0;
+    newFiniOffset = 0;
+
    init_debug_symtabAPI();
    // Initialize error parameter
    err = false;
@@ -1339,6 +1346,10 @@ Symtab::Symtab(unsigned char *mem_image, size_t image_size,
    _ref_cnt(1)
 {
     objectTOC = 0;
+    newEntryOffset = 0;
+    newInitOffset = 0;
+    newFiniOffset = 0;
+
    // Initialize error parameter
    err = false;
   
@@ -1635,6 +1646,10 @@ Symtab::Symtab(const Symtab& obj) :
    _ref_cnt(1)
 {
     objectTOC = 0;
+    newEntryOffset = 0;
+    newInitOffset = 0;
+    newFiniOffset = 0;
+
     create_printf("%s[%d]: Creating symtab 0x%p from symtab 0x%p\n", FILE__, __LINE__, this, &obj);
 
    unsigned i;
@@ -3598,4 +3613,28 @@ void Symtab::dumpFuncRanges() {
   if (func_lookup) {
     func_lookup->PrintPreorder();
   }
+}
+
+SYMTAB_EXPORT Offset Symtab::getNewEntryOffset() {
+   return newEntryOffset;      
+}
+
+SYMTAB_EXPORT void Symtab::setNewEntryOffset(Offset o) {
+   newEntryOffset = o;
+}
+
+SYMTAB_EXPORT Offset Symtab::getNewInitOffset() {
+   return newInitOffset;
+}
+
+SYMTAB_EXPORT Offset Symtab::getNewFiniOffset() {
+   return newFiniOffset;
+}
+
+SYMTAB_EXPORT void Symtab::setNewInitOffset(Offset o) {
+   newInitOffset = o;
+}
+
+SYMTAB_EXPORT void Symtab::setNewFiniOffset(Offset o) {
+   newFiniOffset = o;
 }

@@ -452,6 +452,10 @@ bool emitElf<ElfTypes>::driver(std::string fName) {
             oldElf);
     memcpy(newEhdr, oldEhdr, sizeof(Elf_Ehdr));
 
+    if (obj->getNewEntryOffset() > 0) {
+        newEhdr->e_entry = obj->getNewEntryOffset();
+    }
+
     newEhdr->e_shnum += newSecs.size();
 
     // Find the end of text and data segments
@@ -2321,7 +2325,21 @@ void emitElf<ElfTypes>::createDynamicSection(void *dynData, unsigned size, Elf_D
                 curpos++;
                 break;
             case DT_INIT:
+                memcpy(dynsecData + curpos, dyns + i, sizeof(Elf_Dyn));
+                dynamicSecData[dyns[i].d_tag].push_back(dynsecData + curpos);
+                curpos++;
+                if (obj->getNewInitOffset() > 0) {
+                    dynamicSecData[dyns[i].d_tag][0]->d_un.d_ptr = obj->getNewInitOffset();
+                }
+                break;            
             case DT_FINI:
+                memcpy(dynsecData + curpos, dyns + i, sizeof(Elf_Dyn));
+                dynamicSecData[dyns[i].d_tag].push_back(dynsecData + curpos);
+                curpos++;
+                if (obj->getNewFiniOffset() > 0) {
+                    dynamicSecData[dyns[i].d_tag][0]->d_un.d_ptr = obj->getNewFiniOffset();
+                }
+                break;                        
             case DT_GNU_CONFLICT:
             case DT_JMPREL:
             case DT_PLTGOT:
