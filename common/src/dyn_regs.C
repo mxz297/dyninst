@@ -91,9 +91,10 @@ MachRegister MachRegister::getBaseRegister() const {
       case Arch_cuda:
 	 assert(0);
 		case Arch_aarch32:
+            return *this;
 		case Arch_aarch64:
-				  //not verified
-		   return *this;
+            if (category == aarch64::GPR) return MachRegister(reg & 0xfffff0ff);
+            return *this;
    }
    return InvalidReg;
 }
