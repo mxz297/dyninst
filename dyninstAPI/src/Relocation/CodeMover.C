@@ -312,10 +312,18 @@ void CodeMover::OptimizeSpringboards() {
             safeBlocks.insert(b);            
         }
         f->setSafeBlocks(safeBlocks);
+    }
 
-        // For safe blocks, we overwrite all of them with invalid
+    set<func_instance*> funcSet;
+    for (RelocBlock *iter = cfg_->begin(); iter != cfg_->end(); iter = iter->next()) {
+        funcSet.insert(iter->func());
+    }
+    for (auto f : funcSet) {
+        // We overwrite all blocks with invalid
         // instructions. In this way, we can catch unintented
         // bouncing from relocated code.
+        // Later when we install trampolines, tramopline will overwrite
+        // invalid instructions
         for (auto bit : f->blocks()) {
             block_instance* b = dynamic_cast<block_instance*>(bit);
             if (b->_ignorePowerPreamble) continue;

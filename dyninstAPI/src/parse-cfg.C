@@ -619,7 +619,7 @@ bool parse_func::isInstrumentable() {
    else {
       // Create instrumentation points for non-plt functions 
       if(obj()->cs()->linkage().find(getOffset()) != obj()->cs()->linkage().end()) { 
-          return false;
+          return true;
       }
     }
    if (name() == "__glink_PLTresolve") {
