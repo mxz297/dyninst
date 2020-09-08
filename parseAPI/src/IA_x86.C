@@ -231,6 +231,7 @@ bool IA_x86::isThunk() const {
 bool IA_x86::isTailCall(const Function *context, EdgeTypeEnum type, unsigned int,
                         const set<Address> &knownTargets) const
 {
+    EdgeTypeEnum originalType = type;
    // Collapse down to "branch" or "fallthrough"
     switch(type) {
        case COND_TAKEN:
@@ -308,6 +309,14 @@ bool IA_x86::isTailCall(const Function *context, EdgeTypeEnum type, unsigned int
         tailCalls[type] = false;
         return false;
       }
+    }
+
+    if (originalType == INDIRECT && context != NULL) {
+        if (pushPopSequenceMatch(context)) {
+            parsing_printf("\tindirect jump and pop sequences match push sequence at function entry, TAIL CALL\n");
+            tailCalls[type] = true;
+            return true;
+        }
     }
 
     if ((curInsn().getCategory() == c_BranchInsn))
@@ -772,4 +781,51 @@ bool IA_x86::isLinkerStub() const
 {
     // No need for linker stubs on x86 platforms.
     return false;
+}
+
+bool IA_x86::pushPopSequenceMatch(const Function* context) const {
+    allInsns_t::const_iterator prevIter = curInsnIter;
+    std::vector<MachRegister> popSeqs;
+    while (prevIter != allInsns.begin()) {
+        --prevIter;
+        const Instruction& prevInsn = prevIter->second;
+        if (prevInsn.getOperation().getID() != e_pop) continue;        
+        std::set<RegisterAST::Ptr> regsWritten;
+        prevInsn.getWriteSet(regsWritten);
+        if (regsWritten.size() == 2) {
+            MachRegister popReg;
+            for (auto& rit : regsWritten) {
+                if (MachRegister::getStackPointer(_isrc->getArch()) != rit->getID()) {
+                    popReg = rit->getID();
+                }
+            }
+            if (popReg.isValid()) {
+                popSeqs.emplace_back(popReg);
+            }
+        }
+    }
+
+    if (popSeqs.empty()) return false;
+
+    Block::Insns insns;
+    context->entry()->getInsns(insns);
+    std::vector<MachRegister> pushSeqs;
+    for (auto& iit : insns) {
+        const Instruction& i = iit.second;
+        if (i.getOperation().getID() != e_push) continue;
+        std::set<RegisterAST::Ptr> regsRead;
+        i.getReadSet(regsRead);
+        if (regsRead.size() == 2) {
+            MachRegister pushReg;
+            for (auto& rit : regsRead) {
+                if (MachRegister::getStackPointer(_isrc->getArch()) != rit->getID()) {
+                    pushReg = rit->getID();
+                }
+            }
+            if (pushReg.isValid()) {
+                pushSeqs.emplace_back(pushReg);
+            }
+        }            
+    }
+    return popSeqs == pushSeqs;
 }
