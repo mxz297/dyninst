@@ -316,7 +316,7 @@ void RelocBlock::processEdge(EdgeDirection e, edge_instance *edge, RelocGraph *c
 bool RelocBlock::determineSpringboards(PriorityMap &p) {
    // We initially place trampolines at function entry
    // and every instrumented block
-   if (func_ && func_->entryBlock() == block_ && !BPatch::bpatch->relocateFunctionPointer()) {
+   if (func_ && func_->entryBlock() == block_ /*&& !BPatch::bpatch->relocateFunctionPointer()*/) {
      relocation_cerr << "determineSpringboards (entry block): " << func_->symTabName()
 		     << " / " << hex << block_->start() << " is required" << dec << endl;
       p[std::make_pair(block_, func_)] = FuncEntry;
