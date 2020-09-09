@@ -24,6 +24,7 @@ FunctionPointerMover::Ptr FunctionPointerMover::create(AddressSpace *s) {
     ret->movePointersInDataSection(".rodata");
     ret->movePointersInDataSection(".init_array");
     ret->movePointersInDataSection(".fini_array");
+    ret->movePointersInDataSection(".data.rel.ro");
 
     ret->movePointersInCodeSection();
     return ret;
