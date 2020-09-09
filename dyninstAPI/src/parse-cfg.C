@@ -599,7 +599,10 @@ bool parse_func::hasLargeGaps() {
             InstructionAPI::Instruction insn = d.decode();
             if (insn.size() == 0) break;
             if (!insn.isValid()) break;
-            if (insn.getOperation().getID() == e_nop) continue;
+            entryID e = insn.getOperation().getID();
+            if (e == e_nop) continue;
+            if (e == aarch64_op_nop_hint) continue;
+            if (e == aarch64_op_hint) continue;
             hasRealCode = true;
             break;
         }
