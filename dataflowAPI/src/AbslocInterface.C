@@ -168,14 +168,24 @@ void AbsRegionConverter::convertAll(InstructionAPI::Instruction insn,
 }
 
 AbsRegion AbsRegionConverter::convert(RegisterAST::Ptr reg) {
-  // We do not distinguish partial registers from full register.
-  // So, eax and rax are treated the same.
-  // But for flags, we want to separate CF, ZF, and so on
-  if (reg->getID().isFlag()) {
-    return AbsRegion(Absloc(reg->getID()));
-  } else {
-    return AbsRegion(Absloc(reg->getID().getBaseRegister()));
-  }		   
+    Dyninst::MachRegister id = reg->getID();
+    Dyninst::Architecture a = id.getArchitecture();
+    if (a == Arch_x86 || a == Arch_x86_64) {
+        // Instruction semantics for x86/x64 are derived from
+        // very old ROSE semantics. We do not  distinguish partial
+        // registers from full register. So, eax and rax are
+        // treated the same.But for flags, we want to separate CF, ZF,
+        // and so on.
+        if (reg->getID().isFlag()) {
+            return AbsRegion(Absloc(id));
+        } else {
+            return AbsRegion(Absloc(id.getBaseRegister()));
+        }
+    } else {
+        // For power and arm, we use newer ROSE semantics,
+        // which needs to feed the original register size
+        return AbsRegion(Absloc(id));
+    }
 }
 
 class bindKnownRegs : public InstructionAPI::Visitor
