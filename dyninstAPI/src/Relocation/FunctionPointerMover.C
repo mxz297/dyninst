@@ -256,7 +256,7 @@ void FunctionPointerMover::movePointersInCodeSectionWithPCPointerAnalysis() {
             if (srcReg == ppc64::r2) continue;
             Address origin;
             if (!pca->queryPreInstructionValueOrigin(origAddr, srcReg, origin)) continue;
-            //fprintf(stderr, "original one %lx, two %lx\n", origin, origAddr);
+            relocation_cerr  << "original one " << std::hex << origin << " two " << origAddr << std::dec << endl;
             switch (as->getArch()) {
                 case Arch_ppc64:
                     rewritePPCPointer(relocAddr, origin, newValue, tocBase);
@@ -281,7 +281,8 @@ void FunctionPointerMover::rewritePPCPointer(Address reloc1, Address orig2, Addr
     assert(t);
     Address reloc2 = t->origToReloc(orig2);
 
-    //fprintf(stderr, "PPC Function pointer rewriting, high address at %lx, low address at %lx, new value %lx\n", reloc2, reloc1, newValue);
+    relocation_cerr << "PPC Function pointer rewriting, high address at " << std::hex << reloc2
+        << ", low address at " << reloc1 << " new value " << newValue << std::dec << endl;
 
     // Assume that the reloc2 is the addis dst2, r2, IMM@high
     // and reloc1 is the addi dst1, dst2, IMM@low
@@ -311,7 +312,8 @@ void FunctionPointerMover::rewriteARMPointer(Address reloc1, Address orig2, Addr
     assert(t);
     Address reloc2 = t->origToReloc(orig2);
 
-    //fprintf(stderr, "ARM Function pointer rewriting, high address at %lx, low address at %lx, new value %lx\n", reloc2, reloc1, newValue);
+    relocation_cerr << "ARM Function pointer rewriting, high address at " << std::hex << reloc2
+        << ", low address at " << reloc1 << " new value " << newValue << std::dec << endl;
 
 #define UNSET_BITS(inst, x, y) \
     (inst) &= ~(((1UL << ((y) - (x) + 1)) - 1) << (x));
