@@ -27,7 +27,7 @@ class DATAFLOW_EXPORT PCPointerFact {
     std::map<MachRegister, Address> val;
 
     // Tracks where the value comes from
-    std::map<MachRegister, Address> origin;
+    std::map<MachRegister, std::set<Address> > origin;
 
     // Registers not in top or val are bottom
 public:
@@ -36,7 +36,7 @@ public:
     void update(const MachRegister &, const Address &, const Address &);
     void setTop(const MachRegister &);
     bool query(const MachRegister&, Address&);
-    bool queryOrigin(const MachRegister&, Address&);
+    bool queryOrigin(const MachRegister&, std::set<Address>&);
     void print();
 };
 
@@ -72,8 +72,8 @@ public:
     PCPointerAnalyzer(ParseAPI::Function*);
     bool queryPostInstructionValue(Address, MachRegister, Address&); 
     bool queryPreInstructionValue(Address, MachRegister, Address&);
-    bool queryPostInstructionValueOrigin(Address, MachRegister, Address&); 
-    bool queryPreInstructionValueOrigin(Address, MachRegister, Address&);
+    bool queryPostInstructionValueOrigin(Address, MachRegister, std::set<Address>&);
+    bool queryPreInstructionValueOrigin(Address, MachRegister, std::set<Address>&);
 
 
 };

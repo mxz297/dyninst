@@ -254,19 +254,21 @@ void FunctionPointerMover::movePointersInCodeSectionWithPCPointerAnalysis() {
                 srcReg = r->getID().getBaseRegister();
             }
             if (srcReg == ppc64::r2) continue;
-            Address origin;
-            if (!pca->queryPreInstructionValueOrigin(origAddr, srcReg, origin)) continue;
-            relocation_cerr  << "original one " << std::hex << origin << " two " << origAddr << std::dec << endl;
-            switch (as->getArch()) {
-                case Arch_ppc64:
-                    rewritePPCPointer(relocAddr, origin, newValue, tocBase);
-                    break;
-                case Arch_aarch64:
-                    rewriteARMPointer(relocAddr, origin, newValue);
-                    break;
-                default:
-                    fprintf(stderr, "Unsupport architecture\n");
-                    assert(0);
+            std::set<Address> origins;
+            if (!pca->queryPreInstructionValueOrigin(origAddr, srcReg, origins)) continue;
+            for (auto & origin : origins) {
+                relocation_cerr  << "original one " << std::hex << origin << " two " << origAddr << std::dec << endl;
+                switch (as->getArch()) {
+                    case Arch_ppc64:
+                        rewritePPCPointer(relocAddr, origin, newValue, tocBase);
+                        break;
+                    case Arch_aarch64:
+                        rewriteARMPointer(relocAddr, origin, newValue);
+                        break;
+                    default:
+                        fprintf(stderr, "Unsupport architecture\n");
+                        assert(0);
+                }
             }
         }
     }

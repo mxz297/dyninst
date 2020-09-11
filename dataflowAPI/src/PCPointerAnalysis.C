@@ -31,7 +31,7 @@ bool PCPointerAnalyzer::queryPostInstructionValue(Address addr, MachRegister reg
     return it->second.query(reg, val);
 }
 
-bool PCPointerAnalyzer::queryPostInstructionValueOrigin(Address addr, MachRegister reg, Address &val) {
+bool PCPointerAnalyzer::queryPostInstructionValueOrigin(Address addr, MachRegister reg, std::set<Address> &val) {
     auto it = instructionData.find(addr);
     if (it == instructionData.end()) return false;
     return it->second.queryOrigin(reg, val);
@@ -52,7 +52,7 @@ bool PCPointerAnalyzer::queryPreInstructionValue(Address addr, MachRegister reg,
     }
 }
 
-bool PCPointerAnalyzer::queryPreInstructionValueOrigin(Address addr, MachRegister reg, Address& val) {
+bool PCPointerAnalyzer::queryPreInstructionValueOrigin(Address addr, MachRegister reg, std::set<Address> &val) {
     auto bit = blockMap.find(addr);
     if (bit == blockMap.end()) {
         auto iit = instructionData.find(addr);
@@ -253,7 +253,8 @@ bool PCPointerFact::operator==(const PCPointerFact& rhs) const {
 void PCPointerFact::update(const MachRegister& reg, const Address &addr, const Address &loc) {
     top.erase(reg);
     val[reg] = addr;
-    origin[reg] = loc;
+    origin[reg].clear();
+    origin[reg].insert(loc);
 }
 
 void PCPointerFact::setTop(const MachRegister& reg) {
@@ -283,8 +284,8 @@ void PCPointerFact::join(PCPointerFact& rhs) {
             // A register that has different values on different paths
             // is set to be top. We have a flat lattice
             setTop(reg);
-        } else if (origin[reg] != rhs.origin[reg]) {
-            pcpointer_printf("reg %s, o1 %lx, o2 %lx\n", reg.name().c_str(), origin[reg], rhs.origin[reg]);
+        } else {
+            origin[reg].insert(rhs.origin[reg].begin(), rhs.origin[reg].end());
         }
     }
 }
@@ -296,7 +297,7 @@ bool PCPointerFact::query(const MachRegister& r, Address &addr) {
     return true;
 }
 
-bool PCPointerFact::queryOrigin(const MachRegister& r, Address& o) {
+bool PCPointerFact::queryOrigin(const MachRegister& r, std::set<Address>& o) {
     auto it = origin.find(r);
     if (it == origin.end()) return false;
     o = it->second;
