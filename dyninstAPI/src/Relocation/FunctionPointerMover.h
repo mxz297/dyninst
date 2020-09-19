@@ -18,6 +18,7 @@ public:
 
     void movePointersInDataSection(const char* name);
     void movePointersInCodeSection();
+    void movePointersInRelocation();
 
 private:
     FunctionPointerMover(AddressSpace* s): as(s) {}

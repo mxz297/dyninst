@@ -1,5 +1,5 @@
 #include "FunctionPointerMover.h"
-#include "dyninstAPI/src/addressSpace.h" 
+#include "dyninstAPI/src/addressSpace.h"
 #include "dyninstAPI/src/function.h"
 #include "dyninstAPI/src/debug.h"
 #include "dyninstAPI/src/mapped_object.h"
@@ -19,13 +19,13 @@ using namespace Relocation;
 #define PTR_SIZE (sizeof(void*))
 
 FunctionPointerMover::Ptr FunctionPointerMover::create(AddressSpace *s) {
-    Ptr ret = Ptr(new FunctionPointerMover(s));                      
+    Ptr ret = Ptr(new FunctionPointerMover(s));    
     ret->movePointersInDataSection(".data");
     ret->movePointersInDataSection(".rodata");
     ret->movePointersInDataSection(".init_array");
     ret->movePointersInDataSection(".fini_array");
     ret->movePointersInDataSection(".data.rel.ro");
-
+    ret->movePointersInRelocation();
     ret->movePointersInCodeSection();
     return ret;
 }
@@ -33,15 +33,18 @@ FunctionPointerMover::Ptr FunctionPointerMover::create(AddressSpace *s) {
 void FunctionPointerMover::movePointersInDataSection(const char *secName) {
    for (auto mit = as->mappedObjects().begin(); mit != as->mappedObjects().end(); ++mit) {
        mapped_object* mo = *mit;
+       // If it is PIC, we only rewrite pointers based on 
+       // relocation entries and pc-relative instructions
+       if (mo->isSharedLib()) continue;
        SymtabAPI::Region* dataReg = NULL;
        mo->parse_img()->getObject()->findRegion(dataReg, secName);
-       if (dataReg == NULL) continue; 
+       if (dataReg == NULL) continue;
        Address start = dataReg->getMemOffset();
        unsigned size = dataReg->getMemSize();
        for (unsigned off = 0; off < size; off += PTR_SIZE) {
            Address addr = start + off;
            Address value = 0;
-           as->readTextSpace( (const void*)addr, PTR_SIZE, (void*)&value);      
+           as->readTextSpace( (const void*)addr, PTR_SIZE, (void*)&value);
            Address newValue = movePointer(value, addr);
            if (newValue == 0) continue;
            codeGen gen;
@@ -60,7 +63,6 @@ Address FunctionPointerMover::movePointer(Address addr, Address ptr_addr) {
     if (func == NULL) return 0;
     block_instance* block = func->getBlockByEntry(addr);
     if (block == NULL) return 0;
-
     std::list<Address> relocs;
     as->getRelocAddrs(addr, block, func, relocs, true);
     if (relocs.size() == 0) return 0;
@@ -68,7 +70,7 @@ Address FunctionPointerMover::movePointer(Address addr, Address ptr_addr) {
     for (auto ait = relocs.begin(); ait != relocs.end(); ++ait) {
         if (ret == 0 || ret > *ait) ret = *ait;
     }
-    relocation_cerr << "move function pointer at " << hex << ptr_addr << " from " 
+    relocation_cerr << "move function pointer at " << hex << ptr_addr << " from "
         << addr << " to " << ret << dec << endl;
     return ret;
 }
@@ -92,6 +94,8 @@ void FunctionPointerMover::movePointersInCodeSection() {
 }
 
 void FunctionPointerMover::movePointersInCodeSectionX86() {
+    // TODO: handle multiple loaded objects
+    bool isPIC = as->mappedObjects()[0]->isSharedLib();
     AddressSpace::CodeTrackers& trackers = as->relocatedCode_;
     CodeTracker* tracker = trackers.back();
     for (auto code_tracker_iter = tracker->trackers().begin(); code_tracker_iter != tracker->trackers().end(); ++code_tracker_iter) {
@@ -126,11 +130,11 @@ void FunctionPointerMover::movePointersInCodeSectionX86() {
                 gen.allocate(ins.size());
                 gen.setAddrSpace(as);
                 gen.setAddr(curAddr);
-               
+
  			    instruction ugly_insn(ins.ptr(), true);
 			    insnCodeGen::modifyData(newValue, ugly_insn, gen);
                 newPointers.push_back(gen);
-            } else {
+            } else if (!isPIC) {                
                 Address orig = getImmediateOperand(ins);
                 if (orig == 0) {
                     curAddr += ins.size();
@@ -158,7 +162,7 @@ void FunctionPointerMover::movePointersInCodeSectionX86() {
                     byte_vec[byte_vec.size() - i] = byte;
                 }
                 gen.copy(byte_vec);
-                newPointers.push_back(gen);
+                newPointers.push_back(gen);                
             }
 	        curAddr += ins.size();
 	    }
@@ -168,7 +172,7 @@ void FunctionPointerMover::movePointersInCodeSectionX86() {
 Address FunctionPointerMover::getOriginalPCAddress(InstructionAPI::Instruction &ins, Address curAddr) {
     InstructionAPI::Expression::Ptr op = ins.getOperand(1).getValue();
     InstructionAPI::Expression::Ptr thePC(new InstructionAPI::RegisterAST(MachRegister::getPC(ins.getArch())));
-    op->bind(thePC.get(), InstructionAPI::Result(InstructionAPI::u64, curAddr + ins.size()));
+    op->bind(thePC.get(), InstructionAPI::Result(InstructionAPI::u64, curAddr));
     InstructionAPI::Result res = op->eval();
     if (res.defined) {
         return res.convert<Address>();
@@ -192,7 +196,7 @@ Address FunctionPointerMover::getImmediateOperand(InstructionAPI::Instruction &i
 
 void FunctionPointerMover::movePointersInCodeSectionWithPCPointerAnalysis() {
     std::map<ParseAPI::Function*, DataflowAPI::PCPointerAnalyzer*> pointerAnalysisMap;
-    AddressSpace::CodeTrackers& trackers = as->relocatedCode_;    
+    AddressSpace::CodeTrackers& trackers = as->relocatedCode_;
     CodeTracker* tracker = trackers.back();
     buildTrackerMap(tracker);
 
@@ -234,7 +238,7 @@ void FunctionPointerMover::movePointersInCodeSectionWithPCPointerAnalysis() {
 
             // Check if the dst reg has a pre-determined value
             MachRegister dstReg;
-            std::set<InstructionAPI::RegisterAST::Ptr> regs;           
+            std::set<InstructionAPI::RegisterAST::Ptr> regs;
             ins.getWriteSet(regs);
             for (auto &r : regs) {
                 dstReg = r->getID().getBaseRegister();
@@ -278,7 +282,7 @@ void FunctionPointerMover::movePointersInCodeSectionWithPCPointerAnalysis() {
 }
 
 void FunctionPointerMover::rewritePPCPointer(Address reloc1, Address orig2, Address newValue, Address tocBase) {
-     
+
     const TrackerElement *t = lookupTrackerElement(orig2);
     assert(t);
     Address reloc2 = t->origToReloc(orig2);
@@ -291,7 +295,7 @@ void FunctionPointerMover::rewritePPCPointer(Address reloc1, Address orig2, Addr
     uint64_t val = newValue - tocBase;
     uint16_t high = (uint16_t)((val + 0x8000) >> 16);
     uint16_t low = (uint16_t)(val & 0xFFFF);
-    
+
     codeGen gen1;
     gen1.invalidate();
     gen1.allocate(4);
@@ -371,5 +375,15 @@ const TrackerElement* FunctionPointerMover::lookupTrackerElement(Address orig) {
         return it->second;
     } else {
         return NULL;
+    }
+}
+
+void FunctionPointerMover::movePointersInRelocation() {
+    for (auto &r : as->getAOut()->parse_img()->getObject()->getDynRelocations()) {
+        relocation_cerr << "\t\t modify relocation entry for function pointer" << endl;
+        // Check if the dst reg matches a function entry
+        Address newValue = movePointer(r.addend(), r.rel_addr());
+        if (newValue == 0) continue;
+        r.setAddend(newValue);
     }
 }
