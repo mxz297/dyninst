@@ -1387,8 +1387,16 @@ Symtab::Symtab(unsigned char *mem_image, size_t image_size,
 
 bool sort_reg_by_addr(const Region* a, const Region* b)
 {
+  if (a->getRegionName() == "") return true;
+  if (b->getRegionName() == "") return false;
+  if (a->isLoadable() != b->isLoadable()) {
+     // We put loadable sections before unloadable sections
+     int al = (int)(a->isLoadable());
+     int bl = (int)(b->isLoadable());     
+     return al > bl;
+  }
   if (a->getMemOffset() == b->getMemOffset())
-    return a->getMemSize() < b->getMemSize();
+    return a->getDiskOffset() < b->getDiskOffset();
   return a->getMemOffset() < b->getMemOffset();
 }
 
@@ -2171,11 +2179,6 @@ bool Symtab::addRegion(Offset vaddr, void *data, unsigned int dataSize, std::str
 
       regions_.insert(regions_.begin()+newSectionInsertPoint, sec);
 
-      for (i = newSectionInsertPoint+1; i < regions_.size(); i++)
-      {
-         regions_[i]->setRegionNumber(regions_[i]->getRegionNumber() + 1);
-      }
-
       if (    (sec->getRegionType() == Region::RT_TEXT) 
             || (sec->getRegionType() == Region::RT_TEXTDATA))
       {
@@ -2199,7 +2202,10 @@ bool Symtab::addRegion(Offset vaddr, void *data, unsigned int dataSize, std::str
    }
 
    addUserRegion(sec);
-   std::sort(regions_.begin(), regions_.end(), sort_reg_by_addr);
+   std::sort(regions_.begin(), regions_.end(), sort_reg_by_addr);   
+   for (i = 0; i < regions_.size(); i++) {
+      regions_[i]->setRegionNumber(i);         
+   }
    return true;
 }
 
