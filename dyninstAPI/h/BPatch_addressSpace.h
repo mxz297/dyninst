@@ -76,7 +76,6 @@ class BPatch_variableExpr;
 class BPatch_type;
 class AddressSpace;
 class miniTrampHandle;
-class miniTramp;
 class BPatch;
 class BPatch_image;
 class func_instance;

@@ -65,7 +65,10 @@
 
 #include <boost/bind.hpp>
 
+#include "BPatch.h"
 #include "SFI/SFITransformer.h"
+#include "dynThread.h"
+#include "pcEventHandler.h"
 
 // Implementations of non-virtual functions in the address space
 // class.
@@ -313,16 +316,11 @@ bool heapItemLessByAddr(const heapItem *a, const heapItem *b)
 
 
 void AddressSpace::inferiorFreeCompact() {
-   pdvector<heapItem *> &freeList = heap_.heapFree;
+   std::vector<heapItem *> &freeList = heap_.heapFree;
    unsigned i, nbuf = freeList.size();
 
    /* sort buffers by address */
-#if defined (cap_use_pdvector)
-    std::sort(freeList.begin(), freeList.end(), ptr_fun(heapItemCmpByAddr));
-#else
     std::sort(freeList.begin(), freeList.end(), ptr_fun(heapItemLessByAddr));
-#endif
-
 
    /* combine adjacent buffers */
    bool needToCompact = false;
@@ -350,7 +348,7 @@ void AddressSpace::inferiorFreeCompact() {
 
    /* remove any absorbed (empty) buffers */ 
    if (needToCompact) {
-      pdvector<heapItem *> cleanList;
+      std::vector<heapItem *> cleanList;
       unsigned end = freeList.size();
       for (i = 0; i < end; i++) {
          heapItem *h1 = freeList[i];
@@ -371,7 +369,7 @@ void AddressSpace::inferiorFreeCompact() {
     
 int AddressSpace::findFreeIndex(unsigned size, int type, Address lo, Address hi) {
    // type is a bitmask: match on any bit in the mask
-   pdvector<heapItem *> &freeList = heap_.heapFree;
+   std::vector<heapItem *> &freeList = heap_.heapFree;
     
    int best = -1;
    for (unsigned i = 0; i < freeList.size(); i++) {
@@ -649,7 +647,7 @@ bool AddressSpace::inferiorExpandBlock(heapItem *h,
       // If we've enlarged to exactly the end of the successor (succ->length == 0),
       // remove succ
       if (0x0 == succ->length) {
-          pdvector<heapItem *> cleanList;
+          std::vector<heapItem *> cleanList;
           unsigned end = heap_.heapFree.size();
           for (unsigned i = 0; i < end; i++) {
               heapItem * h1 = heap_.heapFree[i];
@@ -681,7 +679,7 @@ bool AddressSpace::inferiorExpandBlock(heapItem *h,
 /////////////////////////////////////////
 
 bool AddressSpace::findFuncsByAll(const std::string &funcname,
-                                  pdvector<func_instance *> &res,
+                                  std::vector<func_instance *> &res,
                                   const std::string &libname) { // = "", btw
     
    unsigned starting_entries = res.size(); // We'll return true if we find something
@@ -689,7 +687,7 @@ bool AddressSpace::findFuncsByAll(const std::string &funcname,
       if (libname == "" ||
           mapped_objects[i]->fileName() == libname.c_str() ||
           mapped_objects[i]->fullName() == libname.c_str()) {
-         const pdvector<func_instance *> *pretty = mapped_objects[i]->findFuncVectorByPretty(funcname);
+         const std::vector<func_instance *> *pretty = mapped_objects[i]->findFuncVectorByPretty(funcname);
          if (pretty) {
             // We stop at first match...
             for (unsigned pm = 0; pm < pretty->size(); pm++) {
@@ -697,7 +695,7 @@ bool AddressSpace::findFuncsByAll(const std::string &funcname,
             }
          }
          else {
-            const pdvector<func_instance *> *mangled = mapped_objects[i]->findFuncVectorByMangled(funcname);
+            const std::vector<func_instance *> *mangled = mapped_objects[i]->findFuncVectorByMangled(funcname);
             if (mangled) {
                for (unsigned mm = 0; mm < mangled->size(); mm++) {
                   res.push_back((*mangled)[mm]);
@@ -712,7 +710,7 @@ bool AddressSpace::findFuncsByAll(const std::string &funcname,
 
 
 bool AddressSpace::findFuncsByPretty(const std::string &funcname,
-                                     pdvector<func_instance *> &res,
+                                     std::vector<func_instance *> &res,
                                      const std::string &libname) { // = "", btw
 
    unsigned starting_entries = res.size(); // We'll return true if we find something
@@ -721,7 +719,7 @@ bool AddressSpace::findFuncsByPretty(const std::string &funcname,
       if (libname == "" ||
           mapped_objects[i]->fileName() == libname.c_str() ||
           mapped_objects[i]->fullName() == libname.c_str()) {
-         const pdvector<func_instance *> *pretty = mapped_objects[i]->findFuncVectorByPretty(funcname);
+         const std::vector<func_instance *> *pretty = mapped_objects[i]->findFuncVectorByPretty(funcname);
          if (pretty) {
             // We stop at first match...
             for (unsigned pm = 0; pm < pretty->size(); pm++) {
@@ -735,7 +733,7 @@ bool AddressSpace::findFuncsByPretty(const std::string &funcname,
 
 
 bool AddressSpace::findFuncsByMangled(const std::string &funcname,
-                                      pdvector<func_instance *> &res,
+                                      std::vector<func_instance *> &res,
                                       const std::string &libname) { // = "", btw
    unsigned starting_entries = res.size(); // We'll return true if we find something
 
@@ -743,7 +741,7 @@ bool AddressSpace::findFuncsByMangled(const std::string &funcname,
       if (libname == "" ||
           mapped_objects[i]->fileName() == libname.c_str() ||
           mapped_objects[i]->fullName() == libname.c_str()) {
-         const pdvector<func_instance *> *mangled = 
+         const std::vector<func_instance *> *mangled = 
             mapped_objects[i]->findFuncVectorByMangled(funcname);
          if (mangled) {
             for (unsigned mm = 0; mm < mangled->size(); mm++) {
@@ -761,7 +759,7 @@ func_instance *AddressSpace::findOnlyOneFunction(const string &name,
 {
    assert(mapped_objects.size());
 
-   pdvector<func_instance *> allFuncs;
+   std::vector<func_instance *> allFuncs;
 
    if (!findFuncsByAll(name.c_str(), allFuncs, lib.c_str()))
       return NULL;
@@ -779,7 +777,7 @@ func_instance *AddressSpace::findOnlyOneFunction(const string &name,
 /////////////////////////////////////////
 
 bool AddressSpace::findVarsByAll(const std::string &varname,
-                                 pdvector<int_variable *> &res,
+                                 std::vector<int_variable *> &res,
                                  const std::string &libname) { // = "", btw
    unsigned starting_entries = res.size(); // We'll return true if we find something
     
@@ -787,7 +785,7 @@ bool AddressSpace::findVarsByAll(const std::string &varname,
       if (libname == "" ||
           mapped_objects[i]->fileName() == libname.c_str() ||
           mapped_objects[i]->fullName() == libname.c_str()) {
-         const pdvector<int_variable *> *pretty = mapped_objects[i]->findVarVectorByPretty(varname);
+         const std::vector<int_variable *> *pretty = mapped_objects[i]->findVarVectorByPretty(varname);
          if (pretty) {
             // We stop at first match...
             for (unsigned pm = 0; pm < pretty->size(); pm++) {
@@ -795,7 +793,7 @@ bool AddressSpace::findVarsByAll(const std::string &varname,
             }
          }
          else {
-            const pdvector<int_variable *> *mangled = mapped_objects[i]->findVarVectorByMangled(varname);
+            const std::vector<int_variable *> *mangled = mapped_objects[i]->findVarVectorByMangled(varname);
             if (mangled) {
                for (unsigned mm = 0; mm < mangled->size(); mm++) {
                   res.push_back((*mangled)[mm]);
@@ -979,7 +977,7 @@ mapped_object *AddressSpace::findObject(fileDescriptor desc) const
 // getAllFunctions: returns a vector of all functions defined in the
 // a.out and in the shared objects
 
-void AddressSpace::getAllFunctions(pdvector<func_instance *> &funcs) {
+void AddressSpace::getAllFunctions(std::vector<func_instance *> &funcs) {
    for (unsigned i = 0; i < mapped_objects.size(); i++) {
       mapped_objects[i]->getAllFunctions(funcs);
    }
@@ -988,9 +986,9 @@ void AddressSpace::getAllFunctions(pdvector<func_instance *> &funcs) {
 // getAllModules: returns a vector of all modules defined in the
 // a.out and in the shared objects
 
-void AddressSpace::getAllModules(pdvector<mapped_module *> &mods){
+void AddressSpace::getAllModules(std::vector<mapped_module *> &mods){
    for (unsigned i = 0; i < mapped_objects.size(); i++) {
-      const pdvector<mapped_module *> &obj_mods = mapped_objects[i]->getModules();
+      const std::vector<mapped_module *> &obj_mods = mapped_objects[i]->getModules();
       for (unsigned j = 0; j < obj_mods.size(); j++) {
          mods.push_back(obj_mods[j]);
       }

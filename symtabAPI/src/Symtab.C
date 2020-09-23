@@ -343,14 +343,6 @@ SYMTAB_EXPORT Symtab::Symtab(MappedFile *mf_) :
    _ref_cnt(1)
 {
     init_debug_symtabAPI();
-
-#if defined(os_vxworks)
-    // This is how we initialize objects from WTX information alone.
-    // Basically replaces extractInfo().
-    object_type_ = obj_RelocatableFile;
-    // (... the rest are now initialized for everyone above ...)
-#endif
-
 }
 
 SYMTAB_EXPORT Symtab::Symtab() :
@@ -691,13 +683,10 @@ bool Symtab::extractSymbolsFromFile(Object *linkedFile, std::vector<Symbol *> &r
       // check for undefined dynamic symbols. Used when rewriting relocation section.
       // relocation entries have references to these undefined dynamic symbols.
       // We also have undefined symbols for the static binary case.
-
-#if !defined(os_vxworks)
       if (sym->getRegion() == NULL && !sym->isAbsolute() && !sym->isCommonStorage()) {
          undefDynSyms.insert(sym);
          continue;
       }
-#endif
       
       // Check whether this symbol has a valid offset. If they do not we have a
       // consistency issue. This should be a null check.
@@ -792,9 +781,6 @@ bool Symtab::createIndices(std::vector<Symbol *> &raw_syms, bool undefined) {
 
 bool Symtab::createAggregates() 
 {
-#if !defined(os_vxworks)
-    // In VxWorks, symbol offsets are not complete until object is loaded.
-
   std::vector<Symbol*> syms(everyDefinedSymbol.begin(), everyDefinedSymbol.end());
 
   #pragma omp parallel for
@@ -804,8 +790,6 @@ bool Symtab::createAggregates()
       addSymbolToAggregates(syms[i]);
     }
   }
-#endif
-
     return true;
 }
  
@@ -1705,11 +1689,6 @@ bool Symtab::isValidOffset(const Offset where) const
  */
 bool Symtab::isCode(const Offset where)  const
 {
-#if defined(os_vxworks)
-    // All memory is valid in the kernel.  Kinda.
-    //return true;
-#endif
-
    if (!codeRegions_.size()) 
    {
       create_printf("%s[%d] No code regions in %s \n",
@@ -2104,9 +2083,6 @@ bool Symtab::openFile(Symtab *&obj, std::string filename, def_t def_binary)
    gettimeofday(&starttime, NULL);
 #endif
 
-   // AIX: it's possible that we're reparsing a file with better information
-   // about it. If so, yank the old one out of the allSymtabs std::vector -- replace
-   // it, basically.
    if ( filename.find("/proc") == std::string::npos)
    {
 	   obj = findOpenSymtab(filename);
@@ -2822,36 +2798,13 @@ SYMTAB_EXPORT Offset Symtab::getFreeOffset(unsigned size)
 	unsigned pgSize = P_getpagesize();
 
 #if defined(os_linux)
-        // Bluegene compute nodes have a 1MB alignment restructions on PT_LOAD section
 	Object *obj = getObject();
 	if (!obj)
 	{
 		return 0;
 	}
-	bool isBlueGeneQ = obj->isBlueGeneQ();
-	bool isBlueGeneP = obj->isBlueGeneP();
 	bool hasNoteSection = obj->hasNoteSection();
 	bool isStaticBinary = obj->isStaticBinary();
-	/* In BlueGeneQ static binary, we extend the existing LOAD section to add Dyninst code and data
-		In BlueGeneQ dynamic binary, we add a new LOAD section
-	   In BlueGeneP, we replace NOTE section with new LOAD section, else we extend existing LOAD section
-		If we add a new LOAD section in BlueGene, it needs to be aligned to 1MB
-	*/
-	if ((isBlueGeneQ && !isStaticBinary) || (isBlueGeneP && hasNoteSection)) {
-		pgSize = 0x100000; 
-	} else if( isBlueGeneQ && isStaticBinary ) {
-	/* UGLY:: The maximum offset from TOC pointer is 0x7fff (15 bits + 1 sign bit).
-	   For static binaries, the TOC pointer must be able to reach the new load segment.
-		If we align by page size (1MB), the TOC pointer will not be able to reach the new segment.
-		Since we do not create a new PT_LOAD segment, but rather extend the existing PT_LOAD segment,
-		we do not need to align by page size. 
-		Note1: 64 bytes is just random number I choose. 
-		Note2: We need to do this only for memory offset and not disk offset as TOC pointer
-		uses only memory offset */
-		pgSize = 64;
-	}	
-
-		
 #endif	
 	Offset newaddr = highWaterMark  - (highWaterMark & (pgSize-1));
 	if(newaddr < highWaterMark)

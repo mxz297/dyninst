@@ -6,6 +6,7 @@ set (DYNINST_ROOT ${PROJECT_SOURCE_DIR}/..)
 set(CMAKE_C_FLAGS "${DYNINST_RT_CMAKE_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "${DYNINST_RT_CMAKE_CXX_FLAGS}")
 set(CMAKE_MODULE_PATH "${DYNINST_ROOT}/cmake/Modules")
+
 include (${DYNINST_ROOT}/cmake/shared.cmake)
 include (${DYNINST_ROOT}/cmake/Libunwind.cmake)
 
@@ -33,7 +34,7 @@ set (SRC_LIST ${SRC_LIST}
     src/RTspace.S 
     src/RTsignal.c 
 )
-elseif (PLATFORM MATCHES linux OR PLATFORM MATCHES bgq)
+elseif (PLATFORM MATCHES linux)
 set (SRC_LIST ${SRC_LIST}
     src/RTposix.c 
     src/RTlinux.c 
@@ -88,7 +89,7 @@ set (SRC_LIST_aarch64
 # handle .S. 
 ENABLE_LANGUAGE(ASM)
 file (GLOB SRC_ASSEMBLY "src/*.S")
-if(PLATFORM MATCHES bgq OR NEED_NATIVE_ASSEMBER MATCHES YES)
+if(NEED_NATIVE_ASSEMBER MATCHES YES)
 set_source_files_properties(${SRC_ASSEMBLY}
         PROPERTIES
         LANGUAGE ASM)
@@ -201,7 +202,7 @@ ENDMACRO (CHECK_C_COMPILER_FLAG_EXTENDED)
 message (STATUS "Checking for 32-bit runtime library...")
 
 CHECK_C_COMPILER_FLAG_EXTENDED ("-m32" CHECK_RT_LIB_32)
-if (CHECK_RT_LIB_32 AND NOT ${PLATFORM} MATCHES bgq AND NOT ${BUILD_RTLIB_32} MATCHES "OFF")
+if (CHECK_RT_LIB_32 AND NOT ${BUILD_RTLIB_32} MATCHES "OFF")
 message (STATUS "Enabling 32-bit runtime library; change BUILD_RTLIB_32 to OFF to disable")
 SET (BUILD_RTLIB_32 ON)
 ELSE ()

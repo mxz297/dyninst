@@ -40,6 +40,3 @@ dyninst_library(instructionAPI common)
 
 target_link_private_libraries(instructionAPI ${Boost_LIBRARIES} ${TBB_LIBRARIES} tbbmalloc ${Capstone_LIBRARIES})
 
-if (USE_COTIRE)
-    cotire(instructionAPI)
-endif()

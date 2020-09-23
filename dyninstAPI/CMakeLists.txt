@@ -160,7 +160,7 @@ set (SRC_LIST ${SRC_LIST}
      src/syscallNotification.C 
      src/syscall-freebsd.C
 )
-elseif (PLATFORM MATCHES linux OR PLATFORM MATCHES bgq)
+elseif (PLATFORM MATCHES linux)
 set (SRC_LIST ${SRC_LIST}
      src/linux.C
      src/inst-linux.C
@@ -223,10 +223,6 @@ if(UNIX)
 		endif()
 	endif()
 	target_compile_definitions(dyninstAPI PRIVATE DYNINST_COMPILER_SEARCH_DIRS=${DYNINST_COMPILER_SEARCH_DIRS})
-endif()
-
-if (USE_COTIRE)
-    cotire(dyninstAPI)
 endif()
 
 install(SCRIPT "${RT_BINARY_DIR}/cmake_install.cmake")

@@ -39,7 +39,6 @@
 
 #define BPATCH_FILE
 #include "common/src/Pair.h"
-#include "common/src/Vector.h"
 #include "common/src/stats.h"
 #include "BPatch.h"
 #include "BPatch_libInfo.h"
@@ -51,6 +50,7 @@
 #include "instPoint.h"
 #include "hybridAnalysis.h"
 #include "BPatch_object.h"
+#include "os.h"
 
 // ProcControlAPI interface
 #include "dynProcess.h"
@@ -1174,8 +1174,6 @@ BPatch_process *BPatch::processCreate(const char *path, const char *argv[],
       return NULL;
    }
 
-#if !defined(os_vxworks) // Not necessary for VxWorks modules
-
    //  and ensure its executable (does not check permissions):
    if (! ( (statbuf.st_mode & S_IXUSR)
             || (statbuf.st_mode & S_IXGRP)
@@ -1186,7 +1184,6 @@ BPatch_process *BPatch::processCreate(const char *path, const char *argv[],
       return NULL;
    }
 
-#endif // !VxWorks
 #endif // !Windows
 
    // User request: work on scripts by creating the interpreter instead

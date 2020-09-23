@@ -66,8 +66,6 @@ std::string exe_command(const char* cmd) {
     return result;
 }
 
-typedef dyn_c_hash_map<Address, bool> SeenMap;
-
 static const vector<std::string> skipped_symbols = {
           "_non_rtti_object::`vftable'",
           "bad_cast::`vftable'",
@@ -464,12 +462,11 @@ SymtabCodeSource::init_regions(hint_filt * filt , bool allLoadedRegions)
             continue;
         }
 
-	//#if defined(os_vxworks)
         if(0 == r->getMemSize()) {
             parsing_printf(" [skipped null region]\n");
             continue;
         }
-	//#endif
+
         parsing_printf("\n");
 
         CodeRegion * cr = new SymtabCodeRegion(_symtab,r, symbols);
@@ -524,19 +521,16 @@ SymtabCodeSource::init_hints(RegionMap &rmap, hint_filt * filt)
         }
         /*Achin added code ends*/
         Offset offset = f->getOffset();
-        bool present = !seen.insert(std::make_pair(offset, true));
+        SymtabAPI::Region * sr = f->getRegion();
+
+        bool present = !seen.insert(std::make_pair(RegionOffsetPair(sr, offset), true));
 
         if (present) {
-            // XXX it looks as though symtabapi now does de-duplication
-            //     of function symbols automatically, so this code should
-            //     never be reached, except in the case of overlapping
-            //     regions
            parsing_printf("[%s:%d] duplicate function at address %lx: %s\n",
                 FILE__,__LINE__, f->getOffset(), fname);
            continue;
         }
 
-        SymtabAPI::Region * sr = f->getRegion();
         if (!sr) {
             parsing_printf("[%s:%d] missing Region in function at %lx\n",
                 FILE__,__LINE__,f->getOffset());
@@ -617,7 +611,7 @@ SymtabCodeSource::updateHintsWithHpcfnbounds(RegionMap &rmap, SeenMap& seen)
         std::getline(line_iss, addr_str, ' ');
         addr_str = addr_str.substr(2);
         Address addr = std::stoull(addr_str, 0, 16);
-        if (!seen.insert(std::make_pair(addr, true))) continue;
+        if (!seen.insert(std::make_pair(std::make_pair(textReg, addr), true))) continue;
         if(cr->isCode(addr)) {
             char fname[128];
             snprintf(fname, sizeof(fname), "targ%lx", addr);

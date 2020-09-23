@@ -332,7 +332,10 @@ class PARSER_EXPORT SymtabCodeSource : public CodeSource, public boost::lockable
     void init_hints(RegionMap &, hint_filt*);
     void init_linkage();
     void init_try_blocks();
-    void updateHintsWithHpcfnbounds(RegionMap &, dyn_c_hash_map<Address, bool>&);
+    
+    typedef std::pair<SymtabAPI::Region *, Offset> RegionOffsetPair;
+    typedef dyn_c_hash_map<RegionOffsetPair, bool> SeenMap;
+    void updateHintsWithHpcfnbounds(RegionMap &, SeenMap&);
 
     CodeRegion * lookup_region(const Address addr) const;
     void removeRegion(CodeRegion &); // removes from region tree

@@ -65,17 +65,6 @@ if (PLATFORM MATCHES linux)
   )
 endif()
 
-if (PLATFORM MATCHES bgq)
-  set (SRC_LIST ${SRC_LIST}
-    src/bluegeneKludges.C
-    src/timing-linux.C
-    src/parseauxv.C
-    src/addrtranslate-sysv.C
-    src/addrtranslate-auxv.C
-    src/addrtranslate-bluegene.C
-  )
-endif()
-
 if (PLATFORM MATCHES cnl)
   set (SRC_LIST ${SRC_LIST}
     src/linuxKludges.C
@@ -121,8 +110,4 @@ target_link_libraries(common PUBLIC ${TBB_LIBRARIES})
 if(USE_OpenMP)
   set_target_properties(common PROPERTIES COMPILE_FLAGS ${OpenMP_CXX_FLAGS} LINK_FLAGS ${OpenMP_CXX_FLAGS})
 endif()
-
-IF (USE_COTIRE)
-    cotire(common)
-ENDIF()
 

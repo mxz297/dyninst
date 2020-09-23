@@ -137,7 +137,7 @@ bool baseTramp::shouldRegenBaseTramp(registerSpace *rs)
    if (spilledRegisters && !createdLocalSpace)
       return true;
 
-   pdvector<registerSlot *> &regs = rs->trampRegs();
+   std::vector<registerSlot *> &regs = rs->trampRegs();
    for (unsigned i = 0; i < regs.size(); i++) {
       registerSlot *reg = regs[i];
       regalloc_printf("[%s:%u] - checking reg (index %d, number %d, encoding %d)\n", __FILE__, 
@@ -300,7 +300,7 @@ bool baseTramp::generateCodeInlined(codeGen &gen,
    //gen.setRegisterSpace(registerSpace::actualRegSpace(instP()));
    gen.setRegisterSpace(registerSpace::conservativeRegSpace(gen.addrSpace()));
    
-   pdvector<AstNodePtr> miniTramps;
+   std::vector<AstNodePtr> miniTramps;
 
    bool onlyReloc = true;
 
@@ -324,7 +324,7 @@ bool baseTramp::generateCodeInlined(codeGen &gen,
    AstNodePtr minis = AstNode::sequenceNode(miniTramps);
 
    AstNodePtr baseTrampSequence;
-   pdvector<AstNodePtr > baseTrampElements;
+   std::vector<AstNodePtr > baseTrampElements;
 
     
    // Run the minitramps
@@ -464,7 +464,7 @@ int baseTramp::numDefinedRegs()
    if (!optimizationInfo_)
       return -1;
    registerSpace *rs = registerSpace::getRegisterSpace(proc()->getAddressWidth());
-   pdvector<registerSlot *> &regs = rs->trampRegs();
+   std::vector<registerSlot *> &regs = rs->trampRegs();
    for (unsigned i=0; i<regs.size(); i++) {
       registerSlot *reg = regs[i];
       if (definedRegs[reg->encoding()]) {
