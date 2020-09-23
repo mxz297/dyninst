@@ -89,7 +89,7 @@ MachRegister MachRegister::getBaseRegister() const {
       case Arch_none:
          return *this;
       case Arch_cuda:
-	 assert(0);
+         return *this;
 		case Arch_aarch32:
 		case Arch_aarch64:
 				  //not verified
@@ -201,8 +201,13 @@ unsigned int MachRegister::size() const {
           return 16;
         return 8;
       case Arch_aarch32:
+        {
+          assert(0);
+        }
       case Arch_cuda:
-        assert(0);
+        {
+          return 8;
+        }
       case Arch_aarch64:
 		if((reg & 0x00ff0000) == aarch64::FPR)
 		{
@@ -268,8 +273,9 @@ MachRegister MachRegister::getPC(Dyninst::Architecture arch)
       case Arch_aarch64:  //aarch64: pc is not writable
          return aarch64::pc;
       case Arch_aarch32:
+         return InvalidReg;
       case Arch_cuda:
-         assert(0);
+         return cuda::pc;
       case Arch_none:
          return InvalidReg;
    }
@@ -527,7 +533,9 @@ bool MachRegister::isFlag() const
 	 // and all lower 32 bits are base ID
 	 int baseID = reg & 0x0000FFFF;
          return (baseID <= 731 && baseID >= 700) || (baseID <= 629 && baseID >= 621); 
-      }
+      }       
+      case Arch_cuda:
+         return false;
       default:
          assert(!"Not implemented!");
    }
