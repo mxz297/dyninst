@@ -91,6 +91,7 @@ emitElf<ElfTypes>::emitElf(Elf_X *oldElfHandle_, bool isStripped_, Object *obj_,
     createNewPhdr = true;
     BSSExpandFlag = false;
     replaceNOTE = false;
+    isStaticBinary = obj_->isStaticBinary();    
     movePHdrsFirst = true;
 }
 
