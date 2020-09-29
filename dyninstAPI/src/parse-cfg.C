@@ -582,35 +582,6 @@ bool parse_func::hasUnresolvedCF() {
    return (unresolvedCF_ == HAS_UNRESOLVED_CF);
 }
 
-bool parse_func::hasLargeGaps() {
-    const std::vector<ParseAPI::FuncExtent *> & exs = extents();
-    int gapSize = 0;
-    for (int i = 1; i < exs.size(); ++i) {
-        ParseAPI::FuncExtent *cur_ex = exs[i];
-        ParseAPI::FuncExtent *prev_ex = exs[i - 1];
-        if (cur_ex->low() - prev_ex->high() > gapSize) {
-            gapSize = cur_ex->low() - prev_ex->high();
-        }
-        
-        const char* ptr = (const char*)(obj()->cs()->getPtrToInstruction(prev_ex->high()));
-        InstructionAPI::InstructionDecoder d(ptr, cur_ex->low() - prev_ex->high(), obj()->cs()->getArch());
-        bool hasRealCode = false;
-        while (true) {
-            InstructionAPI::Instruction insn = d.decode();
-            if (insn.size() == 0) break;
-            if (!insn.isValid()) break;
-            entryID e = insn.getOperation().getID();
-            if (e == e_nop) continue;
-            if (e == aarch64_op_nop_hint) continue;
-            if (e == aarch64_op_hint) continue;
-            hasRealCode = true;
-            break;
-        }
-        if (hasRealCode) return true;
-    }
-    return (gapSize >= 16);
-}
-
 bool parse_func::isInstrumentable() {
    if(!isInstrumentableByFunctionName() || img()->isRelocatableObj())
       return false;
@@ -625,7 +596,7 @@ bool parse_func::isInstrumentable() {
        // We cannot handle it propertly
        return false;
    }
-   if (hasUnresolvedCF() && hasLargeGaps()) {   
+   if (hasUnresolvedCF()) {   
       return false;
    }
    return true;

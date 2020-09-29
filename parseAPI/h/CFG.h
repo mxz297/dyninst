@@ -484,6 +484,7 @@ class PARSER_EXPORT Function : public AnnotatableSparse, public boost::lockable_
     bool hasNoStackFrame() const { return _no_stack_frame; }
     bool savesFramePointer() const { return _saves_fp; }
     bool cleansOwnStack() const { return _cleans_stack; }
+    bool hasCodeGap();
 
     /* Loops */    
     LoopTreeNode* getLoopTree() const;

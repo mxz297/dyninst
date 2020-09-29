@@ -265,6 +265,7 @@ namespace Dyninst {
             void record_hint_functions();
             void trim_jump_tables_with_pcpointers();
             void trim_jump_table(Function::JumpTableInstance*, Address);
+            void scan_unresolved_indirect_jumps();
 
 
 

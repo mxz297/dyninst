@@ -1067,7 +1067,44 @@ Parser::finalize()
         jumpTableMap.clear();
 
         trim_jump_tables_with_pcpointers();
+        scan_unresolved_indirect_jumps();
         _parse_state = FINALIZED;
+    }
+}
+
+void
+Parser::scan_unresolved_indirect_jumps()
+{
+    std::vector<Function*> funcs;
+    for (auto f : sorted_funcs) {
+        funcs.emplace_back(f);
+    }
+
+    int size = funcs.size();
+#pragma omp parallel for schedule(dynamic)
+    for(int i = 0; i < size; ++i) {
+        Function *f = funcs[i];
+        std::vector<std::pair<Block*, Edge*> > unresolved_jumps;
+        for (auto b : f->blocks()) {
+            for (auto e : b->targets()) {
+                if (e->interproc()) continue;
+                if (!e->sinkEdge()) continue;
+                if (e->type() == INDIRECT) {
+                    unresolved_jumps.emplace_back(b, e);
+                }
+            }
+        }
+        if (unresolved_jumps.empty()) continue;
+        if (!f->hasCodeGap()) {
+            for (auto pair : unresolved_jumps) {
+                Block* b = pair.first;
+                Edge* e = pair.second;
+                e->_type._interproc = true;
+                f->_call_edge_list.insert(e);
+                f->_exitBL[b->start()] = b;
+                parsing_printf("unresolved indirect jump at %lx is marked as tail call because the containing function has no code gap\n", b->last());
+            }
+        }
     }
 }
 

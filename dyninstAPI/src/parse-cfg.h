@@ -297,8 +297,7 @@ class parse_func : public ParseAPI::Function
    const std::vector<image_parRegion*> &parRegions();
 
    bool isInstrumentable();
-   bool hasUnresolvedCF();
-   bool hasLargeGaps();
+   bool hasUnresolvedCF();   
 
    // ----------------------------------------------------------------------
 
