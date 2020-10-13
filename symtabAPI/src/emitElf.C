@@ -485,6 +485,7 @@ bool emitElf<ElfTypes>::driver(std::string fName) {
     bool createdLoadableSections = false;
     unsigned scncount;
     unsigned sectionNumber = 0;
+    bool hasInterp = false;
 
     for (scncount = 0; (scn = elf_nextscn(oldElf, scn)); scncount++) {
         //copy sections from oldElf to newElf
@@ -492,6 +493,9 @@ bool emitElf<ElfTypes>::driver(std::string fName) {
 
         // resolve section name
         const char *name = &shnames[shdr->sh_name];
+        if (strcmp(name , ".interp") == 0) {
+            hasInterp = true;
+        }
         bool result = obj->findRegion(foundSec, shdr->sh_addr, shdr->sh_size);
         if (!result) {
             result = obj->findRegion(foundSec, name);
@@ -757,6 +761,24 @@ bool emitElf<ElfTypes>::driver(std::string fName) {
             oldElf);
     fixPhdrs(extraAlignSize);
 
+    if (!hasInterp) {
+        // Use the first section to fill in overflowed program header
+        scn = NULL;
+        scn = elf_nextscn(newElf, scn);
+        newdata = elf_getdata(scn, NULL);
+        --newPhdr;
+        memcpy(newdata->d_buf, (const void*)newPhdr, newdata->d_size);
+
+        // A program header is larger than the first section,
+        // so the last program header will run into the second section.
+        // Here, the +/- 4 is caused by alignment
+        size_t left = sizeof(Elf_Phdr) - newdata->d_size - 4;
+        const char* left_buf = ((const char*)newPhdr) + newdata->d_size + 4;
+        scn = elf_nextscn(newElf, scn);
+        newdata = elf_getdata(scn, NULL);
+        memcpy(newdata->d_buf, (const void*)left_buf, left);
+    }
+
     //Write the new Elf file
     if (elf_update(newElf, ELF_C_WRITE) < 0) {
         log_elferror(err_func_, "elf_update failed");
@@ -976,6 +998,7 @@ void emitElf<ElfTypes>::fixPhdrs(unsigned &extraAlignSize) {
         memcpy(newPhdr, &segments[i], oldEhdr->e_phentsize);
         rewrite_printf("Updated program header: type %u (%s), offset 0x%lx, addr 0x%lx\n",
                 newPhdr->p_type, phdrTypeStr(newPhdr->p_type).c_str(), newPhdr->p_offset, newPhdr->p_vaddr);
+        rewrite_printf("\t file size %lx, mem size %lx\n", newPhdr->p_filesz, newPhdr->p_memsz);
         ++newPhdr;
     }
 
@@ -988,8 +1011,9 @@ void emitElf<ElfTypes>::fixPhdrs(unsigned &extraAlignSize) {
         newPhdr->p_align = newTLSData->sh_addralign;
     }
 
-    if (!phdrs_scn)
+    if (!phdrs_scn) {
         return;
+    }
 
     //We made a new section to contain the program headers--keeps
     // libelf from overwriting the program headers data when outputing
@@ -1260,13 +1284,13 @@ bool emitElf<ElfTypes>::createLoadableSections(Elf_Shdr *&shdr, unsigned &extraA
         }
         else if (newSecs[i]->getRegionType() == Region::RT_HASH) {
             newshdr->sh_entsize = sizeof(Elf_Word);
-            newshdr->sh_type = SHT_HASH;
+            newshdr->sh_type = SHT_GNU_HASH;
             newdata->d_type = ELF_T_WORD;
-            newdata->d_align = 4;
+            newdata->d_align = 8;
             updateDynLinkShdr.push_back(newshdr);
             newshdr->sh_flags = SHF_ALLOC;
             newshdr->sh_info = 0;
-            updateDynamic(DT_HASH, newshdr->sh_addr);
+            updateDynamic(DT_GNU_HASH, newshdr->sh_addr);
         }
         else if (newSecs[i]->getRegionType() == Region::RT_SYMVERSIONS) {
             newshdr->sh_type = SHT_GNU_versym;
@@ -1767,13 +1791,10 @@ bool emitElf<ElfTypes>::createSymbolTables(set<Symbol *> &allSymbols) {
             string name;
             if (secTagRegionMapping.find(DT_HASH) != secTagRegionMapping.end()) {
                 name = secTagRegionMapping[DT_HASH]->getRegionName();
-                obj->addRegion(0, hashsecData, hashsecSize * sizeof(Elf_Word), name, Region::RT_HASH, true);
+                obj->addRegion(0, hashsecData, hashsecSize, name, Region::RT_HASH, true);
             } else if (secTagRegionMapping.find(0x6ffffef5) != secTagRegionMapping.end()) {
                 name = secTagRegionMapping[0x6ffffef5]->getRegionName();
-                obj->addRegion(0, hashsecData, hashsecSize * sizeof(Elf_Word), name, Region::RT_HASH, true);
-            } else {
-                name = ".hash";
-                obj->addRegion(0, hashsecData, hashsecSize * sizeof(Elf_Word), name, Region::RT_HASH, true);
+                obj->addRegion(0, hashsecData, hashsecSize, name, Region::RT_HASH, true);
             }
         }
 
@@ -2155,11 +2176,6 @@ void emitElf<ElfTypes>::createSymbolVersions(Elf_Half *&symVers, char *&verneedS
 template<class ElfTypes>
 void emitElf<ElfTypes>::createHashSection(Elf_Word *&hashsecData, unsigned &hashsecSize,
                                             std::vector<Symbol *> &dynSymbols) {
-
-    /* Save the original hash table entries */
-    std::vector<unsigned> originalHashEntries;
-    Offset dynsymSize = obj->getObject()->getDynsymSize();
-
     Elf_Scn *scn = NULL;
     Elf_Shdr *shdr = NULL;
     for (unsigned scncount = 0; (scn = elf_nextscn(oldElf, scn)); scncount++) {
@@ -2168,63 +2184,18 @@ void emitElf<ElfTypes>::createHashSection(Elf_Word *&hashsecData, unsigned &hash
             obj->getObject()->getElfHashAddr() == shdr->sh_addr) {
             Elf_Data *hashData = elf_getdata(scn, NULL);
             Elf_Word *oldHashSec = (Elf_Word *) hashData->d_buf;
-            unsigned original_nbuckets, original_nchains;
-            original_nbuckets = oldHashSec[0];
-            original_nchains = oldHashSec[1];
-            for (unsigned i = 0; i < original_nbuckets + original_nchains; i++) {
-                if (oldHashSec[2 + i] != 0) {
-                    originalHashEntries.push_back(oldHashSec[2 + i]);
-                    //printf(" ELF HASH pushing hash entry %d \n", oldHashSec[2+i] );
-                }
-            }
+            hashsecData = oldHashSec;
+            hashsecSize = hashData->d_size;
+            return;
         }
-
         if (obj->getObject()->getGnuHashAddr() != 0 &&
             obj->getObject()->getGnuHashAddr() == shdr->sh_addr) {
             Elf_Data *hashData = elf_getdata(scn, NULL);
             Elf_Word *oldHashSec = (Elf_Word *) hashData->d_buf;
-            unsigned symndx = oldHashSec[1];
-            if (dynsymSize != 0)
-                for (unsigned i = symndx; i < dynsymSize; i++) {
-                    originalHashEntries.push_back(i);
-                    //printf(" GNU HASH pushing hash entry %d \n", i);
-                }
+            hashsecData = oldHashSec;
+            hashsecSize = hashData->d_size;
+            return;
         }
-    }
-
-    vector<Symbol *>::iterator iter;
-    dyn_hash_map<unsigned, unsigned> lastHash; // bucket number to symbol index
-    unsigned nbuckets = (unsigned) dynSymbols.size() * 2 / 3;
-    if (nbuckets % 2 == 0)
-        nbuckets--;
-    if (nbuckets < 1)
-        nbuckets = 1;
-    unsigned nchains = (unsigned) dynSymbols.size();
-    hashsecSize = 2 + nbuckets + nchains;
-    hashsecData = (Elf_Word *) malloc(hashsecSize * sizeof(Elf_Word));
-    unsigned i = 0, key;
-    for (i = 0; i < hashsecSize; i++) {
-        hashsecData[i] = STN_UNDEF;
-    }
-    hashsecData[0] = (Elf_Word) nbuckets;
-    hashsecData[1] = (Elf_Word) nchains;
-    i = 0;
-    for (iter = dynSymbols.begin(); iter != dynSymbols.end(); iter++, i++) {
-        if ((*iter)->getMangledName().empty()) continue;
-        unsigned index = (*iter)->getIndex();
-        if ((find(originalHashEntries.begin(), originalHashEntries.end(), index) == originalHashEntries.end()) &&
-            (index < obj->getObject()->getDynsymSize())) {
-            continue;
-        }
-        key = elfHash((*iter)->getMangledName().c_str()) % nbuckets;
-        if (lastHash.find(key) != lastHash.end()) {
-            hashsecData[2 + nbuckets + lastHash[key]] = i;
-        }
-        else {
-            hashsecData[2 + key] = i;
-        }
-        lastHash[key] = i;
-        hashsecData[2 + nbuckets + i] = STN_UNDEF;
     }
 }
 
@@ -2266,9 +2237,9 @@ void emitElf<ElfTypes>::createDynamicSection(void *dynData, unsigned size, Elf_D
                 break;
             case 0x6ffffef5: // DT_GNU_HASH (not defined on all platforms)
                 if (!foundHashSection) {
-                    dynsecData[curpos].d_tag = DT_HASH;
+                    dynsecData[curpos].d_tag = 0x6ffffef5;
                     dynsecData[curpos].d_un.d_ptr = dyns[i].d_un.d_ptr;
-                    dynamicSecData[DT_HASH].push_back(dynsecData + curpos);
+                    dynamicSecData[0x6ffffef5].push_back(dynsecData + curpos);
                     curpos++;
                     foundHashSection = true;
                 }

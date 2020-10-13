@@ -898,7 +898,7 @@ void BinaryEdit::buildDyninstSymbols(std::vector<Symbol *> &newSyms,
 
                Symbol *newSym = new Symbol(name.c_str(),
                                            Symbol::ST_FUNCTION,
-                                           Symbol::SL_GLOBAL,
+                                           Symbol::SL_LOCAL,
                                            Symbol::SV_DEFAULT,
                                            start,
                                            newMod,
@@ -1186,7 +1186,7 @@ bool BinaryEdit::isGoBinary() {
     vector<Region*> regs;
     symtab->getAllRegions(regs);
     for (auto r : regs) {
-        if (r->getRegionName() == ".go.buildinfo") return true;
+        if (r->getRegionName().find(".go.") != string::npos) return true;
     }
     return false;
 }
