@@ -35,8 +35,6 @@
 #ifndef _PROBABILISTIC_PARSER_H_
 #define _PROBABILISTIC_PARSER_H_
 
-#if defined(cap_stripped_binaries)
-
 #include <string>
 #include <vector>
 #include <set>
@@ -213,7 +211,5 @@ public:
 };
 
 };
-
-#endif
 
 #endif

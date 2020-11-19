@@ -1388,7 +1388,6 @@ void image::analyzeImage() {
     obj_->parse();
 
 
-#if defined(cap_stripped_binaries)
    {
        vector<CodeRegion *>::const_iterator rit = cs_->regions().begin();
        for( ; rit != cs_->regions().end(); ++rit)
@@ -1399,7 +1398,6 @@ void image::analyzeImage() {
         }
        } 
    }
-#endif // cap_stripped_binaries
    
     
     parseState_ = analyzed;
