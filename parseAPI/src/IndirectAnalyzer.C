@@ -283,7 +283,7 @@ void IndirectControlFlowAnalyzer::ReadTable(AST::Ptr jumpTargetExpr,
     for (int v = start; v <= indexBound.high; v += indexBound.stride) {
         JumpTableReadVisitor jtrv(index, v, cs, block->region(), isZeroExtend, memoryReadSize);
         jumpTargetExpr->accept(&jtrv);
-       if (jtrv.valid && cs->isCode(jtrv.targetAddress)) {
+       if (jtrv.valid && block->region()->isCode(jtrv.targetAddress)) {
             if (cs->getArch() == Arch_x86_64 && FindJunkInstruction(jtrv.targetAddress)) {
                 parsing_printf("WARNING: resolving jump tables leads to junk instruction from %lx\n", jtrv.targetAddress);
                 break;
@@ -298,7 +298,7 @@ void IndirectControlFlowAnalyzer::ReadTable(AST::Ptr jumpTargetExpr,
         } else {
             // We have a bad entry. We stop here, as we have wrong information
             // In this case, we keep the good entries
-            parsing_printf("WARNING: resolving jump tables leads to a bad address %lx\n", jtrv.targetAddress);
+            parsing_printf("WARNING: resolving jump tables leads to a bad address (not code or a different section) %lx\n", jtrv.targetAddress);
             break;
         }
         if (indexBound.stride == 0) break;
