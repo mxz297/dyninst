@@ -184,9 +184,17 @@ Address BinaryEdit::inferiorMalloc(unsigned size,
         case 0:
             // See if we have available memory
             break;
-        case 1:
+        case 1: {            
             inferiorFreeCompact();
+            auto lastItem = heap_.heapFree.rbegin();
+            // Shrink the upper bound if it is free
+            if (lastItem != heap_.heapFree.rend() && (*lastItem)->addr + (*lastItem)->length == highWaterMark_) {                
+                highWaterMark_ = (*lastItem)->addr;
+                delete *lastItem;
+                heap_.heapFree.pop_back();
+            }            
             break;
+        }
         case 2:
             inferiorMallocStatic(size);
             break;
