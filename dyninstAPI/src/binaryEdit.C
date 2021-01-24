@@ -551,6 +551,7 @@ bool BinaryEdit::writeFile(const std::string &newFileName)
       }
 
       buildRAMapping();
+      buildRelocatedCodeMapping();
 
       // Now, we need to copy in the memory of the new segments
       for (unsigned i = 0; i < oldSegs.size(); i++) {
@@ -1148,6 +1149,81 @@ void BinaryEdit::buildRAMapping() {
    // to help DyninstRT to find the table
    if( !symtab->isStaticBinary() ) {
        symtab->addSysVDynamic(DT_DYNINST_RAMAP, table_header);
+   }
+}
+
+void BinaryEdit::buildRelocatedCodeMapping() {
+   std::map<Address, std::pair<int64_t, int64_t> > relocMap;
+   for (CodeTrackers::iterator i = relocatedCode_.begin();
+        i != relocatedCode_.end(); ++i) {
+      Relocation::CodeTracker *CT = *i;
+
+      for (Relocation::CodeTracker::TrackerList::const_iterator iter = CT->trackers().begin();
+           iter != CT->trackers().end(); ++iter) {
+         const Relocation::TrackerElement *tracker = *iter;
+         if (tracker->type() == Relocation::TrackerElement::original || tracker->type() == Relocation::TrackerElement::emulated) {
+             relocMap[tracker->reloc()] = std::make_pair(tracker->orig(), tracker->size());             
+         } else {
+             relocMap[tracker->reloc()] = std::make_pair(-1, tracker->size());             
+         }
+      }
+   }
+/*
+   Address relocAddr, origAddr;
+   int64_t rangeSize = -1;
+   for (auto &it : relocMapOrig) {
+      // Combine instrumentation ranges
+      if (rangeSize > 0 && origAddr == -1 && it.second.first == -1 && relocAddr + rangeSize == it.first) {          
+          rangeSize += it.second.second;
+          continue;
+      }
+      // Combine original code ranges
+      if (rangeSize > 0 && origAddr != -1 && origAddr + rangeSize == it.second.first && relocAddr + rangeSize == it.first) {
+          rangeSize += it.second.second;
+          continue;
+      }
+      if (rangeSize > 0) {
+          relocMap[relocAddr] = std::make_pair(origAddr, rangeSize);
+      }
+      relocAddr = it.first;
+      origAddr = it.second.first;
+      rangeSize = it.second.second;
+   }
+   if (rangeSize > 0) {
+       relocMap[relocAddr] = std::make_pair(origAddr, rangeSize);
+   }   
+*/
+   // Calculate relocated code mapping table size:
+   // 1: total entry
+   // 2: each entry mapping
+   unsigned long tableSize = sizeof(int64_t) + sizeof(int64_t) * 3 * relocMap.size();
+   Address table_header = inferiorMalloc(tableSize);
+   unsigned long offset = 0;
+
+   // Write the total entry
+   unsigned long entryCount = relocMap.size();
+   bool result = writeDataSpace((void *) (table_header + offset), sizeof(int64_t), &entryCount);
+   assert(result);
+   offset += sizeof(int64_t);
+
+   // Write each entry
+   for (auto& it : relocMap) {
+       relocation_cerr << "Relocated code address mapping " << hex 
+       << it.first << " -> " << it.second.first << " , size " << 
+       it.second.second << dec << endl;
+       result = writeDataSpace((void *) (table_header + offset), sizeof(int64_t), &(it.first));
+       offset += sizeof(int64_t);
+       result = writeDataSpace((void *) (table_header + offset), sizeof(int64_t), &(it.second.first));
+       offset += sizeof(int64_t);
+       result = writeDataSpace((void *) (table_header + offset), sizeof(int64_t), &(it.second.second));
+       offset += sizeof(int64_t);       
+   }
+
+   // Create a dynamic tag in the dynamic section
+   // to help DyninstRT to find the table
+   Symtab *symtab = getMappedObject()->parse_img()->getObject();
+   if( !symtab->isStaticBinary() ) {
+       symtab->addSysVDynamic(DT_DYNINST_RELOCMAP, table_header);
    }
 }
 

@@ -243,6 +243,7 @@ class BinaryEdit : public AddressSpace {
     void instrumentGoRuntimeStackTrace(std::string, int);
     bool isGoBinary();
     Address getRelocatedFunctionEntry(Address);
+    void buildRelocatedCodeMapping();
 };
 
 class depRelocation {

@@ -166,6 +166,7 @@ typedef struct {
 #define TRAP_HEADER_SIG 0x759191D6
 #define DT_DYNINST 0x6D191957
 #define DT_DYNINST_RAMAP 0x6D191958
+#define DT_DYNINST_RELOCMAP 0x6D191959
 
 #if defined(_MSC_VER)
 #pragma warning(disable:4200)
