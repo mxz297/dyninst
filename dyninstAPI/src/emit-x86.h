@@ -212,6 +212,7 @@ public:
     bool emitCallRelative(Register, Address, Register, codeGen &) {assert (0); return false; }
     bool emitLoadRelative(Register dest, Address offset, Register base, int size, codeGen &gen);
     bool emitLoadRelativeSegReg(Register dest, Address offset, Register base, int size, codeGen &gen);
+    bool emitStoreRelativeSegReg(Register dest, Address offset, Register base, int size, codeGen &gen);
     void emitLoadFrameAddr(Register dest, Address offset, codeGen &gen);
 
     void emitLoadOrigFrameRelative(Register dest, Address offset, codeGen &gen);

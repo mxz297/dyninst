@@ -1597,6 +1597,31 @@ bool EmitterAMD64::emitLoadRelativeSegReg(Register dest, Address offset, Registe
     return true;
 }
 
+static inline unsigned char makeModRMbyte(unsigned Mod, unsigned Reg,
+                                          unsigned RM)
+{
+   return static_cast<unsigned char>(((Mod & 0x3) << 6) + ((Reg & 0x7) << 3) + (RM & 0x7));
+}
+
+
+bool EmitterAMD64::emitStoreRelativeSegReg(Register src, Address offset, Register base, int /* size */, codeGen &gen)
+{   
+    emitSegPrefix(base, gen);
+    emitRex(true, &src, NULL, &base, gen);
+
+    GET_PTR(insn, gen);
+    *insn++ = MOV_R32_TO_RM32;
+    *insn++ = makeModRMbyte(0, src, 4);
+    *insn++ = 0x25;
+    *((int*)insn) = offset;
+    insn += sizeof(int);
+    SET_PTR(insn, gen);    
+    
+    gen.markRegDefined(src);
+    return true;
+}
+
+
 void EmitterAMD64::emitLoadFrameAddr(Register dest, Address offset, codeGen &gen)
 {
    // mov (%rbp), %dest
@@ -2495,9 +2520,7 @@ bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
            }
            bool upcast;
            int i = convertRegID(*rit, upcast);
-           registerSlot *reg = gen.rs()->GPRs()[i];
-           emitPushReg64(i,gen);
-           gen.rs()->markSavedRegister(i, 0);
+           emitStoreRelativeSegReg(i, 8 * i, REGNUM_GS, 8, gen);           
        }
        if (s->raLoc != InvalidReg) {
            bool upcast;
@@ -2764,7 +2787,7 @@ bool EmitterAMD64::emitBTRestores(baseTramp* bt, codeGen &gen)
            }
            bool upcast;
            int i = convertRegID(*rit, upcast);
-           emitPopReg64(i,gen);
+           emitLoadRelativeSegReg(i, 8 * i, REGNUM_GS, 8, gen);           
        }
        if (s->redZone) {
            emitLEA(REGNUM_RSP, Null_Register, 0, AMD64_RED_ZONE, REGNUM_RSP, gen);

@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "libunwind.h"
 #include <dlfcn.h>
 
@@ -121,11 +122,7 @@ DLLEXPORT Address DyninstRATranslation(Address ip) {
 
 DLLEXPORT int UNW_FUNC_NAME(unw_cursor_t* cursor) {
     if (!real_unw_step) {
-        void* handle = dlopen("libunwind.so", RTLD_LAZY);
-        if (handle == NULL) {
-            fprintf(stderr, "Cannot find libunwind handle\n");
-        }
-        real_unw_step = (unw_step_fn_type)dlsym(handle, unw_step_name);
+        real_unw_step = (unw_step_fn_type)dlsym(RTLD_NEXT, unw_step_name);
         if (real_unw_step == NULL) {
             fprintf(stderr, "Cannot find %s\n", unw_step_name);
         }
