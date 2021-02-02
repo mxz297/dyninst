@@ -503,6 +503,11 @@ SymtabCodeSource::init_hints(RegionMap &rmap, hint_filt * filt)
         vector<SymtabAPI::Symbol*> syms;
         f->getSymbols(syms);
         string fname_s = syms[0]->getPrettyName();
+        if ((fname_s.size() > 5 && fname_s.substr(fname_s.size() - 5) == ".cold") || fname_s.find(".cold.") != std::string::npos) {
+            parsing_printf("[%s:%d}  == filtered hint %s [%lx] ==\n",
+                FILE__,__LINE__,fname_s.c_str(), f->getOffset());
+            continue;
+        }
         for (size_t j = 1; j < syms.size(); ++j)
             if (syms[j]->getPrettyName() < fname_s) fname_s = syms[j]->getPrettyName();
         const char *fname = fname_s.c_str();
@@ -616,7 +621,7 @@ SymtabCodeSource::updateHintsWithHpcfnbounds(RegionMap &rmap, SeenMap& seen)
             char fname[128];
             snprintf(fname, sizeof(fname), "targ%lx", addr);
             _hints.push_back(Hint(addr, 0, cr, fname));
-            parsing_printf("\tnew function found in .eh_frame <%lx>\n", addr);            
+            parsing_printf("\tnew function found in .eh_frame <%lx>\n", addr);
         }
     }
 }
