@@ -47,6 +47,7 @@ namespace PatchAPI {
    class PatchBlock;
    class PatchFunction;
    class PatchModifier;
+   class CFGMaker;
 
 class PATCHAPI_EXPORT InsertedCode {
    friend class PatchModifier;
@@ -91,6 +92,10 @@ class PATCHAPI_EXPORT PatchModifier {
    static InsertedCode::Ptr insert(PatchObject *, void *start, unsigned size);
 
    static bool addBlockToFunction(PatchFunction *, PatchBlock *);
+
+   // Inline the call target of a call block b.
+   // Function f contains b.
+   static bool inlineFunction(CFGMaker*, PatchFunction* f, PatchBlock* b);
 
   private:
    static InsertedCode::Ptr insert(PatchObject *, void *start, unsigned size, Address base);

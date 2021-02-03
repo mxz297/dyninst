@@ -204,8 +204,7 @@ class BPATCH_DLL_EXPORT BPatch {
    // If we're destroying everything, skip cleaning up some intermediate
    // data structures
    bool inDestructor;
-   std::set<entryID> delInsnOpcodes;
-   std::set<Dyninst::Address> inliningAddresses;
+   std::set<entryID> delInsnOpcodes;   
 
    bool relocJumpTable;
    bool relocFuncPointer;
@@ -687,9 +686,7 @@ public:
     void  addNonReturningFunc(std::string name);
 
     void  addDeleteInstructionOpcode(entryID);
-    bool  shouldDeleteOpcode(entryID);
-    void  addInliningEntry(Dyninst::Address);
-    bool  isInliningTarget(Dyninst::Address);
+    bool  shouldDeleteOpcode(entryID);        
 
     Dyninst::PatchAPI::CFGMaker* getCFGMaker();
 

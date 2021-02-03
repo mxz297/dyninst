@@ -65,8 +65,7 @@ struct RelocEdges;
 class RelocBlock {
   friend class Transformer;
 
- public:
-   bool inliningCall;
+ public:   
    typedef int Label;
    static int RelocBlockID;
    typedef std::list<WidgetPtr> WidgetList;
@@ -120,8 +119,7 @@ class RelocBlock {
    bool finalizeCF();
 
    RelocEdges *ins() { return &inEdges_; }
-   RelocEdges *outs() { return &outEdges_; }
-   bool inlineCall(block_instance* block);
+   RelocEdges *outs() { return &outEdges_; }   
 
  private:
    

@@ -88,7 +88,6 @@ RelocBlock *RelocBlock::createReloc(block_instance *block, func_instance *func) 
 
   relocation_cerr << "Creating new RelocBlock" << endl;
   RelocBlock *newRelocBlock = new RelocBlock(block, func);
-  newRelocBlock->inliningCall = false;
 
   // Get the list of instructions in the block
   block_instance::Insns insns;
@@ -101,10 +100,6 @@ RelocBlock *RelocBlock::createReloc(block_instance *block, func_instance *func) 
 		    << ": " << iter->second.format(iter->first) << endl;
     entryID e = iter->second.getOperation().getID();
     if (BPatch::bpatch->shouldDeleteOpcode(e)) continue;    
-    if ( (e == e_call || e == e_callq) && newRelocBlock->inlineCall(block)) {
-        newRelocBlock->inliningCall = true;
-        break;
-    }
     Widget::Ptr ptr = InsnWidget::create(iter->second, iter->first);
 
     if (!ptr) {
@@ -208,14 +203,10 @@ void RelocBlock::processEdge(EdgeDirection e, edge_instance *edge, RelocGraph *c
    if (type == ParseAPI::RET || 
        type == ParseAPI::NOEDGE) return;
 
-   if (e == OutEdge && inliningCall && type == ParseAPI::CALL) {
-       return;
-   }
    if (e == InEdge && type == ParseAPI::CALL) {
        block_instance *block =  edge->src();
        func_instance *f = block->entryOfFunc();
        RelocBlock *t = cfg->find(block, f);
-       if (t && t->inliningCall) return;
    }
 
    
@@ -339,11 +330,6 @@ bool RelocBlock::determineSpringboards(PriorityMap &p) {
        relocation_cerr << "determineSpringboards (catch block): " << func_->symTabName()
                << " / " << hex << block_->start() << " is required" << dec << endl;
        p[std::make_pair(block_, func_)] = FuncEntry;          
-   }
-   if (inliningCall) {
-       relocation_cerr << "determineSpringboards (call inlining block): " << func_->symTabName()
-           << " / " << hex << block_->start() << " is required" << dec << endl;
-       p[std::make_pair(block_, func_)] = FuncEntry;
    }
    return true;
 }
@@ -652,44 +638,4 @@ void RelocBlock::setCF(CFWidgetPtr cf) {
    elements_.pop_back();
    elements_.push_back(cf);
    cfWidget_ = cf;
-}
-
-bool RelocBlock::inlineCall(block_instance* block) {
-    // Step 1. We find the entry block of the callee
-    block_instance * call_target = NULL;
-    for (auto eit = block->targets().begin(); eit != block->targets().end(); ++eit) {
-        if ((*eit)->type() != ParseAPI::CALL) continue;
-        call_target = (block_instance*)((*eit)->trg());
-    }
-    if (call_target == NULL) return false;
-
-    // Step 2. Only inline calls to functions that the user specifiess
-    if (!BPatch::bpatch->isInliningTarget(call_target->start())) return false;
-
-    // Step 3. Only inline functions with one basic block ending with a return instruction
-    block_instance::Insns insns;
-    call_target->getInsns(insns);
-    entryID e = insns.rbegin()->second.getOperation().getID();
-    if (e != e_ret_near && e != e_ret_far) return false;
-
-    // Remove the return instruction at the end
-    auto it = insns.end(); 
-    --it;
-    insns.erase(it);
-
-    // Step 4. Do not inline functions that use SP because
-    // inlining changes the value of SP
-    static Expression::Ptr sp(new RegisterAST(x86_64::rsp));
-    for (auto it = insns.begin(); it != insns.end(); ++it) {
-        if (it->second.isRead(sp) || it->second.isWritten(sp)) return false;
-    }
-
-    relocation_cerr << "Inline call at " << std::hex << block->last() << " to " << call_target->start() << std::endl;
-
-    // Step 5. add every instruction into the caller, excluding the return instruction
-    for (auto it = insns.begin(); it != insns.end(); ++it) {
-        Widget::Ptr ptr = InsnWidget::create(it->second, it->first);
-        elements_.push_back(ptr);
-    }
-    return true;
 }

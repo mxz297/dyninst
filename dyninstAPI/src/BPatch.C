@@ -2004,14 +2004,6 @@ bool BPatch::shouldDeleteOpcode(entryID id) {
     return delInsnOpcodes.find(id) != delInsnOpcodes.end();
 }
 
-void BPatch::addInliningEntry(Address addr) {
-    inliningAddresses.insert(addr);
-}
-
-bool BPatch::isInliningTarget(Address addr) {
-    return inliningAddresses.find(addr) != inliningAddresses.end();
-}
-
 #include "dyninstAPI/src/Relocation/DynObject.h"
 
 Dyninst::PatchAPI::CFGMaker* BPatch::getCFGMaker() {

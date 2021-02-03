@@ -134,21 +134,6 @@ void PatchFunction::removeBlock(PatchBlock *b) {
    cb()->remove_block(this, b);
 }
 
-static bool hasSingleIndirectSinkEdge(PatchBlock *b)
-{
-   fprintf(stderr,"hasSingleIndirectSinkEdge(%lx)=",b->start());
-   const ParseAPI::Block::edgelist & trgs = b->block()->targets();
-   if (trgs.size() == 1) {
-      ParseAPI::Edge *edge = * trgs.begin();
-      if (edge->sinkEdge() && edge->type() == ParseAPI::INDIRECT) {
-         fprintf(stderr,"true\n");
-         return true;
-      }
-   }
-   fprintf(stderr,"false\n");
-   return false;
-}
-
 void PatchFunction::addBlock(PatchBlock *b) {
    if (all_blocks_.empty() && exit_blocks_.empty() && call_blocks_.empty()) return;
    all_blocks_.insert(b);
@@ -157,11 +142,6 @@ void PatchFunction::addBlock(PatchBlock *b) {
       if (b->containsCall()) {
          call_blocks_.insert(b);
       } 
-      else if (hasSingleIndirectSinkEdge(b)) {
-         // don't know what the edge will resolve to, until then the 
-         // call_blocks_ vector shouldn't be considered complete
-         call_blocks_.clear(); 
-      }
    }
 
    if (0 < b->numRetEdges() && !exit_blocks_.empty()) {

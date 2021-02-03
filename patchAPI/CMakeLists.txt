@@ -21,6 +21,7 @@ set (SRC_LIST
         src/PatchModifier.C 
 	src/PatchLoop.C
 	src/PatchLoopTreeNode.C
+  src/debug_patch.C
   )
 
 SET_SOURCE_FILES_PROPERTIES(${SRC_LIST} PROPERTIES LANGUAGE CXX)

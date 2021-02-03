@@ -1,28 +1,28 @@
 /*
  * See the dyninst/COPYRIGHT file for copyright information.
- * 
+ *
  * We provide the Paradyn Tools (below described as "Paradyn")
  * on an AS IS basis, and do not warrant its validity or performance.
  * We reserve the right to update, modify, or discontinue this
  * software at any time.  We shall have no obligation to supply such
  * updates or modifications or any other form of support to you.
- * 
+ *
  * By your use of Paradyn, you understand and agree that we (or any
  * other person or entity with proprietary rights in Paradyn) are
  * under no obligation to provide either maintenance services,
  * update services, notices of latent defects, or correction of
  * defects for Paradyn.
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
- * 
+ *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
@@ -32,6 +32,7 @@
 #include "PatchCFG.h"
 #include "PatchMgr.h"
 #include "CFGModifier.h"
+#include "debug_patch.h"
 
 #include <queue>
 #include <set>
@@ -49,7 +50,7 @@ bool PatchModifier::redirect(PatchEdge *edge, PatchBlock *target) {
 
    // Current limitation: cannot retarget indirect edges (well, we can,
    // but don't expect it to work)
-   // Also, changing catch edges would be awesome! ... but we can't. 
+   // Also, changing catch edges would be awesome! ... but we can't.
    if (edge->type() == ParseAPI::CATCH ||
        edge->type() == ParseAPI::RET) return false;
 
@@ -57,7 +58,7 @@ bool PatchModifier::redirect(PatchEdge *edge, PatchBlock *target) {
    target->addSourceEdge(edge);
    return true;
 }
-   
+
 
 
 PatchBlock *PatchModifier::split(PatchBlock *block, Address addr, bool trust, Address newlast) {
@@ -75,29 +76,25 @@ PatchBlock *PatchModifier::split(PatchBlock *block, Address addr, bool trust, Ad
       if (iter == insns.begin()) return NULL;
       --iter;
       newlast = iter->first;
-   }      
+   }
 
    Address offset = addr - block->obj()->codeBase();
-   
+
    ParseAPI::Block *split_int = ParseAPI::CFGModifier::split(block->block(), offset, true, newlast);
    if (!split_int) return NULL;
 
-   // We want to return the new block so that folks have a handle; 
-   // look it up. 
+   // We want to return the new block so that folks have a handle;
+   // look it up.
    PatchBlock *split = block->obj()->getBlock(split_int);
    block->markModified();
    split->markModified();
-
-   // DEBUG BUILD
-   assert(block->consistency());
-   assert(split->consistency());
 
    return split;
 }
 
 InsertedCode::Ptr PatchModifier::insert(PatchObject *obj, void *start, unsigned size, Address base) {
    ParseAPI::CodeObject *co = obj->co();
-   
+
    ParseAPI::InsertedRegion *newRegion = ParseAPI::CFGModifier::insert(co, base, start, size);
 
    if (!newRegion) return InsertedCode::Ptr();
@@ -183,7 +180,7 @@ bool PatchModifier::remove(vector<PatchBlock *> &blocks, bool force)
 bool PatchModifier::remove(PatchFunction *func)
 {
   //    PatchObject *obj = func->obj();
-  //bool success = 
+  //bool success =
        return ParseAPI::CFGModifier::remove(func->function());
 
     // DEBUG
@@ -196,4 +193,125 @@ bool PatchModifier::remove(PatchFunction *func)
 bool PatchModifier::addBlockToFunction(PatchFunction *f, PatchBlock* b) {
     f->addBlock(b);
     return true;
+}
+
+static PatchEdge* getFTEdge(PatchBlock* b) {
+   for (auto e : b->targets()) {
+      if (e->type() == ParseAPI::FALLTHROUGH) return e;
+   }
+   return nullptr;
+}
+
+
+bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, PatchBlock* cb) {
+   patch_printf("Enter PatchModifier::inlineFunction: caller %s at %lx, call block [%lx, %lx)\n",
+     caller->name().c_str(), caller->addr(), cb->start(), cb->end());
+   // 1. Find the callee function
+   PatchFunction* callee = cb->getCallee();
+   // callee is NULL if this is not a call block or an indirect call
+   if (callee == nullptr) {
+      patch_printf("\tCannot find callee\n");
+      return false;
+   }
+   patch_printf("\tget callee %s at %lx\n", callee->name().c_str(), callee->addr());
+
+   // If the call site block contains only a call instruction,
+   // we need to redirect its source edges.
+   // TODO: To overcome this limitation, we need to redirect source edges of the
+   // call blocks. In particular, how to redirect indirect edges?
+   PatchBlock::Insns insns;
+   cb->getInsns(insns);
+   if (insns.size() == 1) {
+      patch_printf("\tCall block has only one instruction\n");
+      return false;
+   }
+
+   // Only inline function without jump tables
+   for (auto b: callee->blocks()) {
+      for (auto e: b->targets()) {
+         if (e->intraproc() && e->type() == ParseAPI::INDIRECT && !e->sinkEdge()) {
+            patch_printf("\tcallee has jump table at [%lx, %lx)\n", b->start(), b->end());
+            return false;
+         }
+      }
+   }
+
+   PatchBlock* call_ft_block = nullptr;
+   for (auto e : cb->targets()) {
+      if (e->type() == ParseAPI::CALL_FT) {
+         call_ft_block = e->trg();
+         break;
+      }
+   }
+   if (call_ft_block == nullptr) {
+      patch_printf("\tcannot find call fallthrough block\n");
+      return false;
+   }
+
+   // 2. Clone all blocks in the callee and reconnect edges
+   std::map<PatchBlock*, PatchBlock*> cloneBlockMap;
+   std::vector<PatchBlock*> newBlocks;
+   for (auto b : callee->blocks()) {
+      PatchBlock* cloneB = cfgMaker->cloneBlock(b, b->object());
+      cloneBlockMap[b] = cloneB;
+      newBlocks.emplace_back(cloneB);
+      PatchModifier::addBlockToFunction(caller, cloneB);
+   }
+
+   // The edges of the cloned blocks are still from/to original blocks
+   // Now we redirect all edges
+   std::vector<PatchBlock*> newRetBlocks;
+   for (auto b : newBlocks) {
+      bool isRetBlock = false;
+      for (auto e : b->targets()) {
+         if (e->type() == ParseAPI::RET) isRetBlock = true;
+         if (e->sinkEdge() || e->interproc()) continue;
+         if (e->type() == ParseAPI::CATCH) continue;
+         auto it = cloneBlockMap.find(e->trg());
+         if (it == cloneBlockMap.end()) continue;
+         PatchBlock* newTarget = it->second;
+         if (!PatchModifier::redirect(e, newTarget)) {
+            patch_printf("\tfail to redirect edge [%lx, %lx)->[%lx, %lx), edge type %d\n",
+               b->start(), b->end(), e->trg()->start(), e->trg()->end(), e->type());
+            return false;
+         }
+      }
+      if (isRetBlock) newRetBlocks.emplace_back(b);
+   }
+
+   // 3. Remove return instruction from return blocks
+   for (auto b: newRetBlocks) {
+      // We first remove the return instruction
+      if (PatchModifier::split(b, b->last(), true, b->last()) == nullptr) {
+         patch_printf("\tfail to split return block at [%lx, %lx)\n", b->start(), b->end());
+         return false;
+      }
+      // We then redirect the fallthrough edge from
+      // then-return block to the call-ft block
+      PatchEdge * ftedge = getFTEdge(b);
+      if (ftedge == nullptr) {
+         patch_printf("\tno fallthrough edge after spliting return block [%lx, %lx)\n", b->start(), b->end());
+         return false;
+      }
+      if (!PatchModifier::redirect(ftedge, call_ft_block)) {
+         patch_printf("\tfail to redirect splitted return block [%lx, %lx) to call ft block\n", b->start(), b->end());
+         return false;
+      }
+   }
+
+   // 4. Remove call instruction and redirect edge to inlined entry
+   if (PatchModifier::split(cb, cb->last(), true, cb->last()) == nullptr) {
+      patch_printf("\tfail to split call block at [%lx, %lx)\n", cb->start(), cb->end());
+      return false;
+   }
+   PatchEdge * ftedge = getFTEdge(cb);
+   if (ftedge == nullptr) {
+      patch_printf("\tno fallthrough edge after spliting call block [%lx, %lx)\n", cb->start(), cb->end());
+      return false;
+   }
+   if (!PatchModifier::redirect(ftedge, cloneBlockMap[callee->entry()])) {
+      patch_printf("\tfail to redirect splitted call block [%lx, %lx) to callee entry\n", cb->start(), cb->end());
+      return false;
+   }
+   return true;
 }
