@@ -389,6 +389,7 @@ void RelocBlock::preserveBlockGap() {
   /*   const block_instance::edgelist &targets = block_->targets();
        for (block_instance::edgelist::const_iterator iter = targets.begin(); iter != targets.end(); ++iter) {*/
    if (block_->wasUserAdded()) return;
+   if (block_->isClone()) return;
    const PatchBlock::edgelist &targets = block_->targets();
    bool hasCall = false;
    bool hasFT = false;

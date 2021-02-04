@@ -202,6 +202,89 @@ static PatchEdge* getFTEdge(PatchBlock* b) {
    return nullptr;
 }
 
+static bool SplitAndRedirectEdges(PatchBlock* b, PatchBlock* tar) {
+   PatchBlock::Insns insns;
+   b->getInsns(insns);
+   if (insns.size() > 1) {
+      patch_printf("\t\tblock has more than one instruction\n");
+      // We first remove the return instruction
+      if (PatchModifier::split(b, b->last(), true, b->last()) == nullptr) {
+         patch_printf("\t\t\tfail to split the block at [%lx, %lx)\n", b->start(), b->end());
+         return false;
+      }
+      // We then redirect the fallthrough edge from
+      // then-return block to the call-ft block
+      PatchEdge * ftedge = getFTEdge(b);
+      if (ftedge == nullptr) {
+         patch_printf("\t\t\tno fallthrough edge after spliting block [%lx, %lx)\n", b->start(), b->end());
+         return false;
+      }
+      if (!PatchModifier::redirect(ftedge, tar)) {
+         patch_printf("\t\t\tfail to redirect splitted block [%lx, %lx) to new target\n", b->start(), b->end());
+         return false;
+      }
+   } else {
+      patch_printf("\t\tblock has only one instruction\n");
+      std::vector<PatchEdge*> sedges;
+      for (auto e : b->sources()) {
+         sedges.emplace_back(e);
+      }
+      for (auto e: sedges) {
+         if (!PatchModifier::redirect(e, tar)) {
+            patch_printf("\t\t\tfail to redirect edge from [%lx, %lx] to the new target, edge type %d\n",
+               e->src()->start(), e->src()->end(), e->type());
+            return false;
+         }
+      }
+   }
+   return true;
+}
+
+static bool CheckBlock(PatchBlock* b){
+   // If the block contains only one instruction,
+   // we need to redirect its source edges.
+   // TODO: how to redirect INDIRECT source edges
+   PatchBlock::Insns insns;
+   b->getInsns(insns);
+   if (insns.size() > 1) return true;
+   for (auto e : b->sources()) {
+      if (e->type() == ParseAPI::INDIRECT) {
+         patch_printf("\t\tblock [%lx, %lx) has INDIRECT source edge \n", b->start(), b->end());
+         return false;
+      }
+   }
+   return true;
+}
+
+static std::set<PatchFunction*> functionSplit;
+
+bool SplitFunctionRetBlocks(PatchFunction* f) {
+   if (functionSplit.find(f) != functionSplit.end()) {
+      return true;
+   }
+   functionSplit.insert(f);
+   std::vector<PatchBlock*> retBlocks;
+   for (auto b : f->blocks()) {
+      bool isRetBlock = false;
+      for (auto e : b->targets()) {
+         if (e->type() == ParseAPI::RET) {
+            isRetBlock = true;
+            break;
+         }
+      }
+      if (isRetBlock) retBlocks.emplace_back(b);
+   }
+   for (auto b: retBlocks) {
+      PatchBlock::Insns insns;
+      b->getInsns(insns);
+      if (insns.size() == 1) continue;
+      if (PatchModifier::split(b, b->last(), true, b->last()) == nullptr) {
+         patch_printf("\t\t\tfail to split return block at [%lx, %lx)\n", b->start(), b->end());
+         return false;
+      }
+   }
+   return true;
+}
 
 bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, PatchBlock* cb) {
    patch_printf("Enter PatchModifier::inlineFunction: caller %s at %lx, call block [%lx, %lx)\n",
@@ -215,15 +298,23 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
    }
    patch_printf("\tget callee %s at %lx\n", callee->name().c_str(), callee->addr());
 
-   // If the call site block contains only a call instruction,
-   // we need to redirect its source edges.
-   // TODO: To overcome this limitation, we need to redirect source edges of the
-   // call blocks. In particular, how to redirect indirect edges?
-   PatchBlock::Insns insns;
-   cb->getInsns(insns);
-   if (insns.size() == 1) {
-      patch_printf("\tCall block has only one instruction\n");
+   patch_printf("\tCheck whether we can handle call block\n");
+   if (!CheckBlock(cb)) {
+      patch_printf("\t\tCannot handle call block\n");
       return false;
+   }
+
+   patch_printf("\tCheck whether we can handle return blocks\n");
+   for (auto b: callee->blocks()) {
+      bool isRet = false;
+      for (auto e: b->targets()) {
+         if (e->type() == ParseAPI::RET) isRet = true;
+      }
+      if (!isRet) continue;
+      if (!CheckBlock(b)) {
+         patch_printf("\t\tCannot handle return block [%lx, %lx)\n", b->start(), b->end());
+         return false;
+      }
    }
 
    // Only inline function without jump tables
@@ -234,6 +325,11 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
             return false;
          }
       }
+   }
+
+   if (!SplitFunctionRetBlocks(callee)) {
+      patch_printf("\tfail to spilt return blocks in %s at %lx\n", callee->name().c_str(), callee->addr());
+      return false;
    }
 
    PatchBlock* call_ft_block = nullptr;
@@ -281,36 +377,17 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
 
    // 3. Remove return instruction from return blocks
    for (auto b: newRetBlocks) {
-      // We first remove the return instruction
-      if (PatchModifier::split(b, b->last(), true, b->last()) == nullptr) {
-         patch_printf("\tfail to split return block at [%lx, %lx)\n", b->start(), b->end());
-         return false;
-      }
-      // We then redirect the fallthrough edge from
-      // then-return block to the call-ft block
-      PatchEdge * ftedge = getFTEdge(b);
-      if (ftedge == nullptr) {
-         patch_printf("\tno fallthrough edge after spliting return block [%lx, %lx)\n", b->start(), b->end());
-         return false;
-      }
-      if (!PatchModifier::redirect(ftedge, call_ft_block)) {
-         patch_printf("\tfail to redirect splitted return block [%lx, %lx) to call ft block\n", b->start(), b->end());
+      patch_printf("\tsplit return block and redirect edge for [%lx, %lx)\n", b->start(), b->end());
+      if (!SplitAndRedirectEdges(b, call_ft_block)) {
+         patch_printf("\t\tfailed\n");
          return false;
       }
    }
 
    // 4. Remove call instruction and redirect edge to inlined entry
-   if (PatchModifier::split(cb, cb->last(), true, cb->last()) == nullptr) {
-      patch_printf("\tfail to split call block at [%lx, %lx)\n", cb->start(), cb->end());
-      return false;
-   }
-   PatchEdge * ftedge = getFTEdge(cb);
-   if (ftedge == nullptr) {
-      patch_printf("\tno fallthrough edge after spliting call block [%lx, %lx)\n", cb->start(), cb->end());
-      return false;
-   }
-   if (!PatchModifier::redirect(ftedge, cloneBlockMap[callee->entry()])) {
-      patch_printf("\tfail to redirect splitted call block [%lx, %lx) to callee entry\n", cb->start(), cb->end());
+   patch_printf("\tsplit call block and redirect edge for [%lx, %lx)\n", cb->start(), cb->end());
+   if (!SplitAndRedirectEdges(cb, cloneBlockMap[callee->entry()])) {
+      patch_printf("\t\tfailed\n");
       return false;
    }
    return true;
