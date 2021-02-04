@@ -151,19 +151,19 @@ class PATCHAPI_EXPORT PatchBlock {
    virtual void markModified()  {};
    void addSourceEdge(PatchEdge *e, bool addIfEmpty = true);
    void addTargetEdge(PatchEdge *e, bool addIfEmpty = true);
+   void removeSourceEdge(PatchEdge *e);
+   void removeTargetEdge(PatchEdge *e);
+
    void setIsCloned(bool);
    bool isClone() { return isCloned_; }
    void markExceptionSafe() { isExceptionSafe_ = true; }
    bool isExceptionSafe() const { return isExceptionSafe_; }
-
 
   protected:
     typedef enum {
       backwards,
       forwards } Direction;
 
-    void removeSourceEdge(PatchEdge *e);
-    void removeTargetEdge(PatchEdge *e);
     void destroyPoints();
 
     void splitBlock(PatchBlock *succ);

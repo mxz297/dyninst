@@ -137,6 +137,8 @@ RelocEdge *RelocGraph::makeEdge(TargetInt *s,
                                 TargetInt *t,
                                 edge_instance* e,
                                 ParseAPI::EdgeTypeEnum et) {
+   relocation_cerr << "RelocGraph::makeEdge" << " [" << s->format() << "] "
+      << "--> [" << t->format() << "], edge type " << et << endl;
    RelocEdge *edge = new RelocEdge(s, t, e, et);
    edges.push_back(edge);
    s->addTargetEdge(edge);

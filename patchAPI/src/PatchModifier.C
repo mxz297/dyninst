@@ -54,6 +54,7 @@ bool PatchModifier::redirect(PatchEdge *edge, PatchBlock *target) {
    if (edge->type() == ParseAPI::CATCH ||
        edge->type() == ParseAPI::RET) return false;
 
+   edge->trg()->removeSourceEdge(edge);
    edge->trg_ = target;
    target->addSourceEdge(edge);
    return true;
@@ -234,6 +235,10 @@ static bool SplitAndRedirectEdges(PatchBlock* b, PatchBlock* tar) {
             patch_printf("\t\t\tfail to redirect edge from [%lx, %lx] to the new target, edge type %d\n",
                e->src()->start(), e->src()->end(), e->type());
             return false;
+         }
+         patch_printf("\t\tredirect source from [%lx, %lx), type %d\n", e->src()->start(), e->src()->end(), e->type());
+         for (auto te: e->src()->targets()) {
+            patch_printf("\t\t\ttarget to [%lx, %lx), type %d\n", te->trg()->start(), te->trg()->end(), te->type());
          }
       }
    }
