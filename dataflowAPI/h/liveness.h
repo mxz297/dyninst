@@ -107,5 +107,30 @@ private:
 	ErrorType errorno;
 };
 
+class DATAFLOW_EXPORT InterproceduralLivenessAnalyzer{
+	void calculateBlocksSummary();
+	void calculateFixedPoint();
+	void calculateABlockSummary(ParseAPI::Block*);
+	void identifyIndirectCallFTBlocks();
+	void setPassParamRegisterArray();
+	bool updateBlock(ParseAPI::Block*);
+
+	ABI* abi;
+	ParseAPI::CodeObject* co;
+
+	typedef dyn_c_hash_map<ParseAPI::Block*, livenessData> ConcurrentLivenessBlockDataMap;
+	ConcurrentLivenessBlockDataMap blockLiveMap;
+	std::vector<ParseAPI::Block*> indCallFTBlocks;
+
+	bitArray joinOfIndirCallFTBlocks;
+	bitArray joinOfFuncEntryBlocks;
+	bitArray passParamRegs;
+public:
+	InterproceduralLivenessAnalyzer() {}
+	void analyze(ParseAPI::CodeObject *co);
+	void print(ParseAPI::CodeObject *co);
+
+
+};
 
 #endif  // LIVESS_H

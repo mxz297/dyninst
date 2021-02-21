@@ -49,6 +49,7 @@ set(ROSE_SRC
         ../dataflowAPI/src/ExpressionConversionVisitor.C 
         ../dataflowAPI/src/InstructionCache.C 
         ../dataflowAPI/src/liveness.C 
+        ../dataflowAPI/src/InterprocLiveness.C
         ../dataflowAPI/src/RegisterMap.C
 	../dataflowAPI/src/RoseImpl.C
         ../dataflowAPI/src/RoseInsnFactory.C

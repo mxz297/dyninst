@@ -391,6 +391,7 @@ RegisterMap &machRegIndex_x86_64() {
          {x86_64::tr5, 163},
          {x86_64::tr6, 164},
          {x86_64::tr7, 165},
+         {x86_64::flags, 166},
       };
    }
    return *mrmap;
