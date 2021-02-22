@@ -38,6 +38,8 @@
 #include "Point.h"
 
 namespace Dyninst {
+class Graph;
+
 namespace PatchAPI {
 
 class PatchParseCallback;
@@ -191,6 +193,15 @@ class PATCHAPI_EXPORT PatchFunction {
    friend class PatchModifier;
 
    public:
+
+     struct PatchJumpTableInstance {
+        AST::Ptr jumpTargetExpr;
+        Address tableStart;
+        Address tableEnd;
+        int indexStride;
+        boost::shared_ptr<Dyninst::Graph> formatSlice;
+        std::vector<PatchEdge*> tableEntryEdges;
+     };
      struct compare {
        bool operator()(PatchBlock * const &b1,
                        PatchBlock * const &b2) const {
@@ -270,6 +281,11 @@ class PATCHAPI_EXPORT PatchFunction {
    void setContainsClonedBlocks(bool);
    bool containClonedBlocks() { return containClonedBlocks_; }
 
+   typedef dyn_hash_map<PatchBlock*, PatchJumpTableInstance> JumpTableMap;
+   void addJumpTableInstance(PatchBlock*, const PatchJumpTableInstance&);
+   void addJumpTableInstance(PatchBlock*, const ParseAPI::Function::JumpTableInstance&);
+   const JumpTableMap& getJumpTableMap() { return jumpTables; }
+   
    protected:
      // For callbacks from ParseAPI to PatchAPI
      void removeBlock(PatchBlock *);
@@ -315,6 +331,8 @@ class PATCHAPI_EXPORT PatchFunction {
     /** same as previous two fields, but for postdominator tree */
     std::map<PatchBlock*, std::set<PatchBlock*>*> immediatePostDominates;
     std::map<PatchBlock*, PatchBlock*> immediatePostDominator;
+
+    JumpTableMap jumpTables;
 
 
 };

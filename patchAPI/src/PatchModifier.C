@@ -48,8 +48,6 @@ bool PatchModifier::redirect(PatchEdge *edge, PatchBlock *target) {
    // However, same address space is probably a good idea ;)
    if (target && edge->src()->obj()->addrSpace() != target->obj()->addrSpace()) return false;
 
-   // Current limitation: cannot retarget indirect edges (well, we can,
-   // but don't expect it to work)
    // Also, changing catch edges would be awesome! ... but we can't.
    if (edge->type() == ParseAPI::CATCH ||
        edge->type() == ParseAPI::RET) return false;
@@ -245,22 +243,6 @@ static bool SplitAndRedirectEdges(PatchBlock* b, PatchBlock* tar) {
    return true;
 }
 
-static bool CheckBlock(PatchBlock* b){
-   // If the block contains only one instruction,
-   // we need to redirect its source edges.
-   // TODO: how to redirect INDIRECT source edges
-   PatchBlock::Insns insns;
-   b->getInsns(insns);
-   if (insns.size() > 1) return true;
-   for (auto e : b->sources()) {
-      if (e->type() == ParseAPI::INDIRECT) {
-         patch_printf("\t\tblock [%lx, %lx) has INDIRECT source edge \n", b->start(), b->end());
-         return false;
-      }
-   }
-   return true;
-}
-
 static std::set<PatchFunction*> functionSplit;
 
 bool SplitFunctionRetBlocks(PatchFunction* f) {
@@ -303,35 +285,6 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
    }
    patch_printf("\tget callee %s at %lx\n", callee->name().c_str(), callee->addr());
 
-   patch_printf("\tCheck whether we can handle call block\n");
-   if (!CheckBlock(cb)) {
-      patch_printf("\t\tCannot handle call block\n");
-      return false;
-   }
-
-   patch_printf("\tCheck whether we can handle return blocks\n");
-   for (auto b: callee->blocks()) {
-      bool isRet = false;
-      for (auto e: b->targets()) {
-         if (e->type() == ParseAPI::RET) isRet = true;
-      }
-      if (!isRet) continue;
-      if (!CheckBlock(b)) {
-         patch_printf("\t\tCannot handle return block [%lx, %lx)\n", b->start(), b->end());
-         return false;
-      }
-   }
-
-   // Only inline function without jump tables
-   for (auto b: callee->blocks()) {
-      for (auto e: b->targets()) {
-         if (e->intraproc() && e->type() == ParseAPI::INDIRECT && !e->sinkEdge()) {
-            patch_printf("\tcallee has jump table at [%lx, %lx)\n", b->start(), b->end());
-            return false;
-         }
-      }
-   }
-
    if (!SplitFunctionRetBlocks(callee)) {
       patch_printf("\tfail to spilt return blocks in %s at %lx\n", callee->name().c_str(), callee->addr());
       return false;
@@ -359,7 +312,35 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
       PatchModifier::addBlockToFunction(caller, cloneB);
    }
 
-   // The edges of the cloned blocks are still from/to original blocks
+   // 3. Copy the jump table data from calee to caller   
+   // Jump table data copy should be done before redirecting edges
+   for (auto &it : cloneBlockMap) {
+      PatchBlock* origB = it.first;
+      PatchBlock* newB = it.second;
+      const auto jit = callee->getJumpTableMap().find(origB);
+      if (jit == callee->getJumpTableMap().end()) continue;
+      PatchJumpTableInstance pjti = jit->second;
+      
+      // Build a map from target address to PatchEdge
+      // We can use this map to match cloned edge with original edge
+      dyn_hash_map<Address, PatchEdge*> newEdges;      
+      for (auto e : newB->targets()) {
+         if (e->sinkEdge() || e->type() != ParseAPI::INDIRECT) continue;
+         newEdges[e->trg()->start()] = e;
+      }
+
+      // Update edges in jump table data to cloned edges
+      for (auto& e : pjti.tableEntryEdges) {
+         Address trg = e->trg()->start();
+         auto edgeIter = newEdges.find(trg);
+         assert(edgeIter != newEdges.end());
+         e = edgeIter->second;
+      }
+
+      caller->addJumpTableInstance(newB, pjti);
+   }
+
+   // 4. The edges of the cloned blocks are still from/to original blocks
    // Now we redirect all edges
    std::vector<PatchBlock*> newRetBlocks;
    for (auto b : newBlocks) {
@@ -380,7 +361,7 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
       if (isRetBlock) newRetBlocks.emplace_back(b);
    }
 
-   // 3. Remove return instruction from return blocks
+   // 5. Remove return instruction from return blocks
    for (auto b: newRetBlocks) {
       patch_printf("\tsplit return block and redirect edge for [%lx, %lx)\n", b->start(), b->end());
       if (!SplitAndRedirectEdges(b, call_ft_block)) {
@@ -389,11 +370,12 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
       }
    }
 
-   // 4. Remove call instruction and redirect edge to inlined entry
+   // 6. Remove call instruction and redirect edge to inlined entry
    patch_printf("\tsplit call block and redirect edge for [%lx, %lx)\n", cb->start(), cb->end());
    if (!SplitAndRedirectEdges(cb, cloneBlockMap[callee->entry()])) {
       patch_printf("\t\tfailed\n");
       return false;
    }
+
    return true;
 }

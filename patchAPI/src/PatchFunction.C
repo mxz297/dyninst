@@ -57,6 +57,7 @@ PatchFunction::PatchFunction(const PatchFunction *parFunc, PatchObject* child)
     _loop_analyzed(false), containClonedBlocks_(parFunc->containClonedBlocks_), _loop_root(NULL),
    isDominatorInfoReady(false),	isPostDominatorInfoReady(false)
 {
+   // TODO: need to copy jump table when implementing function cloning
 }
 
 
@@ -71,6 +72,14 @@ PatchFunction::blocks() {
   for (ParseAPI::Function::blocklist::iterator iter = func_->blocks().begin();
        iter != func_->blocks().end(); ++iter) {
     all_blocks_.insert(obj()->getBlock(*iter));
+  }
+
+  // Copy jump table data
+  for (auto b : all_blocks_) {
+     auto it = func_->getJumpTables().find(b->last());
+     if (it != func_->getJumpTables().end()) {
+        addJumpTableInstance(b, it->second);
+     }
   }
 
   return all_blocks_;
@@ -986,4 +995,32 @@ void PatchFunction::getAllPostDominates(PatchBlock *A, set<PatchBlock*> &d) {
 
 void PatchFunction::setContainsClonedBlocks(bool c) {
     containClonedBlocks_ = c;
+}
+
+void PatchFunction::addJumpTableInstance(PatchBlock* b, const PatchJumpTableInstance& jti) {
+   jumpTables[b] = jti;
+}
+
+void PatchFunction::addJumpTableInstance(PatchBlock* b, const ParseAPI::Function::JumpTableInstance& jti) {
+   // This function should be called before redirecting any edges from b
+   PatchJumpTableInstance& pjti = jumpTables[b];
+
+   pjti.jumpTargetExpr = jti.jumpTargetExpr
+   pjti.tableStart = jti.tableStart;
+   pjti.tableEnd = jti.tableEnd;
+   pjti.indexStride = jti.indexStride;
+   pjti.formatSlice = jti.formatSlice;        
+   dyn_hash_map<Address, PatchEdge*> edgeMap;
+   for (auto e : b->targets()) {
+      if (e->sinkEdge()) continue;
+      if (e->type() != ParseAPI::INDIRECT) continue;
+      edgeMap[e->trg()->start()] = e;
+   }
+   for (Address addr = pjti.tableStart; addr < pjti.tableEnd; addr += pjti.indexStride) {
+      const auto entryIter = jti.tableEntryMap.find(addr);
+      assert(entryIter != jti.tableEntryMap.end());
+      const auto edgeIter = edgeMap.find(entryIter->second);
+      assert(edgeIter != edgeMap.end());
+      pjti.tableEntryEdges.emplace_back(edgeIter->second);
+   }
 }
