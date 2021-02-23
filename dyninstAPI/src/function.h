@@ -178,6 +178,7 @@ class func_instance : public patchTarget, public Dyninst::PatchAPI::PatchFunctio
   bool getBlocks(const Address addr, std::set<block_instance*> &blks);
   // Get the block with an instruction that starts at addr
   block_instance *getBlock(const Address addr);
+  block_instance *getBlock(const Address addr, int version);
 
   Offset addrToOffset(const Address addr) const;
 

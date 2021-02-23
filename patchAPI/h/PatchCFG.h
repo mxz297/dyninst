@@ -156,8 +156,8 @@ class PATCHAPI_EXPORT PatchBlock {
    void removeSourceEdge(PatchEdge *e);
    void removeTargetEdge(PatchEdge *e);
 
-   void setIsCloned(bool);
-   bool isClone() { return isCloned_; }
+   void setCloneVersion(int);
+   int getCloneVersion() { return cloneVersion_; }
    void markExceptionSafe() { isExceptionSafe_ = true; }
    bool isExceptionSafe() const { return isExceptionSafe_; }
 
@@ -178,7 +178,10 @@ class PATCHAPI_EXPORT PatchBlock {
     PatchObject* obj_;
 
     BlockPoints points_;
-    bool isCloned_; 
+
+    // Value 0 means that the block is not a clone
+    int cloneVersion_; 
+
     bool isExceptionSafe_;
 };
 
@@ -201,13 +204,14 @@ class PATCHAPI_EXPORT PatchFunction {
         int indexStride;
         boost::shared_ptr<Dyninst::Graph> formatSlice;
         std::vector<PatchEdge*> tableEntryEdges;
+        bool isZeroExtend;
      };
      struct compare {
        bool operator()(PatchBlock * const &b1,
                        PatchBlock * const &b2) const {
-         if ((int)b1->isClone() == (int)b2->isClone())
+         if (b1->getCloneVersion() == b2->getCloneVersion())
              return b1->start() < b2->start();
-         return (int)b1->isClone() < (int)b2->isClone();
+         return b1->getCloneVersion() < b2->getCloneVersion();
        }
      };
      typedef std::set<PatchBlock*, compare> Blockset;

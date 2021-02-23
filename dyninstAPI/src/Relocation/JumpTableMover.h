@@ -10,7 +10,7 @@ namespace Dyninst{
 
 namespace PatchAPI{
 class PatchBlock;
-class PatchFunction
+class PatchFunction;
 };
 
 namespace Relocation {
@@ -29,15 +29,15 @@ private:
     std::map<Address, std::pair<Address, int64_t> > newTable;    
 
     void moveJumpTableInFunction(func_instance*);
-    Address findRelocatedAddress(func_instance*, Address);
+    Address findRelocatedVersionedAddress(func_instance*, int, Address);
     Address findRelocatedBlockStart(func_instance*, PatchAPI::PatchBlock*);
     void moveOneJumpTable(func_instance*, PatchAPI::PatchBlock*, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
     bool computeNewTableEntries(func_instance*, PatchAPI::PatchBlock*, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
     void fillNewTableEntries(codeGen&, Address, int);
-    bool modifyJumpTargetBaseInstructions(func_instance*, Address, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
-    bool modifyJumpTableBaseInstructions(func_instance*, Address, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
+    bool modifyJumpTargetBaseInstructions(func_instance*, int, Address, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
+    bool modifyJumpTableBaseInstructions(func_instance*, int, Address, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
     void setupRelocationEntries();
-    bool checkFitIn();
+    bool checkFitInAndAdjust(Address&, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
     
     // Record all overritten jump table entries 
     // to detect conflict table entry relocation

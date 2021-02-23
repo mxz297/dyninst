@@ -632,6 +632,15 @@ block_instance *func_instance::getBlock(const Address addr) {
    return NULL;
 }
 
+block_instance *func_instance::getBlock(const Address addr, int version) {
+   std::set<block_instance *> blks;
+   getBlocks(addr, blks);
+   for (std::set<block_instance *>::iterator iter = blks.begin(); iter != blks.end(); ++iter) {
+      if ((*iter)->getCloneVersion() != version) continue;
+      if ((*iter)->getInsn(addr).isValid()) return *iter;
+   }
+   return NULL;
+}
 using namespace SymtabAPI;
 
 bool func_instance::addSymbolsForCopy() {

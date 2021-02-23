@@ -90,8 +90,7 @@ CFGMaker::cloneEdge(PatchEdge* original_edge, PatchBlock* newSrc) {
 
 PatchBlock*
 CFGMaker::cloneBlock(PatchBlock* b, PatchObject* o) {
-    PatchBlock* newB = new PatchBlock(b, o);
-    newB->setIsCloned(true);
+    PatchBlock* newB = new PatchBlock(b, o);    
     for (auto eit = b->targets().begin(); eit != b->targets().end(); ++eit) {
         PatchEdge *newE = cloneEdge(*eit, newB);
         newB->addTargetEdge(newE);

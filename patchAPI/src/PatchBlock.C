@@ -49,11 +49,11 @@ PatchBlock::create(ParseAPI::Block *ib, PatchFunction *f) {
 }
 
 PatchBlock::PatchBlock(ParseAPI::Block *blk, PatchObject *obj)
-  : block_(blk),   obj_(obj), isCloned_(false) {
+  : block_(blk),   obj_(obj), cloneVersion_(0) {
 }
 
 PatchBlock::PatchBlock(const PatchBlock *parent, PatchObject *child)
-  : block_(parent->block_), obj_(child), isCloned_(false) {
+  : block_(parent->block_), obj_(child), cloneVersion_(0) {
    isExceptionSafe_ = parent->isExceptionSafe_;
 }
 
@@ -68,7 +68,7 @@ PatchBlock::getInsns(Insns &insns) const {
 
 const PatchBlock::edgelist&
 PatchBlock::sources() {
-  if (srclist_.empty() && !isCloned_) {
+  if (srclist_.empty() && cloneVersion_ == 0) {
     for (ParseAPI::Block::edgelist::const_iterator iter = block_->sources().begin();
          iter != block_->sources().end(); ++iter) 
     {
@@ -634,6 +634,6 @@ bool PatchBlock::wasUserAdded() const {
    return block_->wasUserAdded();
 }
 
-void PatchBlock::setIsCloned(bool is) {
-    isCloned_ = is;
+void PatchBlock::setCloneVersion(int v) {
+    cloneVersion_ = v;
 }

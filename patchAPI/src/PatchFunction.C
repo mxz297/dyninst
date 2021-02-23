@@ -1005,11 +1005,12 @@ void PatchFunction::addJumpTableInstance(PatchBlock* b, const ParseAPI::Function
    // This function should be called before redirecting any edges from b
    PatchJumpTableInstance& pjti = jumpTables[b];
 
-   pjti.jumpTargetExpr = jti.jumpTargetExpr
+   pjti.jumpTargetExpr = jti.jumpTargetExpr;
    pjti.tableStart = jti.tableStart;
    pjti.tableEnd = jti.tableEnd;
    pjti.indexStride = jti.indexStride;
-   pjti.formatSlice = jti.formatSlice;        
+   pjti.formatSlice = jti.formatSlice;
+   pjti.isZeroExtend = jti.isZeroExtend;        
    dyn_hash_map<Address, PatchEdge*> edgeMap;
    for (auto e : b->targets()) {
       if (e->sinkEdge()) continue;

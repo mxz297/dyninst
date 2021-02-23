@@ -192,11 +192,11 @@ void CodeTracker::createIndices() {
       }
       else {
          if (e->func() == NULL || !e->func()->containClonedBlocks() || e->func()->entryBlock()->start() == e->block()->start()) {
-             if (!e->block()->isClone()) {
+             if (!e->block()->getCloneVersion() > 0) {
                  origToReloc_[e->block()->start()][e->func() ? e->func()->addr() : 0][e->orig()].instruction = e->reloc();
              }
          } else {
-             if (e->block()->isClone()) {
+             if (e->block()->getCloneVersion() > 0) {
                  origToReloc_[e->block()->start()][e->func() ? e->func()->addr() : 0][e->orig()].instruction = e->reloc();
              }
          }

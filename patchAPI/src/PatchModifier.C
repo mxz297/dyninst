@@ -273,7 +273,10 @@ bool SplitFunctionRetBlocks(PatchFunction* f) {
    return true;
 }
 
+static int version;
+
 bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, PatchBlock* cb) {
+   version += 1;
    patch_printf("Enter PatchModifier::inlineFunction: caller %s at %lx, call block [%lx, %lx)\n",
      caller->name().c_str(), caller->addr(), cb->start(), cb->end());
    // 1. Find the callee function
@@ -307,6 +310,7 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
    std::vector<PatchBlock*> newBlocks;
    for (auto b : callee->blocks()) {
       PatchBlock* cloneB = cfgMaker->cloneBlock(b, b->object());
+      cloneB->setCloneVersion(version);
       cloneBlockMap[b] = cloneB;
       newBlocks.emplace_back(cloneB);
       PatchModifier::addBlockToFunction(caller, cloneB);
@@ -319,7 +323,7 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
       PatchBlock* newB = it.second;
       const auto jit = callee->getJumpTableMap().find(origB);
       if (jit == callee->getJumpTableMap().end()) continue;
-      PatchJumpTableInstance pjti = jit->second;
+      PatchFunction::PatchJumpTableInstance pjti = jit->second;
       
       // Build a map from target address to PatchEdge
       // We can use this map to match cloned edge with original edge

@@ -61,20 +61,20 @@ void JumpTableMover::moveOneJumpTable(
     // First, detetermine whether the relocation will cause table entry overflow.
     bool overflow = computeNewTableEntries(func, b, jt);
     Address newJumpTargetBase = 0;
-    bool needLargerTable = overflow && checkFitInAndAdjust(newJumpTargetBase);
+    bool needLargerTable = overflow && checkFitInAndAdjust(newJumpTargetBase, jt);
     if (overflow && !needLargerTable) {
-        if (!modifyJumpTargetBaseInstructions(func, newJumpTargetBase, jt)) {
+        if (!modifyJumpTargetBaseInstructions(func, b->getCloneVersion(), newJumpTargetBase, jt)) {
             fprintf(stderr, "need to modify jump target base to %lx, but failed\n", newJumpTargetBase);
             assert(0);
         }
     }
-    // We can rewrite the original jump table inplace only when 
+    // We can rewrite the original jump table inplace only when
     // we are relocating the original code.
-    // For all other cases, we need to allocate a new table    
+    // For all other cases, we need to allocate a new table
     Address tableStart = jt.tableStart;
-    if (needLargerTable || b->isClone()) {
+    if (needLargerTable || b->getCloneVersion() > 0) {
         tableStart = as->inferiorMalloc(jt.tableEnd - jt.tableStart);
-        if (!modifyJumpTableBaseInstructions(func, tableStart, jt)) {
+        if (!modifyJumpTableBaseInstructions(func, b->getCloneVersion(), tableStart, jt)) {
             fprintf(stderr, "need to modify jump table base to %lx, but failed\n", tableStart);
             assert(0);
         }
@@ -83,7 +83,7 @@ void JumpTableMover::moveOneJumpTable(
     if (needLargerTable) {
         if (!modifyJumpTableAccess()) {
             fprintf(stderr, "need to increase jump table memory access width, but failed\n");
-            assert(0);            
+            assert(0);
         }
     }
     */
@@ -106,14 +106,14 @@ bool JumpTableMover::computeNewTableEntries(
     // Old table entry address -> pair of relocated target address and new table entry value
     newTable.clear();
 
-    relocation_cerr << "Relocation jump table at " << hex << jumpAddr
+    relocation_cerr << "Relocation jump table at " << hex << b->last()
                 << " for function " << func->name() << " at " << func->addr() << dec
                 << " table stride " << jt.indexStride << endl;
     int index = 0;
     for (Address addr = jt.tableStart; addr < jt.tableEnd; addr += jt.indexStride) {
         // 1. Lookup the relocated target address
         // the target edge can be redirected
-        PatchEdge * targetEdge = jt.tableEntryEdges[index++];
+        PatchAPI::PatchEdge * targetEdge = jt.tableEntryEdges[index++];
         Address reloc = findRelocatedBlockStart(func, targetEdge->trg());
 
         // For ppc64le, we check relocated addresses using both
@@ -126,7 +126,8 @@ bool JumpTableMover::computeNewTableEntries(
         }
 
         if (reloc == 0) {
-            fprintf(stderr, "Cannot find relocated address for %lx for jump table at %lx for function %s at %lx\n", orig, targetEdge->trg()->start(), func->name().c_str(), func->addr());
+            fprintf(stderr, "Cannot find relocated address for %lx for jump table at %lx for function %s at %lx\n", 
+              targetEdge->trg()->start(), targetEdge->trg()->start(), func->name().c_str(), func->addr());
         }
         assert(reloc);
 
@@ -135,7 +136,7 @@ bool JumpTableMover::computeNewTableEntries(
         jt.jumpTargetExpr->accept(&ntev);
         int64_t newEntry = ntev.newValue;
         relocation_cerr << "\t table address " << hex << addr
-            << " original target address " << orig
+            << " original target address " << targetEdge->trg()
             << " new target address " << reloc
             << " new entry value " << dec << newEntry << endl;
 
@@ -200,8 +201,8 @@ void JumpTableMover::fillNewTableEntries(codeGen& gen, Address jumpAddr, int ind
 
 }
 
-Address JumpTableMover::findRelocatedAddress(func_instance* func, Address orig) {
-    block_instance* block = func->getBlock(orig);
+Address JumpTableMover::findRelocatedVersionedAddress(func_instance* func, int version, Address orig) {
+    block_instance* block = func->getBlock(orig, version);
     if (block == NULL) return 0;
     return as->getRelocPreAddr(orig, block, func);
 }
@@ -209,7 +210,7 @@ Address JumpTableMover::findRelocatedAddress(func_instance* func, Address orig) 
 Address JumpTableMover::findRelocatedBlockStart(func_instance* func, PatchAPI::PatchBlock* b) {
     block_instance* block = static_cast<block_instance*>(b);
     if (block == NULL) return 0;
-    return as->getRelocPreAddr(orig, block, func);
+    return as->getRelocPreAddr(block->start(), block, func);
 }
 
 static bool insnReadsPC(const InstructionAPI::Instruction& i) {
@@ -224,6 +225,7 @@ static bool insnReadsPC(const InstructionAPI::Instruction& i) {
 
 bool JumpTableMover::modifyJumpTargetBaseInstructions(
     func_instance* func,
+    int version,
     Address newBase,
     const PatchAPI::PatchFunction::PatchJumpTableInstance& jt
 ) {
@@ -247,9 +249,10 @@ bool JumpTableMover::modifyJumpTargetBaseInstructions(
             SliceNode::Ptr s = boost::static_pointer_cast<SliceNode>(*nbegin);
             if (insnReadsPC(s->assign()->insn())) {
                 findJumpBase = true;
-                Address relocated_insn_addr = findRelocatedAddress(func, s->assign()->addr());
+                Address relocated_insn_addr = findRelocatedVersionedAddress(func, version, s->assign()->addr());
                 relocation_cerr << "\t modify instruction " << s->assign()->insn().format() << " at " << hex
-                    << s->assign()->addr() << ", relocated to " << relocated_insn_addr << ", to reference " << newBase << dec << endl;
+                    << s->assign()->addr() << ", relocated to " << relocated_insn_addr << ", to reference " << newBase << dec
+                    << " version " << version << endl;
 
                 codeGen gen;
                 gen.invalidate();
@@ -277,14 +280,17 @@ bool JumpTableMover::modifyJumpTargetBaseInstructions(
             queue.push(s);
         }
     }
-    return true;
+    return findJumpBase;
 }
 
 bool JumpTableMover::modifyJumpTableBaseInstructions(
     func_instance* func,
+    int version,
     Address newBase,
     const PatchAPI::PatchFunction::PatchJumpTableInstance& jt
-) {    
+) {
+    // Assume x86-64
+    Address origBase = jt.tableStart;
     Graph::Ptr g = jt.formatSlice;
     NodeIterator nbegin, nend;
     g->exitNodes(nbegin, nend);
@@ -295,49 +301,54 @@ bool JumpTableMover::modifyJumpTableBaseInstructions(
     queue<SliceNode::Ptr> queue;
     queue.push(indJumpNode);
 
-    bool findTableBase = false;
-    while (!findTableBase && !queue.empty()) {
+    bool findMemoryRead = false;
+    bool findJumpTableBase = false;
+    while (!findJumpTableBase && !queue.empty()) {
         SliceNode::Ptr cur = queue.front();
         queue.pop();
         cur->ins(nbegin, nend);
         for (; nbegin != nend; ++nbegin) {
             SliceNode::Ptr s = boost::static_pointer_cast<SliceNode>(*nbegin);
-            if (insnReadsPC(s->assign()->insn())) {
-                findJumpBase = true;
-                Address relocated_insn_addr = findRelocatedAddress(func, s->assign()->addr());
+            const InstructionAPI::Instruction &i = s->assign()->insn();
+            if (i.readsMemory()) findMemoryRead = true;
+            if (!findMemoryRead) continue;            
+            uint32_t newVal;
+            if (insnReadsPC(i)) {
+                findJumpTableBase = true;
+                uint32_t origVal = *((const uint32_t*)((const char*)(i.ptr()) + i.size() - 4));
+                newVal = newBase - origBase + origVal;
+            } else if (i.size() > 4) {
+                uint32_t origVal = *((const uint32_t*)((const char*)(i.ptr()) + i.size() - 4));
+                if (origVal == origBase) {
+                    findJumpTableBase = true;
+                    newVal = newBase;
+                }
+            }
+            if (findJumpTableBase) {
+                Address relocated_insn_addr = findRelocatedVersionedAddress(func, version, s->assign()->addr());
                 relocation_cerr << "\t modify instruction " << s->assign()->insn().format() << " at " << hex
-                    << s->assign()->addr() << ", relocated to " << relocated_insn_addr << ", to reference " << newBase << dec << endl;
+                    << s->assign()->addr() << ", relocated to " << relocated_insn_addr << ", to reference new table at " << newBase << dec
+                    << " version " << version << endl;
 
                 codeGen gen;
                 gen.invalidate();
-                gen.allocate(s->assign()->insn().size() * 2);
+                gen.allocate(4);
                 gen.setAddrSpace(as);
-                gen.setAddr(relocated_insn_addr);
-
-                instruction ugly_insn(s->assign()->insn().ptr(), (gen.width() == 8));
-                insnCodeGen::modifyData(newBase, ugly_insn, gen);
-
-                // The next relocated instruction may be emitted to compensate
-                // the PC adjustment. If it maps back to the same original instruction,
-                // we need to void this instruction.
-                Address origNextAddr = 0;
-                std::vector<func_instance*> origFuncs;
-                baseTramp* bt;
-                as->getAddrInfo(relocated_insn_addr + 4, origNextAddr, origFuncs, bt);
-                if (origNextAddr == s->assign()->addr()) {
-                    relocation_cerr << "\t next relocated instruction has the same original address, change it to nop" << endl;
-                    insnCodeGen::generateNOOP(gen, 4);
-                }
+                gen.setAddr(relocated_insn_addr + i.size() - 4);
+                gen.copy(&newVal, 4);
                 codeGens.emplace_back(gen);
                 break;
             }
             queue.push(s);
         }
     }
-    return true;
+    return findJumpTableBase;
 }
 
-bool JumpTableMover::checkFitInAndAdjust(Address& newJumpTargetBase) {
+bool JumpTableMover::checkFitInAndAdjust(
+    Address& newJumpTargetBase,
+    const PatchAPI::PatchFunction::PatchJumpTableInstance& jt
+) {
     bool first = true;
     Address minAddr = 0;
     Address maxAddr = 0;
