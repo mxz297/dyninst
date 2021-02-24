@@ -2520,7 +2520,8 @@ bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
            }
            bool upcast;
            int i = convertRegID(*rit, upcast);
-           emitStoreRelativeSegReg(i, 8 * i, REGNUM_GS, 8, gen);           
+           emitStoreRelativeSegReg(i, 8 * i, REGNUM_GS, 8, gen);
+           gen.rs()->markSavedRegister(i, 8 * i);
        }
        if (s->raLoc != InvalidReg) {
            bool upcast;
@@ -3356,6 +3357,7 @@ bool EmitterAMD64::emitGoUnwindTranslate(int paramIndex, codeGen& gen) {
     emitStoreRelative(REGNUM_RAX, off, REGNUM_RSP, 8, gen);
     emitPop(gen, REGNUM_RDI);
     emitPop(gen, REGNUM_RAX);
+    return true;
 }
 
 

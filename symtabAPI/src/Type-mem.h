@@ -43,8 +43,7 @@ T *upgradePlaceholder(Type *placeholder, T *new_type)
 {
   assert(sizeof(T) <= Type::max_size);
 
-  void* mem = realloc((void *) placeholder, sizeof(T));
-  assert(mem == (void *) placeholder);
+  void* mem = (void*)placeholder;
   memset(mem, 0, sizeof(T));
 
   T *ret = new(mem) T();
