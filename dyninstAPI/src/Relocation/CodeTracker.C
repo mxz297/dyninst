@@ -95,7 +95,7 @@ bool CodeTracker::origToReloc(Address origAddr,
                               block_instance *block,
                               func_instance *func,
                               RelocatedElements &reloc) const {
-   ForwardMap::const_iterator iter = origToReloc_.find(block->start());
+   ForwardMap::const_iterator iter = origToReloc_.find(std::make_pair(block->start(), block->getCloneVersion()));
    if (iter == origToReloc_.end()) return false;
 
    FwdMapMiddle::const_iterator iter2 = iter->second.find((func ? func->addr() : 0));
@@ -179,27 +179,19 @@ void CodeTracker::createIndices() {
       TrackerElement *e = *iter;
 
       relocToOrig_.insert(e->reloc(), e->reloc() + e->size(), e);
-      
+      auto blockMapKey = std::make_pair(e->block()->start(), e->block()->getCloneVersion());
       if (e->type() == TrackerElement::instrumentation) {
          InstTracker *inst = static_cast<InstTracker *>(e);
          
-         origToReloc_[e->block()->start()]
+         origToReloc_[blockMapKey]
             [e->func() ? e->func()->addr() : 0]
             [e->orig()].instrumentation[inst->baseT()->point()] = e->reloc();
       }
       else if (e->type() == TrackerElement::padding) {
-         origToReloc_[e->block()->start()][e->func() ? e->func()->addr() : 0][e->orig()].pad = e->reloc();
+         origToReloc_[blockMapKey][e->func() ? e->func()->addr() : 0][e->orig()].pad = e->reloc();
       }
       else {
-         if (e->func() == NULL || !e->func()->containClonedBlocks() || e->func()->entryBlock()->start() == e->block()->start()) {
-             if (!e->block()->getCloneVersion() > 0) {
-                 origToReloc_[e->block()->start()][e->func() ? e->func()->addr() : 0][e->orig()].instruction = e->reloc();
-             }
-         } else {
-             if (e->block()->getCloneVersion() > 0) {
-                 origToReloc_[e->block()->start()][e->func() ? e->func()->addr() : 0][e->orig()].instruction = e->reloc();
-             }
-         }
+         origToReloc_[blockMapKey][e->func() ? e->func()->addr() : 0][e->orig()].instruction = e->reloc();
       }
    }
 }

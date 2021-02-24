@@ -190,7 +190,11 @@ bool PatchModifier::remove(PatchFunction *func)
 }
 
 bool PatchModifier::addBlockToFunction(PatchFunction *f, PatchBlock* b) {
-    f->addBlock(b);
+    // First trigger block filling
+    f->blocks();
+    // Then add the block
+    //f->addBlock(b);
+    f->all_blocks_.insert(b);
     return true;
 }
 
@@ -316,7 +320,7 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
       PatchModifier::addBlockToFunction(caller, cloneB);
    }
 
-   // 3. Copy the jump table data from calee to caller   
+   // 3. Copy the jump table data from calee to caller
    // Jump table data copy should be done before redirecting edges
    for (auto &it : cloneBlockMap) {
       PatchBlock* origB = it.first;
@@ -324,10 +328,10 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
       const auto jit = callee->getJumpTableMap().find(origB);
       if (jit == callee->getJumpTableMap().end()) continue;
       PatchFunction::PatchJumpTableInstance pjti = jit->second;
-      
+
       // Build a map from target address to PatchEdge
       // We can use this map to match cloned edge with original edge
-      dyn_hash_map<Address, PatchEdge*> newEdges;      
+      dyn_hash_map<Address, PatchEdge*> newEdges;
       for (auto e : newB->targets()) {
          if (e->sinkEdge() || e->type() != ParseAPI::INDIRECT) continue;
          newEdges[e->trg()->start()] = e;

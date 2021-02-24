@@ -39,12 +39,7 @@ private:
     void setupRelocationEntries();
     bool checkFitInAndAdjust(Address&, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
     
-    // Record all overritten jump table entries 
-    // to detect conflict table entry relocation
-    std::map<Address, int64_t> overwritten;
     std::map<Address, SymtabAPI::relocationEntry*> relocs;
-
-
 };
 
 class NewTableEntryVisitor: public ASTVisitor {

@@ -92,7 +92,7 @@ void JumpTableMover::moveOneJumpTable(
     gen.invalidate();
     gen.allocate(jt.tableEnd - jt.tableStart);
     gen.setAddrSpace(as);
-    gen.setAddr(jt.tableStart);
+    gen.setAddr(tableStart);
     fillNewTableEntries(gen, jumpAddr, jt.indexStride);
     codeGens.emplace_back(gen);
 }
@@ -108,7 +108,8 @@ bool JumpTableMover::computeNewTableEntries(
 
     relocation_cerr << "Relocation jump table at " << hex << b->last()
                 << " for function " << func->name() << " at " << func->addr() << dec
-                << " table stride " << jt.indexStride << endl;
+                << " table stride " << jt.indexStride
+                << " block clone version " << b->getCloneVersion() << endl;
     int index = 0;
     for (Address addr = jt.tableStart; addr < jt.tableEnd; addr += jt.indexStride) {
         // 1. Lookup the relocated target address
@@ -126,8 +127,8 @@ bool JumpTableMover::computeNewTableEntries(
         }
 
         if (reloc == 0) {
-            fprintf(stderr, "Cannot find relocated address for %lx for jump table at %lx for function %s at %lx\n", 
-              targetEdge->trg()->start(), targetEdge->trg()->start(), func->name().c_str(), func->addr());
+            fprintf(stderr, "Cannot find relocated address for %lx for jump table at %lx for function %s at %lx\n",
+              targetEdge->trg()->start(), b->last(), func->name().c_str(), func->addr());
         }
         assert(reloc);
 
@@ -136,7 +137,7 @@ bool JumpTableMover::computeNewTableEntries(
         jt.jumpTargetExpr->accept(&ntev);
         int64_t newEntry = ntev.newValue;
         relocation_cerr << "\t table address " << hex << addr
-            << " original target address " << targetEdge->trg()
+            << " original target address " << targetEdge->trg()->start()
             << " new target address " << reloc
             << " new entry value " << dec << newEntry << endl;
 
@@ -187,15 +188,6 @@ void JumpTableMover::fillNewTableEntries(codeGen& gen, Address jumpAddr, int ind
                 fprintf(stderr, "Unhandled jump table stride %d for indirect jump %lx\n", indexStride, jumpAddr);
                 assert(0);
             }
-        }
-
-        // Detect conflict writes to the same address
-        // from different jump tabels
-        auto oit = overwritten.find(addr);
-        if (oit != overwritten.end() && oit->second != newEntry) {
-            fprintf(stderr, "ERROR: jump table relocation twice for address %lx, old value %lx, new value %lx\n", addr, oit->second, newEntry);
-        } else {
-            overwritten.emplace(addr, newEntry);
         }
     }
 
@@ -306,40 +298,39 @@ bool JumpTableMover::modifyJumpTableBaseInstructions(
     while (!findJumpTableBase && !queue.empty()) {
         SliceNode::Ptr cur = queue.front();
         queue.pop();
+        const InstructionAPI::Instruction &i = cur->assign()->insn();
+        if (i.readsMemory()) findMemoryRead = true;
+        if (!findMemoryRead) continue;
+        uint32_t newVal;
+        if (insnReadsPC(i)) {
+            findJumpTableBase = true;
+            uint32_t origVal = *((const uint32_t*)((const char*)(i.ptr()) + i.size() - 4));
+            newVal = newBase - origBase + origVal;
+        } else if (i.size() > 4) {
+            uint32_t origVal = *((const uint32_t*)((const char*)(i.ptr()) + i.size() - 4));
+            if (origVal == origBase) {
+                findJumpTableBase = true;
+                newVal = newBase;
+            }
+        }
+        if (findJumpTableBase) {
+            Address relocated_insn_addr = findRelocatedVersionedAddress(func, version, cur->assign()->addr());
+            relocation_cerr << "\t modify instruction " << cur->assign()->insn().format() << " at " << hex
+                << cur->assign()->addr() << ", relocated to " << relocated_insn_addr << ", to reference new table at " << newBase << dec
+                << " version " << version << endl;
+
+            codeGen gen;
+            gen.invalidate();
+            gen.allocate(4);
+            gen.setAddrSpace(as);
+            gen.setAddr(relocated_insn_addr + i.size() - 4);
+            gen.copy(&newVal, 4);
+            codeGens.emplace_back(gen);
+            break;
+        }
         cur->ins(nbegin, nend);
         for (; nbegin != nend; ++nbegin) {
-            SliceNode::Ptr s = boost::static_pointer_cast<SliceNode>(*nbegin);
-            const InstructionAPI::Instruction &i = s->assign()->insn();
-            if (i.readsMemory()) findMemoryRead = true;
-            if (!findMemoryRead) continue;            
-            uint32_t newVal;
-            if (insnReadsPC(i)) {
-                findJumpTableBase = true;
-                uint32_t origVal = *((const uint32_t*)((const char*)(i.ptr()) + i.size() - 4));
-                newVal = newBase - origBase + origVal;
-            } else if (i.size() > 4) {
-                uint32_t origVal = *((const uint32_t*)((const char*)(i.ptr()) + i.size() - 4));
-                if (origVal == origBase) {
-                    findJumpTableBase = true;
-                    newVal = newBase;
-                }
-            }
-            if (findJumpTableBase) {
-                Address relocated_insn_addr = findRelocatedVersionedAddress(func, version, s->assign()->addr());
-                relocation_cerr << "\t modify instruction " << s->assign()->insn().format() << " at " << hex
-                    << s->assign()->addr() << ", relocated to " << relocated_insn_addr << ", to reference new table at " << newBase << dec
-                    << " version " << version << endl;
-
-                codeGen gen;
-                gen.invalidate();
-                gen.allocate(4);
-                gen.setAddrSpace(as);
-                gen.setAddr(relocated_insn_addr + i.size() - 4);
-                gen.copy(&newVal, 4);
-                codeGens.emplace_back(gen);
-                break;
-            }
-            queue.push(s);
+            queue.push(boost::static_pointer_cast<SliceNode>(*nbegin));
         }
     }
     return findJumpTableBase;

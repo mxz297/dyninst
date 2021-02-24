@@ -633,13 +633,12 @@ block_instance *func_instance::getBlock(const Address addr) {
 }
 
 block_instance *func_instance::getBlock(const Address addr, int version) {
-   std::set<block_instance *> blks;
-   getBlocks(addr, blks);
-   for (std::set<block_instance *>::iterator iter = blks.begin(); iter != blks.end(); ++iter) {
-      if ((*iter)->getCloneVersion() != version) continue;
-      if ((*iter)->getInsn(addr).isValid()) return *iter;
-   }
-   return NULL;
+    for (auto pb : all_blocks_) {
+        block_instance* b = static_cast<block_instance*>(pb);
+        if (b->getCloneVersion() != version) continue;
+        if (b->start() <= addr && addr < b->end()) return b;
+    }
+    return NULL;
 }
 using namespace SymtabAPI;
 

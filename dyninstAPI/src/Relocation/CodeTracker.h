@@ -248,7 +248,8 @@ class CodeTracker {
   // particular address".
 
   typedef Address FunctionEntryID;
-  typedef Address BlockEntryID;
+  // Use block start address and clone version as key
+  typedef std::pair<Address, int> BlockEntryID;
 
   typedef std::list<TrackerElement *> TrackerList;
   typedef std::map<Address, RelocatedElements> FwdMapInner;
