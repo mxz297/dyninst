@@ -143,7 +143,7 @@ class BPATCH_DLL_EXPORT BPatch_binaryEdit : public BPatch_addressSpace {
     virtual BPatch_object * loadLibrary(const char *libname, bool reload = false);
     virtual void memoryWriteSanitizing(int bits);
 
-    Dyninst::Address allocateStaticMemoryRegion(unsigned int, std::string&);
+    Dyninst::Address allocateStaticMemoryRegion(unsigned int, const std::string&);
 };    
 
 #endif /* BPatch_binaryEdit_h_ */

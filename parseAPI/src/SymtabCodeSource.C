@@ -503,13 +503,16 @@ SymtabCodeSource::init_hints(RegionMap &rmap, hint_filt * filt)
         vector<SymtabAPI::Symbol*> syms;
         f->getSymbols(syms);
         string fname_s = syms[0]->getPrettyName();
+        for (size_t j = 1; j < syms.size(); ++j)
+            if (syms[j]->getPrettyName() < fname_s) fname_s = syms[j]->getPrettyName();
+        string tmp = fname_s;
+        fname_s = syms[0]->getMangledName();
         if ((fname_s.size() > 5 && fname_s.substr(fname_s.size() - 5) == ".cold") || fname_s.find(".cold.") != std::string::npos) {
             parsing_printf("[%s:%d}  == filtered hint %s [%lx] ==\n",
                 FILE__,__LINE__,fname_s.c_str(), f->getOffset());
             continue;
         }
-        for (size_t j = 1; j < syms.size(); ++j)
-            if (syms[j]->getPrettyName() < fname_s) fname_s = syms[j]->getPrettyName();
+        fname_s = tmp;
         const char *fname = fname_s.c_str();
         if(filt && (*filt)(f)) {
             parsing_printf("[%s:%d}  == filtered hint %s [%lx] ==\n",
