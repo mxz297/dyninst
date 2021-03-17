@@ -1800,6 +1800,11 @@ static Register amd64_arg_regs[] = {REGNUM_RDI, REGNUM_RSI, REGNUM_RDX, REGNUM_R
 Register EmitterAMD64::emitCall(opCode op, codeGen &gen, const std::vector<AstNodePtr> &operands,
                                 bool noCost, func_instance *callee)
 {
+   bool isGo = false;
+   BinaryEdit* binEdit = dynamic_cast<BinaryEdit*>(gen.addrSpace());
+   if (binEdit) {
+      isGo = binEdit->isGoBinary();
+   }
    assert(op == callOp);
    std::vector <Register> srcs;
 
@@ -1898,7 +1903,7 @@ Register EmitterAMD64::emitCall(opCode op, codeGen &gen, const std::vector<AstNo
    for (int u = operands.size() - 1; u >= 0; u--) {
       Address unused = ADDR_NULL;
       unsigned reg = REG_NULL;
-      if(u >= (int)AMD64_ARG_REGS)
+      if(u >= (int)AMD64_ARG_REGS || isGo)
       {
          if (!operands[u]->generateCode_phase2(gen,
                                                noCost,

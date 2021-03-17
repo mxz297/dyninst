@@ -195,6 +195,7 @@ class BinaryEdit : public AddressSpace {
     Address allocateStaticMemoryRegion(unsigned);
     std::vector<memoryTracker*>& getFreeRegions() { return freeRegions; }
     void handleGoBinary();
+    bool isGoBinary();
 
  private:
     Address highWaterMark_;
@@ -241,7 +242,6 @@ class BinaryEdit : public AddressSpace {
     void buildRAMapping();
     std::vector<memoryTracker*> freeRegions;
     void instrumentGoRuntimeStackTrace(std::string, int);
-    bool isGoBinary();
     Address getRelocatedFunctionEntry(Address);
     void buildRelocatedCodeMapping();
 };
