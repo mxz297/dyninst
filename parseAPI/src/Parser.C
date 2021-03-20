@@ -1065,10 +1065,6 @@ Parser::finalize()
                 funcs_to_ranges.push_back(*it);
             }
         jumpTableMap.clear();
-
-        trim_jump_tables_with_pcpointers();
-        finalize_funcs(hint_funcs);
-        finalize_funcs(discover_funcs);
         scan_unresolved_indirect_jumps();
         _parse_state = FINALIZED;
     }
@@ -1111,61 +1107,16 @@ Parser::scan_unresolved_indirect_jumps()
 }
 
 void
-Parser::trim_jump_tables_with_pcpointers()
-{
-    Architecture arch;
-    if (!sorted_funcs.empty()) {
-        Function* f = *(sorted_funcs.begin());
-        arch = f->region()->getArch();
-        if (arch != Arch_aarch64 && arch != Arch_x86_64) return;
-    }
-    std::vector<Function*> funcs;
-    for (auto f : sorted_funcs) {
-        funcs.emplace_back(f);
-    }
-
-    dyn_c_hash_map<Address, bool> memoryAccessAddrs;
-    get_memory_access_addresses(funcs, memoryAccessAddrs);
-
-    parsing_printf("Second pass of trimming jump tables. Add PC-relative memory accesses as separators\n");
-    std::set<Address> separators;
-    for (auto &it : memoryAccessAddrs) {
-        separators.insert(it.first);
-        parsing_printf("PC-relative memory access effective address %lx\n", it.first);
-    }
-
-    for (auto f : funcs) {
-        for (auto& it : f->getJumpTables()) {
-            separators.insert(it.second.tableStart);
-        }
-    }
-
-    int size = funcs.size();
-#pragma omp parallel for schedule(dynamic)
-    for(int i = 0; i < size; ++i) {
-        Function *f = funcs[i];
-        for (auto &it : f->getJumpTables()) {
-            Function::JumpTableInstance* jti = &(it.second);
-            parsing_printf("Inspect jump table at %lx\n", jti->block->last());
-            auto start_it = separators.find(jti->tableStart);
-            ++start_it;
-            if (start_it == separators.end()) continue;
-            trim_jump_table(jti, *start_it);
-        }
-    }
-}
-
-void
-Parser::get_memory_access_addresses(
+Parser::get_global_memory_access_addresses(
     std::vector<Function*>& funcs,
     dyn_c_hash_map<Address, bool> &memoryAccessAddrs
 ) {
     int size = funcs.size();
 #pragma omp parallel for schedule(dynamic)
-    for(int i = 0; i < size; ++i) {
-        Function *f = funcs[i];
-        DataflowAPI::PCPointerAnalyzer pca(f);
-        for (auto b : f->blocks()) {
+    for(int idx = 0; idx < size; ++idx) {
+        Function *f = funcs[idx];
+        DataflowAPI::PCPointerAnalyzer pca(f, false);
+        for (auto b : pca.analyzedBlocks()) {
             Block::Insns insns;
             b->getInsns(insns);
             for (auto & it : insns) {
@@ -1230,18 +1181,16 @@ Parser::finalize_jump_tables()
 {
     map<Address, set<Address> > jumpTableStart;
     vector<Function::JumpTableInstance*> jumpTableVector;
-
-    // Step 1: get all jump tables
-    for (auto fit = hint_funcs.begin(); fit != hint_funcs.end(); ++fit) {
-        Function* f = *fit;
-        for (auto jit = f->getJumpTables().begin(); jit != f->getJumpTables().end(); ++jit) {
-            jumpTableStart[jit->second.tableStart].insert(jit->second.block->last());
-            jumpTableVector.push_back(&(jit->second));
-        }
+    vector<Function*> funcs;
+    for (auto f : hint_funcs) {
+        funcs.emplace_back(f);
+    }
+    for (auto f : discover_funcs) {
+        funcs.emplace_back(f);
     }
 
-    for (auto fit = discover_funcs.begin(); fit != discover_funcs.end(); ++fit) {
-        Function* f = *fit;
+    // Step 1: get all jump tables
+    for (auto f : funcs) {
         for (auto jit = f->getJumpTables().begin(); jit != f->getJumpTables().end(); ++jit) {
             jumpTableStart[jit->second.tableStart].insert(jit->second.block->last());
             jumpTableVector.push_back(&(jit->second));
@@ -1254,14 +1203,27 @@ Parser::finalize_jump_tables()
         parsing_printf("\n");
     }
 
-    // Step 2: concurrently searching for overrun jump table entries
+    // Step 2: collect effective addresses of global memory accesses
+    dyn_c_hash_map<Address, bool> memoryAccessAddrs;
+    get_global_memory_access_addresses(funcs, memoryAccessAddrs);
+
+    // Step 3: constructor jump table separators.
+    // The start of another jump table or a global memory access
+    // should end a jump table.
+    std::set<Address> separators;
+    for (auto &it : memoryAccessAddrs) {
+        separators.insert(it.first);
+        parsing_printf("PC-relative memory access effective address %lx\n", it.first);
+    }
+    for (auto &it : jumpTableStart) {
+        separators.insert(it.first);
+    }
+
+    // Step 4: concurrently searching for overrun jump table entries
 #pragma omp parallel for schedule(dynamic)
     for (size_t i = 0; i < jumpTableVector.size(); ++i) {
         Function::JumpTableInstance* jti = jumpTableVector[i];
         parsing_printf("Inspect jump table at %lx\n", jti->block->last());
-        auto start_it = jumpTableStart.find(jti->tableStart);
-        ++start_it;
-
         Block::edgelist targets;
         jti->block->copy_targets(targets);
         for (auto eit = targets.begin(); eit != targets.end(); ++eit) {
@@ -1273,21 +1235,16 @@ Parser::finalize_jump_tables()
             }
         }
 
-        if (start_it == jumpTableStart.end()) continue;
-        trim_jump_table(jti, start_it->first);
+        auto start_it = separators.find(jti->tableStart);
+        ++start_it;
+        if (start_it == separators.end()) continue;
+        trim_jump_table(jti, *start_it);
     }
 
     // Final step: collect all jump tables in a map
     // so that during function boundary finalization,
     // we can get the correct jump tables in a fucntion
-    for (auto f : hint_funcs) {
-        for (auto jit = f->getJumpTables().begin(); jit != f->getJumpTables().end(); ++jit) {
-            Address jumpAddr = jit->first;
-            dyn_c_hash_map<Address, Function::JumpTableInstance>::accessor a;
-            jumpTableMap.insert(a, make_pair(jumpAddr, jit->second));
-        }
-    }
-    for (auto f : discover_funcs) {
+    for (auto f : funcs) {
         for (auto jit = f->getJumpTables().begin(); jit != f->getJumpTables().end(); ++jit) {
             Address jumpAddr = jit->first;
             dyn_c_hash_map<Address, Function::JumpTableInstance>::accessor a;

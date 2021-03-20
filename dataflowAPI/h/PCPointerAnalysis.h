@@ -3,6 +3,7 @@
 
 #include <set>
 #include <map>
+#include <vector>
 
 #include "dyn_regs.h"
 
@@ -10,7 +11,7 @@ namespace Dyninst{
 
 namespace ParseAPI{
     class Function;
-    class Block;   
+    class Block;
 };
 
 namespace InstructionAPI {
@@ -51,6 +52,7 @@ class DATAFLOW_EXPORT PCPointerAnalyzer {
     std::map<Address, PCPointerFact> instructionData;
 
     std::map<Address, ParseAPI::Block*> blockMap;
+    std::vector<ParseAPI::Block*> blocks;
 
     // ppc64 specific
     Address r2TOC;
@@ -69,11 +71,12 @@ class DATAFLOW_EXPORT PCPointerAnalyzer {
             MachRegister&,
             Address&);
 public:
-    PCPointerAnalyzer(ParseAPI::Function*);
-    bool queryPostInstructionValue(Address, MachRegister, Address&); 
+    PCPointerAnalyzer(ParseAPI::Function*, bool = true);
+    bool queryPostInstructionValue(Address, MachRegister, Address&);
     bool queryPreInstructionValue(Address, MachRegister, Address&);
     bool queryPostInstructionValueOrigin(Address, MachRegister, std::set<Address>&);
     bool queryPreInstructionValueOrigin(Address, MachRegister, std::set<Address>&);
+    const std::vector<ParseAPI::Block*>& analyzedBlocks() { return blocks; }
 
 
 };

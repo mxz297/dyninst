@@ -263,8 +263,7 @@ namespace Dyninst {
             bool set_edge_parsing_status(ParseFrame&, Address addr, Block *b);
             void update_function_ret_status(ParseFrame &, Function*, ParseWorkElem* );
             void record_hint_functions();
-            void trim_jump_tables_with_pcpointers();
-            void get_memory_access_addresses(std::vector<Function*>&, dyn_c_hash_map<Address, bool> &);
+            void get_global_memory_access_addresses(std::vector<Function*>&, dyn_c_hash_map<Address, bool> &);
             void trim_jump_table(Function::JumpTableInstance*, Address);
             void scan_unresolved_indirect_jumps();
 
@@ -302,7 +301,7 @@ namespace Dyninst {
             // someone actually needs this.
             //
             // Note: this has to be run in a single thread.
-            vector<Function*> funcs_to_ranges;            
+            vector<Function*> funcs_to_ranges;
 
             dyn_c_hash_map<Block*, std::set<Function* > > funcsByBlockMap;
             dyn_c_hash_map<Address, Function::JumpTableInstance> jumpTableMap;

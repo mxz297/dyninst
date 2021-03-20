@@ -5,25 +5,55 @@
 #include "CodeObject.h"
 #include "Instruction.h"
 
+#include <queue>
+
 using namespace std;
 using namespace Dyninst;
 using namespace ParseAPI;
 using namespace InstructionAPI;
 using namespace DataflowAPI;
 
-PCPointerAnalyzer::PCPointerAnalyzer(ParseAPI::Function* func) {
+PCPointerAnalyzer::PCPointerAnalyzer(ParseAPI::Function* func, bool finalized) {
     f = func;
     Architecture arch = f->obj()->cs()->getArch();
-    if (arch == Arch_x86_64) return;
-    if (f->obj()->cs()->getArch() == Arch_ppc64) {
+    if (arch == Arch_ppc64) {
         SymtabCodeSource * scs = (SymtabCodeSource*)(f->obj()->cs());
         r2TOC = scs->getSymtabObject()->getObjectTOCAddress();
         pcpointer_printf("Get r2TOC %lx\n", r2TOC);
     }
 
-    for (auto b : f->blocks()) {
+    if (finalized) {
+        for (auto b : f->blocks()) {
+            blocks.emplace_back(b);
+        }
+    } else {
+        // If not finalized, we do an intr-proc traversal to collect blocks.
+        // This allows PCPointerAnalyzer to be used during parsing finalization.
+        std::map<Address, Block*> visited;
+        std::queue<Block*> queue;
+        queue.push(f->entry());
+        visited.emplace(f->entry()->start(), f->entry());
+        while (!queue.empty()) {
+            Block* cur = queue.front();
+            queue.pop();
+            for (auto e : cur->targets()) {
+                if (e->sinkEdge()) continue;
+                if (e->interproc()) continue;
+                Block* next = e->trg();
+                if (visited.find(next->start()) != visited.end()) continue;
+                visited.emplace(next->start(), next);
+                queue.push(next);
+            }
+        }
+        for (auto& it : visited) {
+            blocks.emplace_back(it.second);
+        }
+    }
+
+    for (auto b : blocks) {
         blockMap.emplace(b->start(), b);
     }
+    if (arch == Arch_x86_64) return;
     analyze();
 }
 
@@ -74,7 +104,7 @@ void PCPointerAnalyzer::analyze() {
     bool done = false;
     while (!done) {
         done = true;
-        for (auto b : f->blocks()) {
+        for (auto b : blocks) {
             PCPointerFact newBlockInput;
             if (pathJoin(b, newBlockInput)) done = false;
 
