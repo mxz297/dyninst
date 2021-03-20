@@ -264,6 +264,7 @@ namespace Dyninst {
             void update_function_ret_status(ParseFrame &, Function*, ParseWorkElem* );
             void record_hint_functions();
             void trim_jump_tables_with_pcpointers();
+            void get_memory_access_addresses(std::vector<Function*>&, dyn_c_hash_map<Address, bool> &);
             void trim_jump_table(Function::JumpTableInstance*, Address);
             void scan_unresolved_indirect_jumps();
 

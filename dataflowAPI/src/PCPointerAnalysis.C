@@ -13,6 +13,8 @@ using namespace DataflowAPI;
 
 PCPointerAnalyzer::PCPointerAnalyzer(ParseAPI::Function* func) {
     f = func;
+    Architecture arch = f->obj()->cs()->getArch();
+    if (arch == Arch_x86_64) return;
     if (f->obj()->cs()->getArch() == Arch_ppc64) {
         SymtabCodeSource * scs = (SymtabCodeSource*)(f->obj()->cs());
         r2TOC = scs->getSymtabObject()->getObjectTOCAddress();

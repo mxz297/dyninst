@@ -1067,6 +1067,8 @@ Parser::finalize()
         jumpTableMap.clear();
 
         trim_jump_tables_with_pcpointers();
+        finalize_funcs(hint_funcs);
+        finalize_funcs(discover_funcs);
         scan_unresolved_indirect_jumps();
         _parse_state = FINALIZED;
     }
@@ -1111,17 +1113,54 @@ Parser::scan_unresolved_indirect_jumps()
 void
 Parser::trim_jump_tables_with_pcpointers()
 {
+    Architecture arch;
     if (!sorted_funcs.empty()) {
         Function* f = *(sorted_funcs.begin());
-        if (f->region()->getArch() != Arch_aarch64) return;
+        arch = f->region()->getArch();
+        if (arch != Arch_aarch64 && arch != Arch_x86_64) return;
     }
     std::vector<Function*> funcs;
     for (auto f : sorted_funcs) {
         funcs.emplace_back(f);
     }
 
-    int size = funcs.size();
     dyn_c_hash_map<Address, bool> memoryAccessAddrs;
+    get_memory_access_addresses(funcs, memoryAccessAddrs);
+
+    parsing_printf("Second pass of trimming jump tables. Add PC-relative memory accesses as separators\n");
+    std::set<Address> separators;
+    for (auto &it : memoryAccessAddrs) {
+        separators.insert(it.first);
+        parsing_printf("PC-relative memory access effective address %lx\n", it.first);
+    }
+
+    for (auto f : funcs) {
+        for (auto& it : f->getJumpTables()) {
+            separators.insert(it.second.tableStart);
+        }
+    }
+
+    int size = funcs.size();
+#pragma omp parallel for schedule(dynamic)
+    for(int i = 0; i < size; ++i) {
+        Function *f = funcs[i];
+        for (auto &it : f->getJumpTables()) {
+            Function::JumpTableInstance* jti = &(it.second);
+            parsing_printf("Inspect jump table at %lx\n", jti->block->last());
+            auto start_it = separators.find(jti->tableStart);
+            ++start_it;
+            if (start_it == separators.end()) continue;
+            trim_jump_table(jti, *start_it);
+        }
+    }
+}
+
+void
+Parser::get_memory_access_addresses(
+    std::vector<Function*>& funcs,
+    dyn_c_hash_map<Address, bool> &memoryAccessAddrs
+) {
+    int size = funcs.size();
 #pragma omp parallel for schedule(dynamic)
     for(int i = 0; i < size; ++i) {
         Function *f = funcs[i];
@@ -1137,61 +1176,42 @@ Parser::trim_jump_tables_with_pcpointers()
                 std::set<Expression::Ptr> memAccesses;
                 i.getMemoryReadOperands(memAccesses);
                 i.getMemoryWriteOperands(memAccesses);
-                assert(memAccesses.size() == 1);
-                Expression::Ptr mem = *(memAccesses.begin());
 
-                bool canEval = true;
-                std::set<RegisterAST::Ptr> regs;
-                i.getReadSet(regs);
-                for (auto &r : regs) {
-                    Address val;
-                    if (!pca.queryPreInstructionValue(it.first, r->getID().getBaseRegister(), val)) {
-                        canEval = false;
-                        break;
+                for (auto & mem : memAccesses) {
+                    bool canEval = true;
+                    std::set<RegisterAST::Ptr> regs;
+                    i.getReadSet(regs);
+                    for (auto &r : regs) {
+                        if (r == nullptr) {
+                            canEval = false;
+                            break;
+                        }
+                        Address val;
+                        if (r->getID().isPC()) {
+                            val = it.first;
+                        } else if (!pca.queryPreInstructionValue(it.first, r->getID().getBaseRegister(), val)) {
+                            canEval = false;
+                            break;
+                        }
+
+                        if (!mem->bind(r.get(), Result(s64, val))) {
+                            canEval = false;
+                            break;
+                        }
                     }
-                    if (!mem->bind(r.get(), Result(s64, val))) {
-                        canEval = false;
-                        break;
+
+                    if (!canEval) {
+                        continue;
                     }
+
+                    Result res = mem->eval();
+                    assert(res.defined);
+                    Address effectiveAddr = res.convert<Address>();
+
+                    dyn_c_hash_map<Address, bool>::accessor a;
+                    memoryAccessAddrs.insert(a, make_pair(effectiveAddr, true));
                 }
-
-                if (!canEval) {
-                    continue;
-                }
-
-                Result res = mem->eval();
-                assert(res.defined);
-                Address effectiveAddr = res.convert<Address>();
-
-                dyn_c_hash_map<Address, bool>::accessor a;
-                memoryAccessAddrs.insert(a, make_pair(effectiveAddr, true));
             }
-        }
-    }
-
-    parsing_printf("Second pass of trimming jump tables. Add PC-relative memory accesses as separators\n");
-    std::set<Address> separators;
-    for (auto &it : memoryAccessAddrs) {
-        separators.insert(it.first);
-        parsing_printf("PC-relative memory access effective address %lx\n", it.first);
-    }
-
-    for (auto f : funcs) {
-        for (auto& it : f->getJumpTables()) {
-            separators.insert(it.second.tableStart);
-        }
-    }
-
-#pragma omp parallel for schedule(dynamic)
-    for(int i = 0; i < size; ++i) {
-        Function *f = funcs[i];
-        for (auto &it : f->getJumpTables()) {
-            Function::JumpTableInstance* jti = &(it.second);
-            parsing_printf("Inspect jump table at %lx\n", jti->block->last());
-            auto start_it = separators.find(jti->tableStart);
-            ++start_it;
-            if (start_it == separators.end()) continue;
-            trim_jump_table(jti, *start_it);
         }
     }
 }
