@@ -205,10 +205,11 @@ static PatchEdge* getFTEdge(PatchBlock* b) {
    return nullptr;
 }
 
-static bool SplitAndRedirectEdges(PatchBlock* b, PatchBlock* tar) {
+static bool SplitAndRedirectEdges(PatchBlock* b, PatchBlock* tar, bool &split) {
    PatchBlock::Insns insns;
    b->getInsns(insns);
    if (insns.size() > 1) {
+      split = true;
       patch_printf("\t\tblock has more than one instruction\n");
       // We first remove the return instruction
       if (PatchModifier::split(b, b->last(), true, b->last()) == nullptr) {
@@ -227,6 +228,7 @@ static bool SplitAndRedirectEdges(PatchBlock* b, PatchBlock* tar) {
          return false;
       }
    } else {
+      split = false;
       patch_printf("\t\tblock has only one instruction\n");
       std::vector<PatchEdge*> sedges;
       for (auto e : b->sources()) {
@@ -279,7 +281,28 @@ bool SplitFunctionRetBlocks(PatchFunction* f) {
 
 static int version;
 
-bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, PatchBlock* cb) {
+#include "Snippet.h"
+class AdjustSPSnippet : public Dyninst::PatchAPI::Snippet {
+ public:
+  explicit AdjustSPSnippet(int adj): adjustment(adj) {}
+  bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
+    // instruction template 48 8d a4 24 58 ff ff ff    lea    -0xa8(%rsp),%rsp
+    const int LENGTH = 8;
+    unsigned char insn[LENGTH];
+    insn[0] = 0x48;
+    insn[1] = 0x8d;
+    insn[2] = 0xa4;
+    insn[3] = 0x24;
+    int32_t disp = adjustment;
+    *((int32_t*)(insn+4)) = disp;
+    buf.copy(insn, LENGTH);
+    return true;
+  }
+ private:
+  int adjustment;
+};
+
+bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, PatchFunction* caller, PatchBlock* cb) {
    version += 1;
    patch_printf("Enter PatchModifier::inlineFunction: caller %s at %lx, call block [%lx, %lx)\n",
      caller->name().c_str(), caller->addr(), cb->start(), cb->end());
@@ -327,6 +350,7 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
       PatchBlock* newB = it.second;
       const auto jit = callee->getJumpTableMap().find(origB);
       if (jit == callee->getJumpTableMap().end()) continue;
+      patch_printf("\tcopy jump table for block [%lx, %lx)\n", origB->start(), origB->end());
       PatchFunction::PatchJumpTableInstance pjti = jit->second;
 
       // Build a map from target address to PatchEdge
@@ -344,6 +368,7 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
          assert(edgeIter != newEdges.end());
          e = edgeIter->second;
       }
+      patch_printf("\t\n");
 
       caller->addJumpTableInstance(newB, pjti);
    }
@@ -372,18 +397,38 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchFunction* caller, Pa
    // 5. Remove return instruction from return blocks
    for (auto b: newRetBlocks) {
       patch_printf("\tsplit return block and redirect edge for [%lx, %lx)\n", b->start(), b->end());
-      if (!SplitAndRedirectEdges(b, call_ft_block)) {
+      bool split;
+      if (!SplitAndRedirectEdges(b, call_ft_block, split)) {
          patch_printf("\t\tfailed\n");
          return false;
       }
    }
 
    // 6. Remove call instruction and redirect edge to inlined entry
+   bool split;
    patch_printf("\tsplit call block and redirect edge for [%lx, %lx)\n", cb->start(), cb->end());
-   if (!SplitAndRedirectEdges(cb, cloneBlockMap[callee->entry()])) {
+   if (!SplitAndRedirectEdges(cb, cloneBlockMap[callee->entry()], split)) {
       patch_printf("\t\tfailed\n");
       return false;
    }
+
+   // 7. Move down SP to mimic the effect of a call instruction to stack
+   if (!split) {
+      for (auto e : cb->sources()) {
+         auto p1 = patcher->findPoint(Location::EdgeInstance(caller, e), Point::EdgeDuring, true);
+         Snippet::Ptr moveSPDown = AdjustSPSnippet::create(new AdjustSPSnippet(-8));
+         p1->pushBack(moveSPDown);
+      }
+   } else {
+      auto p1 = patcher->findPoint(Location::BlockInstance(caller, cb, true), Point::BlockExit, true);
+      Snippet::Ptr moveSPDown = AdjustSPSnippet::create(new AdjustSPSnippet(-8));
+      p1->pushBack(moveSPDown);
+   }
+
+   // 8. Move up SP to mimic the effect of a return instruction to stack
+   auto p2 = patcher->findPoint(Location::BlockInstance(caller, call_ft_block, true), Point::BlockEntry, true);
+   Snippet::Ptr moveSPUp = AdjustSPSnippet::create(new AdjustSPSnippet(8));
+   p2->pushBack(moveSPUp);
 
    return true;
 }

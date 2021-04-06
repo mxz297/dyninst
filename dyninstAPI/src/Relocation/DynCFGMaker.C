@@ -135,6 +135,7 @@ PatchBlock* DynCFGMaker::cloneBlock(PatchBlock* b, PatchObject* o) {
     for (auto eit = b->targets().begin(); eit != b->targets().end(); ++eit) {
         PatchEdge* newE = cloneEdge(*eit, newB);
         newB->addTargetEdge(newE);
+        newE->trg()->addSourceEdge(newE);
     }
     return newB;
 

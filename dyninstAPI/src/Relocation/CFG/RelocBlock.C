@@ -129,7 +129,7 @@ RelocBlock *RelocBlock::createReloc(block_instance *block, func_instance *func) 
           newRelocBlock->elements_.push_back(ptr);
       }
   }
-  newRelocBlock->preserveBlockGap();
+  //newRelocBlock->preserveBlockGap();
 
   return newRelocBlock;
 }
