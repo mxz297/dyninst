@@ -205,11 +205,14 @@ static PatchEdge* getFTEdge(PatchBlock* b) {
    return nullptr;
 }
 
-static bool SplitAndRedirectEdges(PatchBlock* b, PatchBlock* tar, bool &split) {
+static bool SplitAndRedirectEdges(
+   PatchBlock* b,
+   PatchBlock* tar,
+   std::vector<PatchEdge*> &redges
+) {
    PatchBlock::Insns insns;
    b->getInsns(insns);
    if (insns.size() > 1) {
-      split = true;
       patch_printf("\t\tblock has more than one instruction\n");
       // We first remove the return instruction
       if (PatchModifier::split(b, b->last(), true, b->last()) == nullptr) {
@@ -219,6 +222,7 @@ static bool SplitAndRedirectEdges(PatchBlock* b, PatchBlock* tar, bool &split) {
       // We then redirect the fallthrough edge from
       // then-return block to the call-ft block
       PatchEdge * ftedge = getFTEdge(b);
+      redges.emplace_back(ftedge);
       if (ftedge == nullptr) {
          patch_printf("\t\t\tno fallthrough edge after spliting block [%lx, %lx)\n", b->start(), b->end());
          return false;
@@ -228,13 +232,12 @@ static bool SplitAndRedirectEdges(PatchBlock* b, PatchBlock* tar, bool &split) {
          return false;
       }
    } else {
-      split = false;
       patch_printf("\t\tblock has only one instruction\n");
-      std::vector<PatchEdge*> sedges;
       for (auto e : b->sources()) {
-         sedges.emplace_back(e);
+         if (e->interproc()) continue;
+         redges.emplace_back(e);
       }
-      for (auto e: sedges) {
+      for (auto e: redges) {
          if (!PatchModifier::redirect(e, tar)) {
             patch_printf("\t\t\tfail to redirect edge from [%lx, %lx] to the new target, edge type %d\n",
                e->src()->start(), e->src()->end(), e->type());
@@ -397,38 +400,35 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, Pa
    // 5. Remove return instruction from return blocks
    for (auto b: newRetBlocks) {
       patch_printf("\tsplit return block and redirect edge for [%lx, %lx)\n", b->start(), b->end());
-      bool split;
-      if (!SplitAndRedirectEdges(b, call_ft_block, split)) {
+      std::vector<PatchEdge*> redges;
+      if (!SplitAndRedirectEdges(b, call_ft_block, redges)) {
          patch_printf("\t\tfailed\n");
          return false;
+      }
+      // Move up SP to mimic the effect of a return instruction to stack
+      for (auto e: redges) {
+         if (e->interproc()) continue;
+         patch_printf("\t\tgenerate sp move up for source edge from [%lx, %lx), type %d\n", e->src()->start(), e->src()->end(), e->type());
+         auto p2 = patcher->findPoint(Location::EdgeInstance(caller, e), Point::EdgeDuring, true);
+         Snippet::Ptr moveSPUp = AdjustSPSnippet::create(new AdjustSPSnippet(8));
+         p2->pushBack(moveSPUp);
       }
    }
 
    // 6. Remove call instruction and redirect edge to inlined entry
-   bool split;
+   std::vector<PatchEdge*> redges;
    patch_printf("\tsplit call block and redirect edge for [%lx, %lx)\n", cb->start(), cb->end());
-   if (!SplitAndRedirectEdges(cb, cloneBlockMap[callee->entry()], split)) {
+   if (!SplitAndRedirectEdges(cb, cloneBlockMap[callee->entry()], redges)) {
       patch_printf("\t\tfailed\n");
       return false;
    }
 
    // 7. Move down SP to mimic the effect of a call instruction to stack
-   if (!split) {
-      for (auto e : cb->sources()) {
-         auto p1 = patcher->findPoint(Location::EdgeInstance(caller, e), Point::EdgeDuring, true);
-         Snippet::Ptr moveSPDown = AdjustSPSnippet::create(new AdjustSPSnippet(-8));
-         p1->pushBack(moveSPDown);
-      }
-   } else {
-      auto p1 = patcher->findPoint(Location::BlockInstance(caller, cb, true), Point::BlockExit, true);
+   for (auto e : redges) {
+      if (e->interproc()) continue;
+      auto p1 = patcher->findPoint(Location::EdgeInstance(caller, e), Point::EdgeDuring, true);
       Snippet::Ptr moveSPDown = AdjustSPSnippet::create(new AdjustSPSnippet(-8));
       p1->pushBack(moveSPDown);
    }
-
-   // 8. Move up SP to mimic the effect of a return instruction to stack
-   auto p2 = patcher->findPoint(Location::BlockInstance(caller, call_ft_block, true), Point::BlockEntry, true);
-   Snippet::Ptr moveSPUp = AdjustSPSnippet::create(new AdjustSPSnippet(8));
-   p2->pushBack(moveSPUp);
-
    return true;
 }
