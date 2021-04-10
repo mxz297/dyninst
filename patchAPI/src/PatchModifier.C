@@ -305,6 +305,45 @@ class AdjustSPSnippet : public Dyninst::PatchAPI::Snippet {
   int adjustment;
 };
 
+#include "PatchLabel.h"
+
+class EmulatedReturnAddressSnippet : public Dyninst::PatchAPI::Snippet {
+ public:
+  explicit EmulatedReturnAddressSnippet(PatchFunction* func, PatchBlock* targetBlock):
+   f(func), b(targetBlock) {}
+  bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) {
+     // 48 8d 05 ce 5f 25 00    lea    0x255fce(%rip),%rax
+     // 50                      push   %rax
+     /*
+     const int LENGTH = 8;
+     unsigned char insn[LENGTH];
+     insn[0] = 0x48;
+     insn[1] = 0x8d;
+     insn[2] = 0x05;
+     insn[3] = insn[4] = insn[5] = insn[6] = 0x0;
+     insn[7] = 0x50;     
+     Dyninst::PatchAPI::PatchLabel::generateALabel(f, b, buf.curAddr() + 3);
+     */
+     //277cd:       48 c7 44 24 48 00 00    movq   $0x0,0x48(%rsp)
+     //277d4:       00 00 
+     const int LENGTH = 9;
+     unsigned char insn[LENGTH];
+     insn[0] = 0x48;
+     insn[1] = 0xc7;
+     insn[2] = 0x44;
+     insn[3] = 0x24;
+     insn[4] = 0x0;
+     insn[5] = insn[6] = insn[7] = insn[8] = 0x0;
+     Dyninst::PatchAPI::PatchLabel::generateALabel(f, b, buf.curAddr() + 5);
+
+     buf.copy(insn, LENGTH);
+     return true;
+  }
+ private:
+  PatchFunction *f;
+  PatchBlock* b;
+};
+
 bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, PatchFunction* caller, PatchBlock* cb) {
    version += 1;
    patch_printf("Enter PatchModifier::inlineFunction: caller %s at %lx, call block [%lx, %lx)\n",
@@ -429,6 +468,24 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, Pa
       auto p1 = patcher->findPoint(Location::EdgeInstance(caller, e), Point::EdgeDuring, true);
       Snippet::Ptr moveSPDown = AdjustSPSnippet::create(new AdjustSPSnippet(-8));
       p1->pushBack(moveSPDown);
+   }
+
+   // 8. Insert snippets to push orignial return address for tail calls
+   // Cannot handle conditional tail calls
+   for (auto b : newBlocks) {
+      bool hasTailCall = false;
+      for (auto e : b->targets()) {
+         if (!e->interproc()) continue;
+         if (e->type() == ParseAPI::DIRECT ||
+             e->type() == ParseAPI::INDIRECT) {
+                hasTailCall = true;
+                break;
+         }
+      }
+      if (!hasTailCall) continue;
+      auto p = patcher->findPoint(Location::InstructionInstance(caller, b, b->last()), Point::PreInsn, true);
+      Snippet::Ptr emulatedRA = EmulatedReturnAddressSnippet::create(new EmulatedReturnAddressSnippet(caller, call_ft_block));
+      p->pushBack(emulatedRA);
    }
    return true;
 }

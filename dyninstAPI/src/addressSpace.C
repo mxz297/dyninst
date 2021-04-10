@@ -55,6 +55,7 @@
 #include <boost/tuple/tuple.hpp>
 
 #include "PatchMgr.h"
+#include "PatchLabel.h"
 #include "Patching.h"
 #include "Relocation/DynAddrSpace.h"
 #include "Relocation/DynPointMaker.h"
@@ -1741,6 +1742,16 @@ bool AddressSpace::relocate() {
      if (!relocateInt(iter->second.begin(), iter->second.end(), middle)) {
         ret = false;
      }
+
+     for (const auto& labelIt : PatchAPI::PatchLabel::getLabels()) {
+        Address addr = labelIt.first;
+        func_instance* func = static_cast<func_instance*>(labelIt.second.first);
+        block_instance* block = static_cast<block_instance*>(labelIt.second.second);
+        Address targetAddr = getRelocPreAddr(block->start(), block, func);        
+        uint32_t val = (uint32_t)targetAddr;
+        relocation_cerr << "Generate PatchLabel " << std::hex << addr << ", val " << val << endl;
+        writeTextSpace((void*)addr, 4, &val);
+     }
   }
 
 
@@ -1980,6 +1991,7 @@ Address AddressSpace::generateCode(CodeMover::Ptr cm, Address nearTo) {
     
     
     relocation_cerr << "   Calling CodeMover::relocate" << endl;
+    PatchAPI::PatchLabel::clearLabelMap();
     if (!cm->relocate(baseAddr)) {
        // Whoa
        relocation_cerr << "   ERROR: CodeMover failed relocation!" << endl;
