@@ -248,11 +248,6 @@ Parser::parse_at(
         work.insert(pf);
     parse_frames(work,recursive);
     finalize();
-
-    // downgrade state if necessary
-    if(_parse_state > COMPLETE)
-        _parse_state = COMPLETE;
-
 }
 
 void
@@ -438,9 +433,6 @@ Parser::parse_edges( vector< ParseWorkElem * > & work_elems )
         _parse_state = PARTIAL;
 
     parse_frames( frames, true );
-
-    if(_parse_state > COMPLETE)
-        _parse_state = COMPLETE;
 
     finalize();
 
@@ -1056,13 +1048,13 @@ Parser::finalize()
         for (auto it = hint_funcs.begin(); it != hint_funcs.end(); ++it)
             if (deleted_func.find(*it) == deleted_func.end()) {
                 sorted_funcs.insert(*it);
-                funcs_to_ranges.push_back(*it);
+                funcs_to_ranges.insert(*it);
             }
 
         for (auto it = discover_funcs.begin(); it != discover_funcs.end(); ++it)
             if (deleted_func.find(*it) == deleted_func.end()) {
                 sorted_funcs.insert(*it);
-                funcs_to_ranges.push_back(*it);
+                funcs_to_ranges.insert(*it);
             }
         jumpTableMap.clear();
         scan_unresolved_indirect_jumps();
@@ -1359,8 +1351,7 @@ Parser::finalize_funcs(dyn_c_vector<Function *> &funcs)
 void
 Parser::finalize_ranges()
 {
-    for (int i = 0; i < funcs_to_ranges.size(); ++i) {
-        Function *f = funcs_to_ranges[i];
+    for (auto f : funcs_to_ranges) {
         region_data * rd = _parse_data->findRegion(f->region());
         for (auto eit = f->extents().begin(); eit != f->extents().end(); ++eit)
             rd->funcsByRange.insert(*eit);
@@ -2514,6 +2505,14 @@ Parser::frame_status(CodeRegion * cr, Address addr)
 void
 Parser::remove_func(Function *func)
 {
+    // This funcion should be called in serial
+    for (auto b : func->blocks()) {
+        dyn_c_hash_map<Block*, std::set<Function* > >::accessor a;
+        funcsByBlockMap.find(a , b);
+        a->second.erase(func);
+    }
+    funcs_to_ranges.erase(func);
+    sorted_funcs.erase(func);
     deleted_func.insert(func);
     _parse_data->remove_func(func);
 }

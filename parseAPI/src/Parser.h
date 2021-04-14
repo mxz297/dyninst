@@ -301,7 +301,7 @@ namespace Dyninst {
             // someone actually needs this.
             //
             // Note: this has to be run in a single thread.
-            vector<Function*> funcs_to_ranges;
+            std::set<Function*> funcs_to_ranges;
 
             dyn_c_hash_map<Block*, std::set<Function* > > funcsByBlockMap;
             dyn_c_hash_map<Address, Function::JumpTableInstance> jumpTableMap;

@@ -95,7 +95,8 @@ class PATCHAPI_EXPORT PatchModifier {
 
    // Inline the call target of a call block b.
    // Function f contains b.
-   static bool inlineFunction(CFGMaker*, PatchMgr::Ptr, PatchFunction* f, PatchBlock* b);
+   static bool inlineDirectCall(CFGMaker*, PatchMgr::Ptr, PatchFunction* f, PatchBlock* b);
+   static bool inlineIndirectCall(CFGMaker*, PatchMgr::Ptr, PatchFunction* f, PatchBlock* b, std::vector<Address>&);
 
   private:
    static InsertedCode::Ptr insert(PatchObject *, void *start, unsigned size, Address base);

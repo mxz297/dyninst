@@ -295,11 +295,6 @@ void Block::addSource(Edge * e)
 void Block::addTarget(Edge * e)
 {
     boost::lock_guard<Block> g(*this);
-    if(e->type() == FALLTHROUGH ||
-            e->type() == COND_NOT_TAKEN)
-    {
-        assert(e->_target_off == end());
-    }
     _trglist.insert(e);
 
 }

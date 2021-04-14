@@ -311,7 +311,7 @@ class EmulatedReturnAddressSnippet : public Dyninst::PatchAPI::Snippet {
  public:
   explicit EmulatedReturnAddressSnippet(PatchFunction* func, PatchBlock* targetBlock):
    f(func), b(targetBlock) {}
-  bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) {
+  bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
      // 48 8d 05 ce 5f 25 00    lea    0x255fce(%rip),%rax
      // 50                      push   %rax
      /*
@@ -321,11 +321,11 @@ class EmulatedReturnAddressSnippet : public Dyninst::PatchAPI::Snippet {
      insn[1] = 0x8d;
      insn[2] = 0x05;
      insn[3] = insn[4] = insn[5] = insn[6] = 0x0;
-     insn[7] = 0x50;     
+     insn[7] = 0x50;
      Dyninst::PatchAPI::PatchLabel::generateALabel(f, b, buf.curAddr() + 3);
      */
      //277cd:       48 c7 44 24 48 00 00    movq   $0x0,0x48(%rsp)
-     //277d4:       00 00 
+     //277d4:       00 00
      const int LENGTH = 9;
      unsigned char insn[LENGTH];
      insn[0] = 0x48;
@@ -344,9 +344,9 @@ class EmulatedReturnAddressSnippet : public Dyninst::PatchAPI::Snippet {
   PatchBlock* b;
 };
 
-bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, PatchFunction* caller, PatchBlock* cb) {
+bool PatchModifier::inlineDirectCall(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, PatchFunction* caller, PatchBlock* cb) {
    version += 1;
-   patch_printf("Enter PatchModifier::inlineFunction: caller %s at %lx, call block [%lx, %lx)\n",
+   patch_printf("Enter PatchModifier::inlineDirectCall: caller %s at %lx, call block [%lx, %lx)\n",
      caller->name().c_str(), caller->addr(), cb->start(), cb->end());
    // 1. Find the callee function
    PatchFunction* callee = cb->getCallee();
@@ -483,9 +483,74 @@ bool PatchModifier::inlineFunction(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, Pa
          }
       }
       if (!hasTailCall) continue;
+
       auto p = patcher->findPoint(Location::InstructionInstance(caller, b, b->last()), Point::PreInsn, true);
       Snippet::Ptr emulatedRA = EmulatedReturnAddressSnippet::create(new EmulatedReturnAddressSnippet(caller, call_ft_block));
       p->pushBack(emulatedRA);
+   }
+   return true;
+}
+
+class IndirectCallInlineSnippet : public Dyninst::PatchAPI::Snippet {
+ public:
+  explicit IndirectCallInlineSnippet(const InstructionAPI::Instruction &insn, const std::vector<Address> &addresses):
+   i(insn), addrs(addresses) {}
+  bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
+     unsigned char buffer[1024];
+     int size = 0;
+     // 48 a9 fe ff ff ff       test   $0xfffffffffffffffe,%rax
+     // 0f 85 d3 fe ff ff       jne    f897f
+     buffer[size++] = 0x48;
+     buffer[size++] = 0xa9;
+     *((uint32_t*)(&buffer[size])) = (uint32_t)addrs[0];
+     size += 4;
+     buffer[size++] = 0x0f;
+     buffer[size++] = 0x85;
+     *((uint32_t*)(&buffer[size])) = 2048;
+     size += 4;
+     buf.copy(buffer, size);
+     return true;
+  }
+ private:
+  const InstructionAPI::Instruction& i;
+  const std::vector<Address>& addrs;
+};
+
+bool PatchModifier::inlineIndirectCall(
+   CFGMaker* cfgMaker,
+   PatchMgr::Ptr patcher,
+   PatchFunction* caller,
+   PatchBlock* cb,
+   std::vector<Address> &calleeAddrs
+)
+{
+   patch_printf("Enter PatchModifier::inlineDirectCall\n");
+   // 1. Create indirect call inline dispatch code
+   // and its corresponding CFG representation
+   PatchBlock::Insns insns;
+   cb->getInsns(insns);
+   Snippet::Ptr indSnippet = IndirectCallInlineSnippet::create(new IndirectCallInlineSnippet(insns[cb->last()], calleeAddrs));
+   auto point = patcher->findPoint(Location::InstructionInstance(caller, cb, cb->last()), Point::PreInsn, true);
+
+   patch_printf("\tbefore insert dispatch code, call block range [%lx, %lx)\n", cb->start(), cb->end());
+   for (auto e: cb->sources()) {
+      patch_printf("\t\tincoming edge %p\n", e);
+   }
+   InsertedCode::Ptr indCallDispatch = PatchModifier::insert(caller->obj(), indSnippet, point);
+   patch_printf("\tafter insert dispatch code, call block range [%lx, %lx)\n", cb->start(), cb->end());
+   for (auto e: cb->sources()) {
+      patch_printf("\t\tincoming edge %p\n", e);
+   }
+
+   // 2. Wire CFG
+   for (auto b : indCallDispatch->blocks()) {
+      PatchModifier::addBlockToFunction(caller, b);
+   }
+
+   PatchBlock* dispatchEntry = indCallDispatch->entry();
+   patch_printf("\tinserted code entry block %p [%lx, %lx)\n", dispatchEntry, dispatchEntry->start(), dispatchEntry->end());
+   for (auto e : dispatchEntry->sources()) {
+      patch_printf("\t\tincoming edge %p\n", e);
    }
    return true;
 }
