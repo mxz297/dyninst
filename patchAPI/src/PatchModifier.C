@@ -208,14 +208,16 @@ static PatchEdge* getFTEdge(PatchBlock* b) {
 static bool SplitAndRedirectEdges(
    PatchBlock* b,
    PatchBlock* tar,
-   std::vector<PatchEdge*> &redges
+   std::vector<PatchEdge*> &redges,
+   PatchBlock* &newBlock
 ) {
    PatchBlock::Insns insns;
    b->getInsns(insns);
    if (insns.size() > 1) {
       patch_printf("\t\tblock has more than one instruction\n");
       // We first remove the return instruction
-      if (PatchModifier::split(b, b->last(), true, b->last()) == nullptr) {
+      newBlock = PatchModifier::split(b, b->last(), true, b->last());
+      if (newBlock == nullptr) {
          patch_printf("\t\t\tfail to split the block at [%lx, %lx)\n", b->start(), b->end());
          return false;
       }
@@ -440,7 +442,8 @@ bool PatchModifier::inlineDirectCall(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, 
    for (auto b: newRetBlocks) {
       patch_printf("\tsplit return block and redirect edge for [%lx, %lx)\n", b->start(), b->end());
       std::vector<PatchEdge*> redges;
-      if (!SplitAndRedirectEdges(b, call_ft_block, redges)) {
+      PatchBlock* newBlock;
+      if (!SplitAndRedirectEdges(b, call_ft_block, redges, newBlock)) {
          patch_printf("\t\tfailed\n");
          return false;
       }
@@ -456,8 +459,9 @@ bool PatchModifier::inlineDirectCall(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, 
 
    // 6. Remove call instruction and redirect edge to inlined entry
    std::vector<PatchEdge*> redges;
+   PatchBlock* newBlock;
    patch_printf("\tsplit call block and redirect edge for [%lx, %lx)\n", cb->start(), cb->end());
-   if (!SplitAndRedirectEdges(cb, cloneBlockMap[callee->entry()], redges)) {
+   if (!SplitAndRedirectEdges(cb, cloneBlockMap[callee->entry()], redges, newBlock)) {
       patch_printf("\t\tfailed\n");
       return false;
    }
@@ -544,10 +548,28 @@ bool PatchModifier::inlineIndirectCall(
 
    // 2. Wire CFG
    for (auto b : indCallDispatch->blocks()) {
+      fprintf(stderr, "add block [%lx, %lx) to function %s at %lx\n",b->start(), b->end(), caller->name().c_str(), caller->addr());
       PatchModifier::addBlockToFunction(caller, b);
    }
 
+   // 2.1 redirect control flow to dispatch code entry
    PatchBlock* dispatchEntry = indCallDispatch->entry();
+   std::vector<PatchEdge*> redges;
+   PatchBlock* indCallBlock = nullptr;
+   if (!SplitAndRedirectEdges(cb, dispatchEntry, redges, indCallBlock)) {
+      patch_printf("\t\tfailed\n");
+      return false;
+   }
+   if (indCallBlock == nullptr) indCallBlock = cb;
+
+   // 2.2 redirect cond_not_taken edge to the original indirect call
+   for (auto e : indCallDispatch->exits()) {
+      if (e->type() == ParseAPI::COND_NOT_TAKEN) {
+         if (!PatchModifier::redirect(e, indCallBlock)) {
+            patch_printf("\t\tfail to redirect edge to indirect call block\n");
+         }
+      }
+   }
    patch_printf("\tinserted code entry block %p [%lx, %lx)\n", dispatchEntry, dispatchEntry->start(), dispatchEntry->end());
    for (auto e : dispatchEntry->sources()) {
       patch_printf("\t\tincoming edge %p\n", e);

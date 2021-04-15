@@ -464,7 +464,7 @@ class func_instance : public patchTarget, public Dyninst::PatchAPI::PatchFunctio
 
 
 struct UserSetLayoutOrderFuncInstance {
-    bool operator() (const func_instance* const lhs, const func_instance* const rhs) const {
+    bool operator() (const func_instance* const& lhs, const func_instance* const& rhs) const {
         if (lhs->getLayoutOrder() == rhs->getLayoutOrder())
             return lhs->addr() < rhs->addr();
         return lhs->getLayoutOrder() < rhs->getLayoutOrder();
@@ -472,6 +472,5 @@ struct UserSetLayoutOrderFuncInstance {
 };
 
 typedef std::set<func_instance* , UserSetLayoutOrderFuncInstance> FuncSetOrderdByLayout;
-
 
 #endif /* FUNCTION_H */

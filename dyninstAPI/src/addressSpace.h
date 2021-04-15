@@ -535,7 +535,7 @@ class AddressSpace : public InstructionSource {
 
     bool relocateJumpTables(boost::shared_ptr<Dyninst::Relocation::JumpTableMover> jtm);
     bool relocateFunctionPointers(boost::shared_ptr<Dyninst::Relocation::FunctionPointerMover> fpm);
-    std::map<mapped_object *, FuncSetOrderdByLayout> modifiedFunctions_;
+    std::map<mapped_object *, std::set<func_instance*> > modifiedFunctions_;
 
     bool relocateInt(FuncSetOrderdByLayout::const_iterator begin, FuncSetOrderdByLayout::const_iterator end, Address near);
     Dyninst::Relocation::InstalledSpringboards::Ptr installedSpringboards_;

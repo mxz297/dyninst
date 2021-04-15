@@ -93,9 +93,8 @@ PatchEdge::type() const {
 }
 
 bool
-PatchEdge::sinkEdge() const {
-    if (edge_ != NULL) return edge_->sinkEdge();
-    return original_edge_->sinkEdge();
+PatchEdge::sinkEdge() {
+   return trg()->start() == std::numeric_limits<Address>::max();
 }
 
 bool

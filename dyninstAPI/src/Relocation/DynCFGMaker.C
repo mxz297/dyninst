@@ -1,28 +1,28 @@
 /*
  * See the dyninst/COPYRIGHT file for copyright information.
- * 
+ *
  * We provide the Paradyn Tools (below described as "Paradyn")
  * on an AS IS basis, and do not warrant its validity or performance.
  * We reserve the right to update, modify, or discontinue this
  * software at any time.  We shall have no obligation to supply such
  * updates or modifications or any other form of support to you.
- * 
+ *
  * By your use of Paradyn, you understand and agree that we (or any
  * other person or entity with proprietary rights in Paradyn) are
  * under no obligation to provide either maintenance services,
  * update services, notices of latent defects, or correction of
  * defects for Paradyn.
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
- * 
+ *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
@@ -89,21 +89,21 @@ PatchBlock* DynCFGMaker::copyBlock(PatchBlock* b, PatchObject* o) {
 PatchEdge* DynCFGMaker::makeEdge(ParseAPI::Edge* e,
                                  PatchBlock* s,
                                  PatchBlock* t,
-                                 PatchObject* o) 
+                                 PatchObject* o)
 {
 # if 1 // allows inter-object edges
   mapped_object* moS = NULL;
   mapped_object* moT = NULL;
   if (!s) {
-      if (e->src()->obj() == o->co()) 
+      if (e->src()->obj() == o->co())
           moS = SCAST_MO(o);
-      else 
+      else
           moS = SCAST_MO(o)->as()->findObject(e->src()->obj());
   }
   if (!t) {
-      if (e->trg()->obj() == o->co()) 
+      if (e->trg()->obj() == o->co())
           moT = SCAST_MO(o);
-      else 
+      else
           moT = SCAST_MO(o)->as()->findObject(e->trg()->obj());
   }
 
@@ -131,7 +131,7 @@ PatchEdge* DynCFGMaker::cloneEdge(PatchEdge* e, PatchBlock* newSrc) {
 }
 
 PatchBlock* DynCFGMaker::cloneBlock(PatchBlock* b, PatchObject* o) {
-    block_instance *newB = new block_instance(SCAST_BI(b), SCAST_MO(o));    
+    block_instance *newB = new block_instance(SCAST_BI(b), SCAST_MO(o));
     for (auto eit = b->targets().begin(); eit != b->targets().end(); ++eit) {
         PatchEdge* newE = cloneEdge(*eit, newB);
         newB->addTargetEdge(newE);
