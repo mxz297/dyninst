@@ -85,7 +85,7 @@ class PATCHAPI_EXPORT PatchEdge {
    bool consistency() const;
 
    std::string format() const;
-
+   void setTailCallOverride(bool);
  protected:
     ParseAPI::Edge *edge_;
     PatchEdge* original_edge_;
@@ -93,6 +93,8 @@ class PATCHAPI_EXPORT PatchEdge {
     PatchBlock *trg_;
 
     EdgePoints points_;
+    bool tailCallOverride_;
+    bool tailCallOverrideVal_;
 };
 
 class PATCHAPI_EXPORT PatchBlock {

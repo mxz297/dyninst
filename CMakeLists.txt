@@ -31,6 +31,7 @@ include(ThreadingBuildingBlocks)
 include(ElfUtils)
 include(LibIberty)
 include(Capstone)
+include(asmjit)
 
 include(shared)
 

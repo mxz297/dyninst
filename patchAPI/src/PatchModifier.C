@@ -38,6 +38,8 @@
 #include <set>
 #include <vector>
 
+#include "asmjit/asmjit.h"
+
 using namespace std;
 using namespace Dyninst;
 using namespace PatchAPI;
@@ -205,19 +207,30 @@ static PatchEdge* getFTEdge(PatchBlock* b) {
    return nullptr;
 }
 
-static bool SplitAndRedirectEdges(
-   PatchBlock* b,
-   PatchBlock* tar,
+static bool RedirectEdgeList(
    std::vector<PatchEdge*> &redges,
-   PatchBlock* &newBlock
+   PatchBlock* tar
+) {
+   for (auto e : redges) {
+      if (!PatchModifier::redirect(e, tar)) {
+         patch_printf("\t\t\tfail to redirect edge from [%lx, %lx] to the new target, edge type %d\n",
+            e->src()->start(), e->src()->end(), e->type());
+         return false;
+      }
+   }
+   return true;
+}
+
+static bool SplitAndGetEdges(
+   PatchBlock* b,
+   std::vector<PatchEdge*> &redges
 ) {
    PatchBlock::Insns insns;
    b->getInsns(insns);
    if (insns.size() > 1) {
       patch_printf("\t\tblock has more than one instruction\n");
       // We first remove the return instruction
-      newBlock = PatchModifier::split(b, b->last(), true, b->last());
-      if (newBlock == nullptr) {
+      if (PatchModifier::split(b, b->last(), true, b->last()) == nullptr) {
          patch_printf("\t\t\tfail to split the block at [%lx, %lx)\n", b->start(), b->end());
          return false;
       }
@@ -229,29 +242,25 @@ static bool SplitAndRedirectEdges(
          patch_printf("\t\t\tno fallthrough edge after spliting block [%lx, %lx)\n", b->start(), b->end());
          return false;
       }
-      if (!PatchModifier::redirect(ftedge, tar)) {
-         patch_printf("\t\t\tfail to redirect splitted block [%lx, %lx) to new target\n", b->start(), b->end());
-         return false;
-      }
    } else {
       patch_printf("\t\tblock has only one instruction\n");
       for (auto e : b->sources()) {
          if (e->interproc()) continue;
          redges.emplace_back(e);
       }
-      for (auto e: redges) {
-         if (!PatchModifier::redirect(e, tar)) {
-            patch_printf("\t\t\tfail to redirect edge from [%lx, %lx] to the new target, edge type %d\n",
-               e->src()->start(), e->src()->end(), e->type());
-            return false;
-         }
-         patch_printf("\t\tredirect source from [%lx, %lx), type %d\n", e->src()->start(), e->src()->end(), e->type());
-         for (auto te: e->src()->targets()) {
-            patch_printf("\t\t\ttarget to [%lx, %lx), type %d\n", te->trg()->start(), te->trg()->end(), te->type());
-         }
-      }
    }
    return true;
+}
+
+static PatchBlock* GetCallFTBlock(PatchBlock* b) {
+   PatchBlock* call_ft_block = nullptr;
+   for (auto e : b->targets()) {
+      if (e->type() == ParseAPI::CALL_FT) {
+         call_ft_block = e->trg();
+         break;
+      }
+   }
+   return call_ft_block;
 }
 
 static std::set<PatchFunction*> functionSplit;
@@ -284,95 +293,124 @@ bool SplitFunctionRetBlocks(PatchFunction* f) {
    return true;
 }
 
+class AssemblerHolder {
+   public:
+
+   AssemblerHolder();
+   ~AssemblerHolder();
+   asmjit::x86::Assembler* GetAssembler() { return assembler_; }
+   asmjit::StringLogger* GetStringLogger() { return logger_; }
+   asmjit::CodeHolder* GetCode() { return code_; }
+   bool CopyToDyninstBuffer(Dyninst::Buffer &buf);
+
+   private:
+
+   asmjit::JitRuntime* rt_;
+   asmjit::CodeHolder* code_;
+   asmjit::x86::Assembler* assembler_;
+   asmjit::StringLogger* logger_;
+};
+
+// Error handler that just prints the error and lets AsmJit ignore it.
+class PrintErrorHandler : public asmjit::ErrorHandler {
+   public:
+   // Return `true` to set last error to `err`, return `false` to do nothing.
+   void handleError(asmjit::Error err, const char* message, asmjit::BaseEmitter* origin) override {
+      std::cerr << "ERROR : " << message;
+   }
+};
+
+AssemblerHolder::AssemblerHolder() {
+   rt_ = new asmjit::JitRuntime();
+
+   code_ = new asmjit::CodeHolder;
+   code_->init(rt_->codeInfo());
+   code_->setErrorHandler(new PrintErrorHandler());
+
+   logger_ = new asmjit::StringLogger();
+   code_->setLogger(logger_);
+
+   assembler_ = new asmjit::x86::Assembler(code_);
+}
+
+AssemblerHolder::~AssemblerHolder() {
+   delete assembler_;
+   delete code_;
+   delete rt_;
+}
+
+bool AssemblerHolder::CopyToDyninstBuffer(Dyninst::Buffer &buf) {
+   size_t size = GetCode()->codeSize();
+   char* temp_buf = (char*)malloc(size);
+
+   GetCode()->relocateToBase((uint64_t)temp_buf);
+
+   size = GetCode()->codeSize();
+   GetCode()->copyFlattenedData(temp_buf, size, asmjit::CodeHolder::kCopyWithPadding);
+
+   buf.copy(temp_buf, size);
+   free(temp_buf);
+   return true;
+}
+
 static int version;
 
 #include "Snippet.h"
 class AdjustSPSnippet : public Dyninst::PatchAPI::Snippet {
- public:
-  explicit AdjustSPSnippet(int adj): adjustment(adj) {}
-  bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
-    // instruction template 48 8d a4 24 58 ff ff ff    lea    -0xa8(%rsp),%rsp
-    const int LENGTH = 8;
-    unsigned char insn[LENGTH];
-    insn[0] = 0x48;
-    insn[1] = 0x8d;
-    insn[2] = 0xa4;
-    insn[3] = 0x24;
-    int32_t disp = adjustment;
-    *((int32_t*)(insn+4)) = disp;
-    buf.copy(insn, LENGTH);
-    return true;
-  }
- private:
-  int adjustment;
+   public:
+   explicit AdjustSPSnippet(int adj): adjustment(adj) {}
+   bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
+      AssemblerHolder ah;
+      asmjit::x86::Assembler* a = ah.GetAssembler();
+      a->lea(asmjit::x86::rsp, asmjit::x86::ptr(asmjit::x86::rsp, adjustment, 8));
+      return ah.CopyToDyninstBuffer(buf);
+   }
+   private:
+   int adjustment;
 };
 
 #include "PatchLabel.h"
 
 class EmulatedReturnAddressSnippet : public Dyninst::PatchAPI::Snippet {
- public:
-  explicit EmulatedReturnAddressSnippet(PatchFunction* func, PatchBlock* targetBlock):
-   f(func), b(targetBlock) {}
-  bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
-     // 48 8d 05 ce 5f 25 00    lea    0x255fce(%rip),%rax
-     // 50                      push   %rax
-     /*
-     const int LENGTH = 8;
-     unsigned char insn[LENGTH];
-     insn[0] = 0x48;
-     insn[1] = 0x8d;
-     insn[2] = 0x05;
-     insn[3] = insn[4] = insn[5] = insn[6] = 0x0;
-     insn[7] = 0x50;
-     Dyninst::PatchAPI::PatchLabel::generateALabel(f, b, buf.curAddr() + 3);
-     */
-     //277cd:       48 c7 44 24 48 00 00    movq   $0x0,0x48(%rsp)
-     //277d4:       00 00
-     const int LENGTH = 9;
-     unsigned char insn[LENGTH];
-     insn[0] = 0x48;
-     insn[1] = 0xc7;
-     insn[2] = 0x44;
-     insn[3] = 0x24;
-     insn[4] = 0x0;
-     insn[5] = insn[6] = insn[7] = insn[8] = 0x0;
-     Dyninst::PatchAPI::PatchLabel::generateALabel(f, b, buf.curAddr() + 5);
+   public:
+   explicit EmulatedReturnAddressSnippet(PatchFunction* func, PatchBlock* targetBlock):
+               f(func), b(targetBlock) {}
 
-     buf.copy(insn, LENGTH);
-     return true;
-  }
- private:
-  PatchFunction *f;
-  PatchBlock* b;
+   bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
+      AssemblerHolder ah;
+      asmjit::x86::Assembler* a = ah.GetAssembler();
+      a->mov(asmjit::x86::ptr(asmjit::x86::rsp, 0, 8), 0);
+      ah.CopyToDyninstBuffer(buf);
+      Dyninst::PatchAPI::PatchLabel::generateALabel(f, b, buf.curAddr() - 4);
+      return true;
+   }
+
+   private:
+   PatchFunction *f;
+   PatchBlock* b;
 };
 
-bool PatchModifier::inlineDirectCall(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, PatchFunction* caller, PatchBlock* cb) {
+static bool InlineImpl(
+   CFGMaker * cfgMaker,
+   PatchMgr::Ptr patcher,
+   PatchFunction * caller,
+   std::vector<PatchEdge*>& inEdges,
+   Address calleeAddr,
+   PatchBlock* returnTarget
+) {
    version += 1;
-   patch_printf("Enter PatchModifier::inlineDirectCall: caller %s at %lx, call block [%lx, %lx)\n",
-     caller->name().c_str(), caller->addr(), cb->start(), cb->end());
    // 1. Find the callee function
-   PatchFunction* callee = cb->getCallee();
+   PatchObject* po = caller->obj();
+   PatchFunction* callee = po->getFunc(po->co()->findFuncByEntry(caller->entry()->block()->region(), calleeAddr));
    // callee is NULL if this is not a call block or an indirect call
    if (callee == nullptr) {
-      patch_printf("\tCannot find callee\n");
+      patch_printf("\tCannot find callee at %lx\n", calleeAddr);
       return false;
    }
    patch_printf("\tget callee %s at %lx\n", callee->name().c_str(), callee->addr());
 
    if (!SplitFunctionRetBlocks(callee)) {
       patch_printf("\tfail to spilt return blocks in %s at %lx\n", callee->name().c_str(), callee->addr());
-      return false;
-   }
-
-   PatchBlock* call_ft_block = nullptr;
-   for (auto e : cb->targets()) {
-      if (e->type() == ParseAPI::CALL_FT) {
-         call_ft_block = e->trg();
-         break;
-      }
-   }
-   if (call_ft_block == nullptr) {
-      patch_printf("\tcannot find call fallthrough block\n");
       return false;
    }
 
@@ -442,9 +480,12 @@ bool PatchModifier::inlineDirectCall(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, 
    for (auto b: newRetBlocks) {
       patch_printf("\tsplit return block and redirect edge for [%lx, %lx)\n", b->start(), b->end());
       std::vector<PatchEdge*> redges;
-      PatchBlock* newBlock;
-      if (!SplitAndRedirectEdges(b, call_ft_block, redges, newBlock)) {
+      if (!SplitAndGetEdges(b, redges)) {
          patch_printf("\t\tfailed\n");
+         return false;
+      }
+      if (!RedirectEdgeList(redges, returnTarget)) {
+         patch_printf("\t\tfaile to redirect edges");
          return false;
       }
       // Move up SP to mimic the effect of a return instruction to stack
@@ -457,17 +498,14 @@ bool PatchModifier::inlineDirectCall(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, 
       }
    }
 
-   // 6. Remove call instruction and redirect edge to inlined entry
-   std::vector<PatchEdge*> redges;
-   PatchBlock* newBlock;
-   patch_printf("\tsplit call block and redirect edge for [%lx, %lx)\n", cb->start(), cb->end());
-   if (!SplitAndRedirectEdges(cb, cloneBlockMap[callee->entry()], redges, newBlock)) {
-      patch_printf("\t\tfailed\n");
+   // 6. Redirect edges to cloned function entry
+   if (!RedirectEdgeList(inEdges, cloneBlockMap[callee->entry()])) {
+      patch_printf("\t\tFailed to redirect edges to cloned entry\n");
       return false;
    }
 
    // 7. Move down SP to mimic the effect of a call instruction to stack
-   for (auto e : redges) {
+   for (auto e : inEdges) {
       if (e->interproc()) continue;
       auto p1 = patcher->findPoint(Location::EdgeInstance(caller, e), Point::EdgeDuring, true);
       Snippet::Ptr moveSPDown = AdjustSPSnippet::create(new AdjustSPSnippet(-8));
@@ -489,35 +527,180 @@ bool PatchModifier::inlineDirectCall(CFGMaker* cfgMaker, PatchMgr::Ptr patcher, 
       if (!hasTailCall) continue;
 
       auto p = patcher->findPoint(Location::InstructionInstance(caller, b, b->last()), Point::PreInsn, true);
-      Snippet::Ptr emulatedRA = EmulatedReturnAddressSnippet::create(new EmulatedReturnAddressSnippet(caller, call_ft_block));
+      Snippet::Ptr emulatedRA = EmulatedReturnAddressSnippet::create(new EmulatedReturnAddressSnippet(caller, returnTarget));
       p->pushBack(emulatedRA);
    }
    return true;
 }
 
+bool PatchModifier::inlineDirectCall(
+   CFGMaker* cfgMaker,
+   PatchMgr::Ptr patcher,
+   PatchFunction* caller,
+   PatchBlock* cb
+) {
+   patch_printf("Enter PatchModifier::inlineDirectCall: caller %s at %lx, call block [%lx, %lx)\n",
+     caller->name().c_str(), caller->addr(), cb->start(), cb->end());
+
+   PatchBlock* call_ft_block = GetCallFTBlock(cb);
+   if (call_ft_block == nullptr) {
+      patch_printf("\tcannot find call fallthrough block\n");
+      return false;
+   }
+
+   Address callee = 0;
+   for (auto e : cb->targets()) {
+      if (e->type() == ParseAPI::CALL) {
+         callee = e->trg()->start();
+         break;
+      }
+   }
+
+   std::vector<PatchEdge*> redges;
+   patch_printf("\tsplit call block and redirect edge for [%lx, %lx)\n", cb->start(), cb->end());
+   if (!SplitAndGetEdges(cb, redges)) {
+      patch_printf("\t\tfailed\n");
+      return false;
+   }
+   return InlineImpl(cfgMaker, patcher, caller, redges, callee, call_ft_block);
+}
+
+static std::map<Dyninst::MachRegister, asmjit::x86::Gp> dyninstToasmjitRegMap = {
+    {x86_64::rax, asmjit::x86::rax}, {x86_64::rbx, asmjit::x86::rbx}, {x86_64::rcx, asmjit::x86::rcx},
+    {x86_64::rdx, asmjit::x86::rdx}, {x86_64::rsp, asmjit::x86::rsp}, {x86_64::rbp, asmjit::x86::rbp},
+    {x86_64::rsi, asmjit::x86::rsi}, {x86_64::rdi, asmjit::x86::rdi}, {x86_64::r8, asmjit::x86::r8},
+    {x86_64::r9, asmjit::x86::r9},   {x86_64::r10, asmjit::x86::r10}, {x86_64::r11, asmjit::x86::r11},
+    {x86_64::r12, asmjit::x86::r12}, {x86_64::r13, asmjit::x86::r13}, {x86_64::r14, asmjit::x86::r14},
+    {x86_64::r15, asmjit::x86::r15}
+};
+
+#include "Visitor.h"
+#include "Expression.h"
+
 class IndirectCallInlineSnippet : public Dyninst::PatchAPI::Snippet {
- public:
-  explicit IndirectCallInlineSnippet(const InstructionAPI::Instruction &insn, const std::vector<Address> &addresses):
-   i(insn), addrs(addresses) {}
-  bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
-     unsigned char buffer[1024];
-     int size = 0;
-     // 48 a9 fe ff ff ff       test   $0xfffffffffffffffe,%rax
-     // 0f 85 d3 fe ff ff       jne    f897f
-     buffer[size++] = 0x48;
-     buffer[size++] = 0xa9;
-     *((uint32_t*)(&buffer[size])) = (uint32_t)addrs[0];
-     size += 4;
-     buffer[size++] = 0x0f;
-     buffer[size++] = 0x85;
-     *((uint32_t*)(&buffer[size])) = 2048;
-     size += 4;
-     buf.copy(buffer, size);
-     return true;
-  }
- private:
-  const InstructionAPI::Instruction& i;
-  const std::vector<Address>& addrs;
+   public:
+   explicit IndirectCallInlineSnippet(const InstructionAPI::Instruction &insn, const std::vector<Address> &addresses):
+      i(insn), addrs(addresses) {}
+   bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
+      AssemblerHolder ah;
+      asmjit::x86::Assembler* a = ah.GetAssembler();
+      asmjit::x86::Gp reg;
+
+      if (i.readsMemory()) {
+         reg = asmjit::x86::rax;
+         a->mov(asmjit::x86::rax, GetCallTargetMemory());
+      } else {
+         reg = GetCallTargetRegister();
+      }
+
+      for (auto addr : addrs) {
+         a->cmp(reg, addr);
+         // Provide a large displacment to ensure the
+         // target is outside the code region
+         a->je(2048);
+      }
+
+      a->call(reg);
+      return ah.CopyToDyninstBuffer(buf);
+   }
+   private:
+
+   const InstructionAPI::Instruction& i;
+   const std::vector<Address>& addrs;
+
+   class MemoryEffectiveAddressVisitor : public Dyninst::InstructionAPI::Visitor {
+      public:
+      virtual void visit(Dyninst::InstructionAPI::BinaryFunction* b) {
+         if(b->isAdd()) {
+            if (!immStack.empty()) {
+               a.setOffset(getLastImm());
+            }
+            if (!regStack.empty()) {
+               a.setBase(getLastReg());
+            }
+            if (!regStack.empty()) {
+               a.setIndex(getLastReg(), 0);
+            }
+         } else if(b->isMultiply()) {
+            assert(!immStack.empty());
+            assert(!regStack.empty());
+            long val = getLastImm();
+            int scale = 0;
+            switch (val) {
+               case 8: scale = 3; break;
+               case 4: scale = 2; break;
+               case 2: scale = 1; break;
+               case 1: scale = 0; break;
+               default: assert(0);
+            }
+            a.setIndex(getLastReg(), scale);
+         } else {
+            assert(0);
+         }
+      }
+      virtual void visit(Dyninst::InstructionAPI::Dereference*) {}
+      virtual void visit(Dyninst::InstructionAPI::Immediate* i) { immStack.emplace_back(i); }
+      virtual void visit(Dyninst::InstructionAPI::RegisterAST* r) {
+         assert(!r->getID().isPC());
+         regStack.emplace_back(r);
+      }
+      MemoryEffectiveAddressVisitor(asmjit::x86::Mem& access) : a(access) {}
+      void finalize() {
+         if (!regStack.empty()) {
+            a.setBase(getLastReg());
+         }
+      }
+      private:
+      asmjit::x86::Mem &a;
+
+      std::vector<Dyninst::InstructionAPI::Immediate*> immStack;
+      std::vector<Dyninst::InstructionAPI::RegisterAST*> regStack;
+
+      asmjit::x86::Gp getLastReg() {
+         Dyninst::InstructionAPI::RegisterAST* r = regStack.back();
+         regStack.pop_back();
+         auto rit = dyninstToasmjitRegMap.find(r->getID().getBaseRegister());
+         assert(rit != dyninstToasmjitRegMap.end());
+         return rit->second;
+      }
+
+      long getLastImm() {
+         Dyninst::InstructionAPI::Immediate* imm = immStack.back();
+         immStack.pop_back();
+         return imm->eval().convert<long>();
+      }
+   };
+
+   asmjit::x86::Gp GetCallTargetRegister() {
+      std::vector<Dyninst::InstructionAPI::Operand> ops;
+      i.getOperands(ops);
+      auto o = ops[0];
+
+      std::set<InstructionAPI::RegisterAST::Ptr> regsRead;
+      o.getReadSet(regsRead);
+      assert(regsRead.size() == 1);
+      for (auto r : regsRead) {
+         MachRegister reg = r->getID().getBaseRegister();
+         auto it = dyninstToasmjitRegMap.find(reg);
+         assert(it != dyninstToasmjitRegMap.end());
+         return it->second;
+      }
+      return asmjit::x86::Gp();
+   }
+
+   asmjit::x86::Mem GetCallTargetMemory() {
+      std::set<Dyninst::InstructionAPI::Expression::Ptr> memAccess;
+      i.getMemoryReadOperands(memAccess);
+      assert(memAccess.size() == 1);
+      for (auto m : memAccess) {
+         asmjit::x86::Mem a;
+         MemoryEffectiveAddressVisitor meav(a);
+         m->apply(&meav);
+         meav.finalize();
+         return a;
+      }
+      return asmjit::x86::Mem();
+   }
 };
 
 bool PatchModifier::inlineIndirectCall(
@@ -529,6 +712,11 @@ bool PatchModifier::inlineIndirectCall(
 )
 {
    patch_printf("Enter PatchModifier::inlineDirectCall\n");
+   PatchBlock* call_ft_block = GetCallFTBlock(cb);
+   if (call_ft_block == nullptr) {
+      patch_printf("\tcannot find call fallthrough block\n");
+      return false;
+   }
    // 1. Create indirect call inline dispatch code
    // and its corresponding CFG representation
    PatchBlock::Insns insns;
@@ -541,38 +729,54 @@ bool PatchModifier::inlineIndirectCall(
       patch_printf("\t\tincoming edge %p\n", e);
    }
    InsertedCode::Ptr indCallDispatch = PatchModifier::insert(caller->obj(), indSnippet, point);
-   patch_printf("\tafter insert dispatch code, call block range [%lx, %lx)\n", cb->start(), cb->end());
-   for (auto e: cb->sources()) {
-      patch_printf("\t\tincoming edge %p\n", e);
-   }
 
    // 2. Wire CFG
    for (auto b : indCallDispatch->blocks()) {
-      fprintf(stderr, "add block [%lx, %lx) to function %s at %lx\n",b->start(), b->end(), caller->name().c_str(), caller->addr());
       PatchModifier::addBlockToFunction(caller, b);
    }
 
    // 2.1 redirect control flow to dispatch code entry
    PatchBlock* dispatchEntry = indCallDispatch->entry();
    std::vector<PatchEdge*> redges;
-   PatchBlock* indCallBlock = nullptr;
-   if (!SplitAndRedirectEdges(cb, dispatchEntry, redges, indCallBlock)) {
+   if (!SplitAndGetEdges(cb, redges)) {
       patch_printf("\t\tfailed\n");
       return false;
    }
-   if (indCallBlock == nullptr) indCallBlock = cb;
+   if (!RedirectEdgeList(redges, dispatchEntry)) {
+      patch_printf("\t\tfailed to redirect edges\n");
+      return false;
+   }
 
-   // 2.2 redirect cond_not_taken edge to the original indirect call
-   for (auto e : indCallDispatch->exits()) {
-      if (e->type() == ParseAPI::COND_NOT_TAKEN) {
-         if (!PatchModifier::redirect(e, indCallBlock)) {
-            patch_printf("\t\tfail to redirect edge to indirect call block\n");
+   PatchBlock* cur = dispatchEntry;
+   for (auto addr: calleeAddrs) {
+      std::vector<PatchEdge*> entryEdges;
+      PatchBlock* next = nullptr;
+      for (auto e : cur->targets()) {
+         if (e->type() == ParseAPI::COND_TAKEN) {
+            entryEdges.emplace_back(e);
+            e->setTailCallOverride(false);
+         }
+         if (e->type() == ParseAPI::COND_NOT_TAKEN) {
+            next = e->trg();
+         }
+      }
+      assert(!entryEdges.empty());
+      if (!InlineImpl(cfgMaker, patcher, caller, entryEdges, addr, call_ft_block)) {
+         patch_printf("\t\tfailed to inline callee %lx\n", addr);
+         return false;
+      }
+      assert(next != nullptr);
+      cur = next;
+   }
+
+   for (auto e : cur->targets()) {
+      if (e->type() == ParseAPI::CALL_FT) {
+         if (!PatchModifier::redirect(e, call_ft_block)) {
+            patch_printf("\t\tfail to redirect edge to call ft block\n");
+            return false;
          }
       }
    }
-   patch_printf("\tinserted code entry block %p [%lx, %lx)\n", dispatchEntry, dispatchEntry->start(), dispatchEntry->end());
-   for (auto e : dispatchEntry->sources()) {
-      patch_printf("\t\tincoming edge %p\n", e);
-   }
+
    return true;
 }

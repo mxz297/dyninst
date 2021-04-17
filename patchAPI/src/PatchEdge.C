@@ -45,11 +45,13 @@ PatchEdge::create(ParseAPI::Edge *ie, PatchBlock *src, PatchBlock *trg) {
 PatchEdge::PatchEdge(ParseAPI::Edge *internalEdge,
                      PatchBlock *source,
                      PatchBlock *target)
-  : edge_(internalEdge), original_edge_(NULL), src_(source), trg_(target) {
+  : edge_(internalEdge), original_edge_(NULL), src_(source), trg_(target),
+  tailCallOverride_(false), tailCallOverrideVal_(false) {
 }
 
 PatchEdge::PatchEdge(PatchEdge *parent, PatchBlock *src, PatchBlock *trg)
-  : edge_(NULL), original_edge_(parent), src_(src), trg_(trg) {
+  : edge_(NULL), original_edge_(parent), src_(src), trg_(trg),
+  tailCallOverride_(false), tailCallOverrideVal_(false) {
 }
 
 PatchBlock*
@@ -99,6 +101,9 @@ PatchEdge::sinkEdge() {
 
 bool
 PatchEdge::interproc() const {
+    if (tailCallOverride_) {
+       return tailCallOverrideVal_;
+    }
     if (edge_ != NULL) {
   return edge_->interproc() ||
          (edge_->type() == ParseAPI::CALL) ||
@@ -149,4 +154,9 @@ std::string PatchEdge::format() const {
        << ParseAPI::format(type())
        << "}";
    return ret.str();
+}
+
+void PatchEdge::setTailCallOverride(bool val) {
+   tailCallOverride_ = true;
+   tailCallOverrideVal_ = val;
 }
