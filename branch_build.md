@@ -22,6 +22,16 @@ make install -j4
 cd ..
 ```
 
+# Build asmjit
+```
+git clone https://github.com/asmjit/asmjit.git
+cd asmjit
+mkdir -p install build
+cd build
+cmake -DCMAKE_CXX_FLAGS="-fPIC" -DASMJIT_BUILD_X86=ON -DASMJIT_STATIC=ON -DCMAKE_INSTALL_PREFIX=`pwd`/../install ..
+make install -j4
+cd ../..
+```
 # Build Dyninst
 
 ```
