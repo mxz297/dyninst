@@ -498,6 +498,11 @@ static bool InlineImpl(
       }
    }
 
+   bool newEntryHasIntraEdge = false;
+   for (auto e: cloneBlockMap[callee->entry()]->sources()) {
+      newEntryHasIntraEdge = true;
+   }
+
    // 6. Redirect edges to cloned function entry
    if (!RedirectEdgeList(inEdges, cloneBlockMap[callee->entry()])) {
       patch_printf("\t\tFailed to redirect edges to cloned entry\n");
@@ -505,9 +510,15 @@ static bool InlineImpl(
    }
 
    // 7. Move down SP to mimic the effect of a call instruction to stack
-   for (auto e : inEdges) {
-      if (e->interproc()) continue;
-      auto p1 = patcher->findPoint(Location::EdgeInstance(caller, e), Point::EdgeDuring, true);
+   if (newEntryHasIntraEdge) {
+      for (auto e : inEdges) {
+         if (e->interproc()) continue;
+         auto p1 = patcher->findPoint(Location::EdgeInstance(caller, e), Point::EdgeDuring, true);
+         Snippet::Ptr moveSPDown = AdjustSPSnippet::create(new AdjustSPSnippet(-8));
+         p1->pushBack(moveSPDown);
+      }
+   } else {
+      auto p1 = patcher->findPoint(Location::BlockInstance(caller, cloneBlockMap[callee->entry()]), Point::BlockEntry, true);
       Snippet::Ptr moveSPDown = AdjustSPSnippet::create(new AdjustSPSnippet(-8));
       p1->pushBack(moveSPDown);
    }
