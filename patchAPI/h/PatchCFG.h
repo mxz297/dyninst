@@ -163,6 +163,9 @@ class PATCHAPI_EXPORT PatchBlock {
    void markExceptionSafe() { isExceptionSafe_ = true; }
    bool isExceptionSafe() const { return isExceptionSafe_; }
 
+   void setAlignHint(bool val) { shouldAlign_ = val; }
+   bool getAlignHint() { return shouldAlign_; }
+
   protected:
     typedef enum {
       backwards,
@@ -185,6 +188,7 @@ class PATCHAPI_EXPORT PatchBlock {
     int cloneVersion_; 
 
     bool isExceptionSafe_;
+    bool shouldAlign_;
 };
 
 class PatchLoop;

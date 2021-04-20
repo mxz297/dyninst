@@ -146,11 +146,13 @@ static bool NeedAlignment(RelocBlock* rb) {
    // In addition, we want to align function entry at 16-byte boundary
    // for better instruction fetching
    bool potentialEntry = (static_cast<block_instance*>(rb->func()->entry()) == b);
-   if (!potentialEntry) return false;
-   for (auto e : rb->ins()->edges) {
-      if (e->edge == nullptr) return false;
+   if (potentialEntry) {
+      for (auto e : rb->ins()->edges) {
+         if (e->edge == nullptr) return false;
+      }
+      return true;
    }
-   return true;
+   return b->getAlignHint();
 }
 
 bool CodeMover::initialize(const codeGen &templ) {

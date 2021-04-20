@@ -497,14 +497,16 @@ static bool InlineImpl(
          p2->pushBack(moveSPUp);
       }
    }
-
+   
+   PatchBlock* newEntry = cloneBlockMap[callee->entry()];
+   newEntry->setAlignHint(true);
    bool newEntryHasIntraEdge = false;
-   for (auto e: cloneBlockMap[callee->entry()]->sources()) {
+   for (auto e: newEntry->sources()) {
       newEntryHasIntraEdge = true;
    }
 
    // 6. Redirect edges to cloned function entry
-   if (!RedirectEdgeList(inEdges, cloneBlockMap[callee->entry()])) {
+   if (!RedirectEdgeList(inEdges, newEntry)) {
       patch_printf("\t\tFailed to redirect edges to cloned entry\n");
       return false;
    }
@@ -777,6 +779,7 @@ bool PatchModifier::inlineIndirectCall(
 
    // 2.1 redirect control flow to dispatch code entry
    PatchBlock* dispatchEntry = indCallDispatch->entry();
+   dispatchEntry->setAlignHint(true);
    std::vector<PatchEdge*> redges;
    if (!SplitAndGetEdges(cb, redges)) {
       patch_printf("\t\tfailed\n");
