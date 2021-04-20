@@ -1,28 +1,28 @@
 /*
  * See the dyninst/COPYRIGHT file for copyright information.
- * 
+ *
  * We provide the Paradyn Tools (below described as "Paradyn")
  * on an AS IS basis, and do not warrant its validity or performance.
  * We reserve the right to update, modify, or discontinue this
  * software at any time.  We shall have no obligation to supply such
  * updates or modifications or any other form of support to you.
- * 
+ *
  * By your use of Paradyn, you understand and agree that we (or any
  * other person or entity with proprietary rights in Paradyn) are
  * under no obligation to provide either maintenance services,
  * update services, notices of latent defects, or correction of
  * defects for Paradyn.
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
- * 
+ *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
@@ -62,18 +62,18 @@ CodeMover::Ptr CodeMover::create(AddressSpace*as, CodeTracker *t) {
 
    // Make a CodeMover
    Ptr ret = Ptr(new CodeMover(as, t));
-   if (!ret) 
+   if (!ret)
       return Ptr();
 
    return ret;
-}  
+}
 
 CodeMover::~CodeMover() {
    delete cfg_;
    // Do not delete codeTracker
 }
 
-bool CodeMover::addFunctions(FuncSetOrderdByLayout::const_iterator begin, 
+bool CodeMover::addFunctions(FuncSetOrderdByLayout::const_iterator begin,
 			     FuncSetOrderdByLayout::const_iterator end) {
    // A vector of Functions is just an extended vector of basic blocks...
    for (; begin != end; ++begin) {
@@ -119,7 +119,7 @@ void CodeMover::finalizeRelocBlocks() {
 
    OptimizeSpringboards();
 }
-   
+
 
 
 ///////////////////////
@@ -129,11 +129,28 @@ bool CodeMover::transform(Transformer &t) {
    if (!finalized_)
       finalizeRelocBlocks();
 
-   bool ret = true; 
+   bool ret = true;
 
    t.processGraph(cfg_);
 
    return ret;
+}
+
+static bool NeedAlignment(RelocBlock* rb) {
+   block_instance* b = rb->block();
+
+   // GNU member function pointer implementation requires
+   // a function starting at an even address. This is needed
+   // for relocating function pointers in code and data sections
+
+   // In addition, we want to align function entry at 16-byte boundary
+   // for better instruction fetching
+   bool potentialEntry = (static_cast<block_instance*>(rb->func()->entry()) == b);
+   if (!potentialEntry) return false;
+   for (auto e : rb->ins()->edges) {
+      if (e->edge == nullptr) return false;
+   }
+   return true;
 }
 
 bool CodeMover::initialize(const codeGen &templ) {
@@ -142,18 +159,15 @@ bool CodeMover::initialize(const codeGen &templ) {
    // If they never called transform() this can get missed.
    if (!finalized_)
       finalizeRelocBlocks();
-   
+
    // Tell all the blocks to do their generation thang...
    for (RelocBlock *iter = cfg_->begin(); iter != cfg_->end(); iter = iter->next()) {
       if (!iter->finalizeCF()) return false;
       RelocBlock* rb = iter;
-      // GNU member function pointer implementation requires
-      // a function starting at an even address. This is needed 
-      // for relocating function pointers in code and data sections
-      if (static_cast<block_instance*>(rb->func()->entry()) == rb->block()) {
-          buffer_.addPatch(new AlignmentPatch(1), NULL);
+      if (NeedAlignment(rb)) {
+          buffer_.addPatch(new AlignmentPatch(4), NULL);
       }
-      
+
       if (!iter->generate(templ, buffer_)) {
          cerr << "ERROR: failed to generate RelocBlock!" << endl;
          return false; // Catastrophic failure
@@ -163,12 +177,12 @@ bool CodeMover::initialize(const codeGen &templ) {
 }
 
 // And now the fun begins
-// 
+//
 // We wish to minimize the space required by the relocated code. Since some platforms
 // may have varying space requirements for certain instructions (e.g., branches) this
 // requires a fixpoint calculation. We start with the original size and increase from
-// there. 
-// 
+// there.
+//
 // Reasons for size increase:
 //   1) Instrumentation. It tends to use room. Odd.
 //   2) Transformed instructions. We may need to replace a single instruction with a
@@ -183,7 +197,7 @@ bool CodeMover::relocate(Address addr) {
    return true;
 }
 
-bool CodeMover::finalize() {     
+bool CodeMover::finalize() {
    buffer_.extractTrackers(tracker_);
    return true;
 }
@@ -214,7 +228,7 @@ PriorityMap &CodeMover::priorityMap() {
 
 SpringboardMap &CodeMover::sBoardMap(AddressSpace *) {
    // Take the current PriorityMap, digest it,
-   // and return a sorted list of where we need 
+   // and return a sorted list of where we need
    // patches (from and to)
 
    relocation_cerr << "Creating springboard request map" << endl;
@@ -226,8 +240,8 @@ SpringboardMap &CodeMover::sBoardMap(AddressSpace *) {
          const Priority &p = iter->second;
          func_instance *func = iter->first.second;
 
-	 relocation_cerr << "Func " << func->symTabName() << " / block " 
-			 << hex << bbl->start() << " /w/ priority " << p 
+	 relocation_cerr << "Func " << func->symTabName() << " / block "
+			 << hex << bbl->start() << " /w/ priority " << p
 			 << dec << endl;
 
          if (bbl->wasUserAdded()) continue;
@@ -238,7 +252,7 @@ SpringboardMap &CodeMover::sBoardMap(AddressSpace *) {
          if (!trace) continue;
          int labelID = trace->getLabel();
          Address to = buffer_.getLabelAddr(labelID);
-         if (bbl->_ignorePowerPreamble) { 
+         if (bbl->_ignorePowerPreamble) {
              relocation_cerr << "\t" << hex << "springboard target " << bbl->start() + 0x8 << endl;
              sboardMap_.addFromOrigCode(bbl->start() + 0x8, to, p, func, bbl);
          }
@@ -250,7 +264,7 @@ SpringboardMap &CodeMover::sBoardMap(AddressSpace *) {
                  for (auto & it : insns) {
                      if (it.second.getOperation().getID() == e_nop) {
                          relocation_cerr << "skip nop at function entry block at " << std::hex << it.first << std::dec << endl;
-                         from += it.second.size();                         
+                         from += it.second.size();
                      }
                      break;
                  }
@@ -259,7 +273,7 @@ SpringboardMap &CodeMover::sBoardMap(AddressSpace *) {
              sboardMap_.addFromOrigCode(from, to, p, func, bbl);
          }
       }
-      
+
       // And instrumentation that needs updating
       //createInstrumentationSpringboards(as);
    }
@@ -269,7 +283,7 @@ SpringboardMap &CodeMover::sBoardMap(AddressSpace *) {
 
 string CodeMover::format() const {
    stringstream ret;
-  
+
    ret << "CodeMover() {" << endl;
 
    for (RelocBlock *iter = cfg_->begin(); iter != cfg_->end(); iter = iter->next()) {
@@ -309,7 +323,7 @@ void CodeMover::OptimizeSpringboards() {
             block_instance* b = dynamic_cast<block_instance*>(bit);
             if (trampolineLocs.find(b) != trampolineLocs.end()) continue;
             springboard_cerr << "identify safe block " << hex << b->start() << " - " << b->end() << dec << endl;
-            safeBlocks.insert(b);            
+            safeBlocks.insert(b);
         }
         f->setSafeBlocks(safeBlocks);
     }
@@ -343,7 +357,7 @@ void CodeMover::refillSafeBlockWithInvalidInsns(block_instance* b) {
 }
 
 bool CodeMover::canRemoveTrampoline(block_instance* b, const set<block_instance*>& tBlocks) {
-    springboard_cerr << "canRemoveTrampoline " << hex << b->start() << " - " << b->end() << dec << endl;                               
+    springboard_cerr << "canRemoveTrampoline " << hex << b->start() << " - " << b->end() << dec << endl;
     set<block_instance*> visited;
     return ReverseDFS(b, b, visited, tBlocks);
 }
@@ -352,15 +366,15 @@ bool CodeMover::ReverseDFS(block_instance* cur,
                            block_instance* origin,
                            set<block_instance*> &visited,
                            const set<block_instance*> &tBlocks) {
-    springboard_cerr << "\tReverseDFS " << hex << cur->start() << " - " << cur->end() << dec << endl;                               
+    springboard_cerr << "\tReverseDFS " << hex << cur->start() << " - " << cur->end() << dec << endl;
     if (cur != origin) {
         if (tBlocks.find(cur) != tBlocks.end()) {
-            springboard_cerr << "\t\t trampoline block " << hex << cur->start() << " - " << cur->end() << dec << endl;                               
+            springboard_cerr << "\t\t trampoline block " << hex << cur->start() << " - " << cur->end() << dec << endl;
             return true;
         }
     }
     if (visited.find(cur) != visited.end()) {
-        springboard_cerr << "\t\t visited block " << hex << cur->start() << " - " << cur->end() << dec << endl;                               
+        springboard_cerr << "\t\t visited block " << hex << cur->start() << " - " << cur->end() << dec << endl;
         return true;
     }
     visited.insert(cur);
@@ -389,9 +403,9 @@ bool CodeMover::ReverseDFS(block_instance* cur,
     return ret;
 }
 
-bool CodeMover::canMoveTrampoline(block_instance* cur, 
+bool CodeMover::canMoveTrampoline(block_instance* cur,
         block_instance* origin,
-        set<block_instance*> &newLocs, 
+        set<block_instance*> &newLocs,
         set<block_instance*> &tBlocks,
         set<block_instance*> &visited) {
     if (cur->end() - cur->start() >= 5) {
