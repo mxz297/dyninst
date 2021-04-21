@@ -53,7 +53,7 @@ PatchBlock::PatchBlock(ParseAPI::Block *blk, PatchObject *obj)
 }
 
 PatchBlock::PatchBlock(const PatchBlock *parent, PatchObject *child)
-  : block_(parent->block_), obj_(child), cloneVersion_(0), shouldAlign_(false) {
+  : block_(parent->block_), obj_(child), cloneVersion_(0), shouldAlign_(parent->shouldAlign_) {
    isExceptionSafe_ = parent->isExceptionSafe_;
 }
 

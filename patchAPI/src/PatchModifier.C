@@ -353,8 +353,6 @@ bool AssemblerHolder::CopyToDyninstBuffer(Dyninst::Buffer &buf) {
    return true;
 }
 
-static int version;
-
 #include "Snippet.h"
 class AdjustSPSnippet : public Dyninst::PatchAPI::Snippet {
    public:
@@ -385,10 +383,83 @@ class EmulatedReturnAddressSnippet : public Dyninst::PatchAPI::Snippet {
       return true;
    }
 
+   PatchBlock* getBlock() { return b; }
+
    private:
    PatchFunction *f;
    PatchBlock* b;
 };
+
+static std::map<Address, int> versionNumberMap;
+using InlineInstrumentationData = struct {
+   std::set<PatchBlock*> spMoveDownBlock;
+   std::set<PatchEdge*> spMoveDownEdge;
+   std::set<PatchEdge*> spMoveUpEdge;
+   std::set<std::pair<PatchBlock*, PatchBlock*> > tailCallBlock;
+};
+static std::map<PatchFunction*, InlineInstrumentationData> inlineInstData;
+
+static PatchEdge* LookupNewEdge(PatchEdge* e, std::map<PatchBlock*, PatchBlock*>& blockMap) {
+   PatchBlock* newSrc = blockMap[e->src()];
+   assert(newSrc != nullptr);
+   PatchBlock* newTrg = blockMap[e->trg()];
+   assert(newTrg != nullptr);
+   for (auto e1 : newSrc->targets()) {
+      if (e1->trg() == newTrg) {
+         return e1;
+      }
+   }
+   return nullptr;
+}
+
+static void CopyInlineInstrumentation(
+   PatchFunction* caller,
+   PatchFunction* callee,
+   std::map<PatchBlock*, PatchBlock*>& blockMap,
+   PatchMgr::Ptr patcher) {
+   auto calleeDataIt = inlineInstData.find(callee);
+   if (calleeDataIt == inlineInstData.end()) return;
+   InlineInstrumentationData &calleeData = calleeDataIt->second;
+   InlineInstrumentationData &callerData = inlineInstData[caller];
+
+   for (auto b : calleeData.spMoveDownBlock) {
+      PatchBlock* newB = blockMap[b];
+      assert(newB != nullptr);
+      auto p = patcher->findPoint(Location::BlockInstance(caller, newB), Point::BlockEntry, true);
+      Snippet::Ptr moveSPDown = AdjustSPSnippet::create(new AdjustSPSnippet(-8));
+      p->pushBack(moveSPDown);
+      callerData.spMoveDownBlock.insert(newB);
+   }
+
+   for (auto e : calleeData.spMoveDownEdge) {
+      PatchEdge *newE = LookupNewEdge(e, blockMap);
+      assert(newE != nullptr);
+      auto p = patcher->findPoint(Location::EdgeInstance(caller, newE), Point::EdgeDuring, true);
+      Snippet::Ptr moveSPDown = AdjustSPSnippet::create(new AdjustSPSnippet(-8));
+      p->pushBack(moveSPDown);
+      callerData.spMoveDownEdge.insert(newE);
+   }
+
+   for (auto e: calleeData.spMoveUpEdge) {
+      PatchEdge *newE = LookupNewEdge(e, blockMap);
+      assert(newE != nullptr);
+      auto p = patcher->findPoint(Location::EdgeInstance(caller, newE), Point::EdgeDuring, true);
+      Snippet::Ptr moveSPUp = AdjustSPSnippet::create(new AdjustSPSnippet(8));
+      p->pushBack(moveSPUp);
+      callerData.spMoveUpEdge.insert(newE);
+   }
+
+   for (auto bPair: calleeData.tailCallBlock) {
+      PatchBlock* newB = blockMap[bPair.first];
+      assert(newB != nullptr);
+      PatchBlock* newReturnTarget = blockMap[bPair.second];
+      assert(newReturnTarget != nullptr);
+      auto p = patcher->findPoint(Location::InstructionInstance(caller, newB, newB->last()), Point::PreInsn, true);
+      Snippet::Ptr emulatedRA = EmulatedReturnAddressSnippet::create(new EmulatedReturnAddressSnippet(caller, newReturnTarget));
+      p->pushBack(emulatedRA);
+      callerData.tailCallBlock.insert(std::make_pair(newB, newReturnTarget));
+   }
+}
 
 static bool InlineImpl(
    CFGMaker * cfgMaker,
@@ -398,7 +469,6 @@ static bool InlineImpl(
    Address calleeAddr,
    PatchBlock* returnTarget
 ) {
-   version += 1;
    // 1. Find the callee function
    PatchObject* po = caller->obj();
    PatchFunction* callee = po->getFunc(po->co()->findFuncByEntry(caller->entry()->block()->region(), calleeAddr));
@@ -419,9 +489,14 @@ static bool InlineImpl(
    std::vector<PatchBlock*> newBlocks;
    for (auto b : callee->blocks()) {
       PatchBlock* cloneB = cfgMaker->cloneBlock(b, b->object());
+      int version = versionNumberMap[b->start()] + 1;
       cloneB->setCloneVersion(version);
+      versionNumberMap[b->start()] = version;
       cloneBlockMap[b] = cloneB;
       newBlocks.emplace_back(cloneB);
+      if (caller->addr() == 0x4edba0) {
+         fprintf(stderr, "add clone %p [%lx, %lx) to caller %lx\n", cloneB, cloneB->start(), cloneB->end(), caller->addr());
+      }
       PatchModifier::addBlockToFunction(caller, cloneB);
    }
 
@@ -495,9 +570,10 @@ static bool InlineImpl(
          auto p2 = patcher->findPoint(Location::EdgeInstance(caller, e), Point::EdgeDuring, true);
          Snippet::Ptr moveSPUp = AdjustSPSnippet::create(new AdjustSPSnippet(8));
          p2->pushBack(moveSPUp);
+         inlineInstData[caller].spMoveUpEdge.insert(e);
       }
    }
-   
+
    PatchBlock* newEntry = cloneBlockMap[callee->entry()];
    newEntry->setAlignHint(true);
    bool newEntryHasIntraEdge = false;
@@ -518,11 +594,13 @@ static bool InlineImpl(
          auto p1 = patcher->findPoint(Location::EdgeInstance(caller, e), Point::EdgeDuring, true);
          Snippet::Ptr moveSPDown = AdjustSPSnippet::create(new AdjustSPSnippet(-8));
          p1->pushBack(moveSPDown);
+         inlineInstData[caller].spMoveDownEdge.insert(e);
       }
    } else {
-      auto p1 = patcher->findPoint(Location::BlockInstance(caller, cloneBlockMap[callee->entry()]), Point::BlockEntry, true);
+      auto p1 = patcher->findPoint(Location::BlockInstance(caller, newEntry), Point::BlockEntry, true);
       Snippet::Ptr moveSPDown = AdjustSPSnippet::create(new AdjustSPSnippet(-8));
       p1->pushBack(moveSPDown);
+      inlineInstData[caller].spMoveDownBlock.insert(newEntry);
    }
 
    // 8. Insert snippets to push orignial return address for tail calls
@@ -542,7 +620,13 @@ static bool InlineImpl(
       auto p = patcher->findPoint(Location::InstructionInstance(caller, b, b->last()), Point::PreInsn, true);
       Snippet::Ptr emulatedRA = EmulatedReturnAddressSnippet::create(new EmulatedReturnAddressSnippet(caller, returnTarget));
       p->pushBack(emulatedRA);
+      inlineInstData[caller].tailCallBlock.insert(std::make_pair(b, returnTarget));
    }
+
+   // 9. The callee may contain other inlined functions.
+   // So the callee can have instrumentation. Block clone
+   // does not copy instrumentation. We explicitly copy all
+   CopyInlineInstrumentation(caller, callee, cloneBlockMap, patcher);
    return true;
 }
 
