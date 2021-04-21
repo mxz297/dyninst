@@ -494,9 +494,6 @@ static bool InlineImpl(
       versionNumberMap[b->start()] = version;
       cloneBlockMap[b] = cloneB;
       newBlocks.emplace_back(cloneB);
-      if (caller->addr() == 0x4edba0) {
-         fprintf(stderr, "add clone %p [%lx, %lx) to caller %lx\n", cloneB, cloneB->start(), cloneB->end(), caller->addr());
-      }
       PatchModifier::addBlockToFunction(caller, cloneB);
    }
 
