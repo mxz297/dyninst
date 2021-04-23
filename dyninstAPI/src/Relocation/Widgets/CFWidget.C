@@ -31,6 +31,7 @@
 #include "CFWidget.h"
 #include "Widget.h"
 #include "../CFG/RelocTarget.h"
+#include "AlignmentPatch.h"
 
 #include "instructionAPI/h/Instruction.h"
 #include "dyninstAPI/src/BPatch_memoryAccessAdapter.h"
@@ -222,6 +223,7 @@ bool CFWidget::generate(const codeGen &templ,
                                 fallthrough)) {
                return false;
             }
+            buffer.addPatch(new AlignmentPatch(4), NULL);
          }
          else {
             relocation_cerr << "    target reported unnecessary" << endl;
@@ -297,11 +299,14 @@ bool CFWidget::generate(const codeGen &templ,
                                    trace,
                                    true)) 
                   return false;
+            } else {
+               buffer.addPatch(new AlignmentPatch(4), NULL);
             }
          }
          else {
             if (!generateIndirect(buffer, reg, trace, insn_))
                return false;
+            buffer.addPatch(new AlignmentPatch(4), NULL);
          }
          break;
       }
