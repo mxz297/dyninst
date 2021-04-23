@@ -1748,7 +1748,7 @@ bool AddressSpace::relocate() {
         Address addr = labelIt.first;
         func_instance* func = static_cast<func_instance*>(labelIt.second.first);
         block_instance* block = static_cast<block_instance*>(labelIt.second.second);
-        Address targetAddr = getRelocPreAddr(block->start(), block, func);
+        Address targetAddr = getRelocPreAddr(block->start(), block, func, true);
         uint32_t val = (uint32_t)targetAddr;
         relocation_cerr << "Generate PatchLabel " << std::hex << addr << ", val " << val << endl;
         writeTextSpace((void*)addr, 4, &val);
@@ -2098,7 +2098,7 @@ void AddressSpace::getRelocAddrs(Address orig,
   }
 }
 
-Address AddressSpace::getRelocPreAddr(Address orig, block_instance* block, func_instance* func) {
+Address AddressSpace::getRelocPreAddr(Address orig, block_instance* block, func_instance* func, bool incInst) {
   for (CodeTrackers::const_iterator iter = relocatedCode_.begin();
        iter != relocatedCode_.end(); ++iter) {
     Relocation::CodeTracker::RelocatedElements reloc;
@@ -2111,7 +2111,7 @@ Address AddressSpace::getRelocPreAddr(Address orig, block_instance* block, func_
                     t == PatchAPI::Point::PreInsn)
                 preAddrInst = iter2->second;
         }
-        if (preAddrInst) return preAddrInst;
+        if (preAddrInst && incInst) return preAddrInst;
         return reloc.instruction;
     }
   }

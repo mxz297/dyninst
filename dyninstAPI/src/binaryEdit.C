@@ -1278,5 +1278,5 @@ bool BinaryEdit::isGoBinary() {
 Address BinaryEdit::getRelocatedFunctionEntry(Address entry) {
     func_instance *f = findFuncByEntry(entry);
     if (f == NULL) return 0;
-    return getRelocPreAddr(entry, f->entryBlock(), f);
+    return getRelocPreAddr(entry, f->entryBlock(), f, true);
 }

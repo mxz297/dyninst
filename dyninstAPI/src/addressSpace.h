@@ -458,11 +458,10 @@ class AddressSpace : public InstructionSource {
 
 
     // Get the address in the relocated code correpsonding
-    // to the given original address. This function returns
-    // the address used for jump table relocation.
-    // So, the returned address should return pre-address 
-    // instrumentation address if there is  or instruction address.
-    Address getRelocPreAddr(Address, block_instance*, func_instance*);
+    // to the given original address. The last parameter determines
+    // whether the target should be pre-instrumentatino address
+    // or post-instrumentation address.
+    Address getRelocPreAddr(Address, block_instance*, func_instance*, bool);
 
     bool getAddrInfo(Address relocAddr,//input
                      Address &origAddr,

@@ -196,13 +196,18 @@ void JumpTableMover::fillNewTableEntries(codeGen& gen, Address jumpAddr, int ind
 Address JumpTableMover::findRelocatedVersionedAddress(func_instance* func, int version, Address orig) {
     block_instance* block = func->getBlock(orig, version);
     if (block == NULL) return 0;
-    return as->getRelocPreAddr(orig, block, func);
+    // We try to find the exact indirect jump instruction,
+    // so we pass false as the last parameter to skip potential
+    // instrumentation.
+    return as->getRelocPreAddr(orig, block, func, false);
 }
 
 Address JumpTableMover::findRelocatedBlockStart(func_instance* func, PatchAPI::PatchBlock* b) {
     block_instance* block = static_cast<block_instance*>(b);
     if (block == NULL) return 0;
-    return as->getRelocPreAddr(block->start(), block, func);
+    // When finding the start of a relocated block, we need to include
+    // potential instrumentation.
+    return as->getRelocPreAddr(block->start(), block, func, true);
 }
 
 static bool insnReadsPC(const InstructionAPI::Instruction& i) {
