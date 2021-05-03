@@ -208,6 +208,7 @@ class BPATCH_DLL_EXPORT BPatch {
 
    bool relocJumpTable;
    bool relocFuncPointer;
+   bool writeProfileMap;
    const char* mappingFilePath;
 
    public:  
@@ -698,6 +699,8 @@ public:
     void setRelocateJumpTable(bool);
     bool relocateFunctionPointer();
     void setRelocateFunctionPointer(bool);
+    bool writeAddressMappingForProfile();
+    void setWriteAdressMappingForProfile(bool);
 
     void setMappingFilePath(const char*);
     const char* getMappingFilePath();

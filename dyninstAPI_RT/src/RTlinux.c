@@ -414,10 +414,15 @@ void dyninstTrapHandler(int sig, siginfo_t *sg, ucontext_t *context)
                                      &dyninstTrapTableIsSorted);
 
    }
-   if (trap_to == NULL) {
-       fprintf(stderr, "original ip %p\n", orig_ip);
-       assert(0);
-       //if (user_trap_handler != NULL) (*user_trap_handler)(SIGILL);
+   if (trap_to == NULL) {       
+       //assert(0);
+       if (user_trap_handler != NULL) {
+          (*user_trap_handler)(sig);
+       } else if (user_sigill_info.sa_flags & SA_SIGINFO) {
+          (*user_sigill_info.sa_sigaction)(sig, sg, context);
+       } else {
+          (*user_sigill_info.sa_handler)(sig);
+       }
    } else {
        UC_PC(context) = (long) trap_to;
    }

@@ -696,7 +696,7 @@ private:
 
 
   // Assignments map to unique slice nodes
-  std::unordered_map<AssignmentPtr, SliceNode::Ptr, Assignment::AssignmentPtrHasher> created_;
+  std::map<AssignmentPtr, SliceNode::Ptr, AssignmentPtrValueComp> created_;
 
   // cache to prevent edge duplication
   struct EdgeTupleHasher {

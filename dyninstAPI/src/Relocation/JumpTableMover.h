@@ -33,9 +33,9 @@ private:
     Address findRelocatedBlockStart(func_instance*, PatchAPI::PatchBlock*);
     void moveOneJumpTable(func_instance*, PatchAPI::PatchBlock*, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
     bool computeNewTableEntries(func_instance*, PatchAPI::PatchBlock*, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
-    void fillNewTableEntries(codeGen&, Address, int);
+    void fillNewTableEntries(codeGen&, Address, int, int64_t);
     bool modifyJumpTargetBaseInstructions(func_instance*, int, Address, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
-    bool modifyJumpTableBaseInstructions(func_instance*, int, Address, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
+    bool modifyJumpTableBaseInstructions(func_instance*, int, Address, const PatchAPI::PatchFunction::PatchJumpTableInstance&, int64_t&);
     void setupRelocationEntries();
     bool checkFitInAndAdjust(Address&, const PatchAPI::PatchFunction::PatchJumpTableInstance&);
     

@@ -758,7 +758,7 @@ DLLEXPORT void DYNINSTtrapFunction(){
 #include <asm/prctl.h>
 #include <sys/syscall.h>
 #include <sys/prctl.h>
-#define SHADOW_REGION_SIZE 1024 * 1024
+#define SHADOW_REGION_SIZE 4 * 1024 * 1024
 DLLEXPORT void DYNINSTShadowRegion() {
   if (getenv("DYNINST_RT_NO_SHADOW_REGION")) return;
   unsigned long addr = (unsigned long)malloc(SHADOW_REGION_SIZE);

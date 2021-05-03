@@ -15,8 +15,8 @@ JumpTableFormatPred::JumpTableFormatPred(ParseAPI::Function *f,
 					 ReachFact &r,
 					 ThunkData &t,
 					 SymbolicExpression &sym):
-      func(f), block(b), rf(r), thunks(t), se(sym){
-    jumpTableFormat = true;
+      func(f), block(b), rf(r), thunks(t), se(sym){ 
+	parsing_printf("Initialize JumpTableFormatPred\n");
     findIndex = false;
     findTableBase = false;
     firstMemoryRead = true;
@@ -80,8 +80,7 @@ static int CountInDegree(SliceNode::Ptr n) {
     return count;
 }
 
-bool JumpTableFormatPred::modifyCurrentFrame(Slicer::SliceFrame &frame, Graph::Ptr g, Slicer* s) {
-    if (!jumpTableFormat) return false;
+bool JumpTableFormatPred::modifyCurrentFrame(Slicer::SliceFrame &frame, Graph::Ptr g, Slicer* s) {    
 
     /* We start to inspect the current slice graph.
      * 1. If we have determined the jump table format, we can stop this slice.
@@ -94,7 +93,8 @@ bool JumpTableFormatPred::modifyCurrentFrame(Slicer::SliceFrame &frame, Graph::P
     queue<SliceNode::Ptr> working_list;
     unordered_set<Assignment::Ptr, Assignment::AssignmentPtrHasher> inQueue;
     NodeIterator nbegin, nend; 
-    
+
+	parsing_printf("Enter JumpTableFormatPred::modifyCurrentFrame, graph size %u\n", g->size());
     bool setFirstMemoryRead = false;
 
     g->adjustEntryAndExitNodes();
@@ -122,8 +122,7 @@ bool JumpTableFormatPred::modifyCurrentFrame(Slicer::SliceFrame &frame, Graph::P
 		SliceNode::Ptr readNode;
 		parsing_printf("\t\tfind another memory read %s %s\n", rit->first.format().c_str(), rit->second[0].ptr->format().c_str());
 		if (!findRead(g, readNode)) {
-		    parsing_printf("\tWARNING: a potential memory spill cannot be handled.\n");
-		    jumpTableFormat = false;
+		    parsing_printf("\tWARNING: a potential memory spill cannot be handled.\n");		    
 		    return false;
 		}
 		if (isTOCRead(frame, readNode)) {
@@ -135,8 +134,10 @@ bool JumpTableFormatPred::modifyCurrentFrame(Slicer::SliceFrame &frame, Graph::P
 		//    through memoery operand ast matching
 		// 3. change the slicing location and add back the source
 		if (!adjustSliceFrame(frame, readNode, s)) {
-		    parsing_printf("Cannot track through the memory read\n");
-		    jumpTableFormat = false;
+			g->deleteNode(readNode);
+		    parsing_printf("Cannot track through the memory read\n");	
+			parsing_printf("\tdelete node at %lx, %s, graph size %u\n", readNode->addr(), readNode->assign()->insn().format().c_str(), g->size());
+			frame.active.clear();
 		    return false;
 		}
 		g->deleteNode(readNode);
@@ -172,8 +173,7 @@ bool JumpTableFormatPred::modifyCurrentFrame(Slicer::SliceFrame &frame, Graph::P
 	    continue;
 	}
 	if (exprs.find(n->assign()) != exprs.end()) {
-	    parsing_printf("\tWARNING: Jump table format slice contains cycle!\n");
-	    jumpTableFormat = false;
+	    parsing_printf("\tWARNING: Jump table format slice contains cycle!\n");	    
 	    return false;
 	}
 
@@ -192,8 +192,7 @@ bool JumpTableFormatPred::modifyCurrentFrame(Slicer::SliceFrame &frame, Graph::P
 	    return false;
 	}
 	if (n->assign()->out().generator() != NULL) {
-	    parsing_printf("\tWARNING: Jump table format slice contains writes to memory\n");
-	    jumpTableFormat = false;
+	    parsing_printf("\tWARNING: Jump table format slice contains writes to memory\n");	    
 	    return false;
 	}
 
@@ -219,8 +218,7 @@ bool JumpTableFormatPred::modifyCurrentFrame(Slicer::SliceFrame &frame, Graph::P
 	    SliceNode::Ptr p = boost::static_pointer_cast<SliceNode>(*nbegin);
 
 	    if (exprs.find(p->assign()) == exprs.end()) {
-	        parsing_printf("\tWARNING: For %s, its predecessor %s does not have an expression\n", n->assign()->format().c_str(), p->assign()->format().c_str());
-		jumpTableFormat = false;
+	        parsing_printf("\tWARNING: For %s, its predecessor %s does not have an expression\n", n->assign()->format().c_str(), p->assign()->format().c_str());		
 		return false;
 	    }
 	    AST::Ptr rhs = exprs[p->assign()];	    
@@ -275,8 +273,7 @@ bool JumpTableFormatPred::modifyCurrentFrame(Slicer::SliceFrame &frame, Graph::P
 		break;
 	    }
 	    if (nonConstant > 1) {
-	        parsing_printf("Find %d different jump target formats\n", nonConstant);
-		jumpTableFormat = false;
+	        parsing_printf("Find %d different jump target formats\n", nonConstant);		
 		return false;
 	    } else if (nonConstant == 0) {
 	        parsing_printf("Only constant target values found so far, no need to check jump target format\n");
@@ -301,8 +298,7 @@ bool JumpTableFormatPred::modifyCurrentFrame(Slicer::SliceFrame &frame, Graph::P
 	}
     }
     if (!jumpTarget) {
-        parsing_printf("\t Do not find a potential jump target expression\n");
-	jumpTableFormat = false;
+        parsing_printf("\t Do not find a potential jump target expression\n");	
 	return false;
 
     }
@@ -311,15 +307,13 @@ bool JumpTableFormatPred::modifyCurrentFrame(Slicer::SliceFrame &frame, Graph::P
     jumpTarget = se.SimplifyAnAST(jumpTarget, 0, true);
     parsing_printf("Check expression %s\n", jumpTarget->format().c_str());    
     jumpTarget->accept(&jtfv);
-    if (jtfv.findIncorrectFormat) {
-        jumpTableFormat = false;
+    if (jtfv.findIncorrectFormat) {        
 	return false;
     }
     
     if (!findIndex && jtfv.findIndex) {
 	if (frame.active.find(jtfv.index) == frame.active.end()) {
-	    parsing_printf("\tWARNING: found index variable %s, but it is not in the active map of the slice frame!\n", index.format().c_str());
-	    jumpTableFormat = false;
+	    parsing_printf("\tWARNING: found index variable %s, but it is not in the active map of the slice frame!\n", index.format().c_str());	    
 	    return false;
 	}
 	if (frame.active[jtfv.index].size() > 1) {

@@ -551,7 +551,10 @@ bool BinaryEdit::writeFile(const std::string &newFileName)
       }
 
       buildRAMapping();
-      buildRelocatedCodeMapping();
+      if (BPatch::bpatch->writeAddressMappingForProfile()) {
+          buildRelocatedCodeMapping();
+      }
+      
 
       // Now, we need to copy in the memory of the new segments
       for (unsigned i = 0; i < oldSegs.size(); i++) {

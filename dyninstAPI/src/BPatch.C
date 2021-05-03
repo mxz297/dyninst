@@ -134,6 +134,7 @@ BPatch::BPatch()
     type_Untyped(NULL),
     relocJumpTable(false),
     relocFuncPointer(false),
+    writeProfileMap(false),
     mappingFilePath(NULL)
 {
     init_debug();
@@ -2050,6 +2051,15 @@ bool BPatch::relocateFunctionPointer() {
 void BPatch::setRelocateFunctionPointer(bool r) {
     relocFuncPointer = r;
 }
+
+bool BPatch::writeAddressMappingForProfile() {
+    return writeProfileMap;
+}
+
+void BPatch::setWriteAdressMappingForProfile(bool w) {
+    writeProfileMap = w;
+}
+
 
 void BPatch::setMappingFilePath(const char *f) {
     mappingFilePath = f;

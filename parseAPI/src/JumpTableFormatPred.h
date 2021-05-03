@@ -17,8 +17,7 @@ public:
     ReachFact &rf;
     ThunkData &thunks;
     SymbolicExpression &se;
-
-    bool jumpTableFormat;
+    
     bool findIndex;
     bool findTableBase;
 
@@ -36,7 +35,7 @@ public:
 
     virtual bool modifyCurrentFrame(Slicer::SliceFrame &frame, Graph::Ptr g, Slicer*);
     std::string format();
-    bool isJumpTableFormat() { return jumpTableFormat && findIndex && findTableBase && memLoc;}
+    bool isJumpTableFormat() { return findIndex && findTableBase && memLoc;}
     bool findRead(Graph::Ptr g, SliceNode::Ptr &);
     bool adjustSliceFrame(Slicer::SliceFrame &frame, SliceNode::Ptr, Slicer*);
     bool isTOCRead(Slicer::SliceFrame &frame, SliceNode::Ptr);

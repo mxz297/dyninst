@@ -69,6 +69,7 @@ extern int DYNINSTdebugRTlib;
 
 typedef void (*dynsighandler_t)(int);
 extern dynsighandler_t user_trap_handler;
+extern struct sigaction user_sigill_info;
 
 DLLEXPORT extern int DYNINSTstaticMode;
 

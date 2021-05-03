@@ -99,10 +99,17 @@ DLLEXPORT dynsighandler_t __sysv_signal(int signum, dynsighandler_t handler) {
 
 #if defined(cap_mutatee_traps)
 typedef int (*sigaction_type) (int, const struct sigaction*, struct sigaction*);
+struct sigaction user_sigill_info;
 static sigaction_type real_sigaction = NULL;
 
 DLLEXPORT int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact) {
     if (signum == SIGILL) {
+        if (oldact != NULL) {
+            *oldact = user_sigill_info;
+        }
+        if (act != NULL) {
+            user_sigill_info = *act;
+        }    
         return 0;
     } else {
         return real_sigaction(signum, act, oldact);
