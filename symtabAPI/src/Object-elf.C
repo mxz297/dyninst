@@ -430,7 +430,7 @@ bool Object::loaded_elf(Offset &txtaddr, Offset &dataddr,
     int dynamic_section_index = -1;
     unsigned int dynamic_section_type = 0;
     size_t dynamic_section_size = 0;
-    for (int i = 0; i < elfHdr->e_shnum(); ++i) {
+    for (auto i = 0UL; i < elfHdr->e_shnum(); ++i) {
         Elf_X_Shdr &scn = elfHdr->get_shdr(i);
         if (!scn.isValid()) {  // section is malformed
             continue;
@@ -1599,7 +1599,7 @@ void Object::load_object(bool alloc_syms) {
                     goto cleanup;
                 }
             }
-            parse_all_relocations(*elfHdr, dynsym_scnp, dynstr_scnp,
+            parse_all_relocations(dynsym_scnp, dynstr_scnp,
                                   symscnp, strscnp);
 
             handle_opd_relocations();
@@ -1754,7 +1754,7 @@ void Object::load_shared_object(bool alloc_syms) {
                 }
             }
 
-            parse_all_relocations(*elfHdr, dynsym_scnp, dynstr_scnp,
+            parse_all_relocations(dynsym_scnp, dynstr_scnp,
                                   symscnp, strscnp);
             // Apply relocations to opd
             handle_opd_relocations();
@@ -2410,7 +2410,7 @@ bool Object::dwarf_parse_aranges(Dwarf *dbg, std::set<Dwarf_Off> &dies_seen) {
     size_t num_ranges;
     int status = dwarf_getaranges(dbg, &ranges, &num_ranges);
     if (status != 0) return false;
-//    cout << "Processing " << num_ranges << "DWARF ranges" << endl;
+    dwarf_printf("dwarf_parse_aranges: Processing %zu DWARF ranges\n", num_ranges);
     for (size_t i = 0; i < num_ranges; i++) {
         Dwarf_Arange *range = dwarf_onearange(ranges, i);
         if (!range) continue;
@@ -2426,10 +2426,10 @@ bool Object::dwarf_parse_aranges(Dwarf *dbg, std::set<Dwarf_Off> &dies_seen) {
         cu_die_off_p = dwarf_addrdie(dbg, start, &cu_die);
         assert(cu_die_off_p != NULL);
         auto off_die = dwarf_dieoffset(&cu_die);
-        if (dies_seen.find(off_die) != dies_seen.end()) continue;
+        //if (dies_seen.find(off_die) != dies_seen.end()) continue;
 
         std::string modname;
-        if (!DwarfWalker::findDieName(dbg, cu_die, modname)) {
+        if (!DwarfWalker::findDieName(cu_die, modname)) {
             modname = associated_symtab->file(); // default module
         }
 
@@ -2439,49 +2439,65 @@ bool Object::dwarf_parse_aranges(Dwarf *dbg, std::set<Dwarf_Off> &dies_seen) {
         Module *m = associated_symtab->getOrCreateModule(modname, actual_start);
         m->addRange(actual_start, actual_end);
         m->addDebugInfo(cu_die);
+        cerr << "File in module " << modname << ", DIE CU " << hex << off_die << dec << endl;
         DwarfWalker::buildSrcFiles(dbg, cu_die, m->getStrings());
-        dies_seen.insert(off_die);
+        //dies_seen.insert(off_die);
     }
+    dwarf_printf("end of dwarf_parse_aranges\n");
     return true;
 }
 
 bool Object::fix_global_symbol_modules_static_dwarf() {
     /* Initialize libdwarf. */
-
     Dwarf **dbg_ptr = dwarf->type_dbg();
+    if (!dbg_ptr) return false;
 
-    if (!dbg_ptr)
-        return false;
+    dwarf_printf("At fix_global_symbol_modules_static_dwarf\n");
     Dwarf *dbg = *dbg_ptr;
     std::set<Dwarf_Off> dies_seen;
-    if (!dwarf_parse_aranges(dbg, dies_seen)) {
+    /*if (!dwarf_parse_aranges(dbg, dies_seen)) {
 	    return false;
-    }
+    }*/
 
     std::vector<Dwarf_Die> dies;
     size_t cu_header_size;
     for (Dwarf_Off cu_off = 0, next_cu_off;
          dwarf_nextcu(dbg, cu_off, &next_cu_off, &cu_header_size,
                       NULL, NULL, NULL) == 0;
-         cu_off = next_cu_off) {
+         cu_off = next_cu_off)
+    {
         Dwarf_Off cu_die_off = cu_off + cu_header_size;
         Dwarf_Die cu_die, *cu_die_p;
         cu_die_p = dwarf_offdie(dbg, cu_die_off, &cu_die);
+
+        Dwarf_Half moduleTag = dwarf_tag(&cu_die);
+        if (moduleTag != DW_TAG_compile_unit) {
+            continue;
+        }
 
         if (cu_die_p == NULL) continue;
         //if(dies_seen.find(cu_die_off) != dies_seen.end()) continue;
 
         dies.push_back(cu_die);
     }
+    dwarf_printf("Number of CU DIEs seen %zu\n", dies.size());
 
     /* Iterate over the compilation-unit headers. */
     for (size_t i = 0; i < dies.size(); i++) {
         Dwarf_Die cu_die = dies[i];
 
         std::string modname;
-        if (!DwarfWalker::findDieName(dbg, cu_die, modname)) {
+        if (!DwarfWalker::findDieName(cu_die, modname)) {
             modname = associated_symtab->file(); // default module
         }
+        if(modname=="<artificial>")
+        {
+            auto off_die = dwarf_dieoffset(&cu_die);
+            std::stringstream suffix;
+            suffix << std::hex << off_die;
+            modname  = "<artificial>" + suffix.str();
+        }
+
         //cerr << "Processing CU DIE for " << modname << " offset: " << next_cu_off << endl;
         Address tempModLow;
         Address modLow = 0;
@@ -2493,23 +2509,27 @@ bool Object::fix_global_symbol_modules_static_dwarf() {
         Module *m;
         #pragma omp critical
         m = associated_symtab->getOrCreateModule(modname, modLow);
-        for (auto r = mod_ranges.begin();
-             r != mod_ranges.end(); ++r) {
+        for (auto r = mod_ranges.begin(); r != mod_ranges.end(); ++r)
+        {
             m->addRange(r->first, r->second);
         }
-        if (!m->hasRanges()) {
+        if (!m->hasRanges())
+        {
 //            cout << "No ranges for module " << modname << ", need to extract from statements\n";
             Dwarf_Lines *lines;
             size_t num_lines;
-            if (dwarf_getsrclines(&cu_die, &lines, &num_lines) == 0) {
+            if (dwarf_getsrclines(&cu_die, &lines, &num_lines) == 0)
+            {
                 Dwarf_Addr low;
                 for (size_t i = 0; i < num_lines; ++i) {
                     Dwarf_Line *line = dwarf_onesrcline(lines, i);
-                    if ((dwarf_lineaddr(line, &low) == 0) && low) {
+                    if ((dwarf_lineaddr(line, &low) == 0) && low)
+                    {
                         Dwarf_Addr high = low;
                         int result = 0;
                         for (; (i < num_lines) &&
-                               (result == 0); ++i) {
+                               (result == 0); ++i)
+                        {
                             line = dwarf_onesrcline(lines, i);
                             if (!line) continue;
 
@@ -2530,6 +2550,7 @@ bool Object::fix_global_symbol_modules_static_dwarf() {
         }
         #pragma omp critical
         m->addDebugInfo(cu_die);
+        //cerr << "Files in module " << modname << endl;
         DwarfWalker::buildSrcFiles(dbg, cu_die, m->getStrings());
         // dies_seen.insert(cu_die_off);
     }
@@ -2661,7 +2682,9 @@ bool Object::fix_global_symbol_modules_static_stab(Elf_X_Shdr *stabscnp, Elf_X_S
                 if (res && (q == 0 || q[1] != SD_PROTOTYPE)) {
                     unsigned int count = 0;
                     dyn_c_hash_map<std::string,std::vector<Symbol*>>::const_accessor ca;
-                    assert(symbols_.find(ca, SymName));
+                    if (!symbols_.find(ca, SymName))  {
+                        assert(!"symbols_.find(ca, SymName)");
+                    }
                     const std::vector<Symbol *> &syms = ca->second;
 
                     /* If there's only one, apply regardless. */
@@ -2726,7 +2749,9 @@ bool Object::fix_global_symbol_modules_static_stab(Elf_X_Shdr *stabscnp, Elf_X_S
                     delete[] sname;
 
                     dyn_c_hash_map<std::string,std::vector<Symbol*>>::const_accessor ca;
-                    assert(symbols_.find(ca, nameFromStab));
+                    if (!symbols_.find(ca, nameFromStab))  {
+                        assert(!"symbols_.find(ca, nameFromStab)");
+                    }
                     for (unsigned i = 0; i < ca->second.size(); i++) {
                         symsToModules_.insert({ca->second[i], module});
                     }
@@ -2737,7 +2762,9 @@ bool Object::fix_global_symbol_modules_static_stab(Elf_X_Shdr *stabscnp, Elf_X_S
                         break;
                     }
                     dyn_c_hash_map<Offset,std::vector<Symbol*>>::const_accessor ca;
-                    assert(symsByOffset_.find(ca, entryAddr));
+                    if (!symsByOffset_.find(ca, entryAddr))  {
+                        assert(!"symsByOffset_.find(ca, entryAddr)");
+                    }
                     for (unsigned i = 0; i < ca->second.size(); i++) {
                         symsToModules_.insert({ca->second[i], module});
                     }
@@ -2768,7 +2795,7 @@ void Object::find_code_and_data(Elf_X &elf,
    * when the sections are processed -> see loaded_elf()
    */
 
-    for (int i = 0; i < elf.e_phnum(); ++i) {
+    for (auto i = 0UL; i < elf.e_phnum(); ++i) {
         Elf_X_Phdr &phdr = elf.get_phdr(i);
 
         char *file_ptr = (char *) mf->base_addr();
@@ -3061,49 +3088,6 @@ void Object::get_valid_memory_areas(Elf_X &elf) {
     }
 }
 
-//
-// parseCompilerType - parse for compiler that was used to generate object
-//
-//
-//
-#if defined(os_linux)
-
-// Differentiating between g++ and pgCC by stabs info
-// will not work; the gcc-compiled object files that
-// get included at link time will fill in the N_OPT stabs line. Instead,
-// look for "pgCC_compiled." symbols.
-bool parseCompilerType(Object *objPtr) {
-    dyn_c_hash_map<string, std::vector<Symbol *> > *syms = objPtr->getAllSymbols();
-    return syms->contains("pgCC_compiled.");
-}
-
-#else
-bool parseCompilerType(Object *objPtr)
-{
-  stab_entry *stabptr = objPtr->get_stab_info();
-  const char *next_stabstr = stabptr->getStringBase();
-
-  for (unsigned int i=0; i < stabptr->count(); ++i) {
-    // if (stabstrs) bperr("parsing #%d, %s\n", stabptr->type(i), stabptr->name(i));
-    switch (stabptr->type(i)) {
-
-    case N_UNDF: /* start of object file */
-      /* value contains offset of the next string table for next module */
-      // assert(stabptr.nameIdx(i) == 1);
-      stabptr->setStringBase(next_stabstr);
-      next_stabstr = stabptr->getStringBase() + stabptr->val(i);
-      break;
-
-    case N_OPT: /* Compiler options */
-      delete stabptr;
-      return false;
-    }
-  }
-  delete stabptr;
-  return false; // Shouldn't happen - maybe N_OPT stripped
-}
-#endif
-
 
 #if (defined(os_linux) || defined(os_freebsd))
 
@@ -3235,7 +3219,7 @@ static int read_val_of_type(int type, unsigned long *value, const unsigned char 
             size = 2;
             break;
         case DW_EH_PE_sdata2:
-            *value = (const int16_t) endian_16bit(*((const uint16_t *) addr), mi.big_input);
+            *value = endian_16bit(*((const uint16_t *) addr), mi.big_input);
             size = 2;
             break;
         case DW_EH_PE_udata4:
@@ -3243,7 +3227,7 @@ static int read_val_of_type(int type, unsigned long *value, const unsigned char 
             size = 4;
             break;
         case DW_EH_PE_sdata4:
-            *value = (const int32_t) endian_32bit(*((const uint32_t *) addr), mi.big_input);
+            *value = endian_32bit(*((const uint32_t *) addr), mi.big_input);
             size = 4;
             break;
         case DW_EH_PE_udata8:
@@ -3251,7 +3235,7 @@ static int read_val_of_type(int type, unsigned long *value, const unsigned char 
             size = 8;
             break;
         case DW_EH_PE_sdata8:
-            *value = (const int64_t) endian_64bit(*((const uint64_t *) addr), mi.big_input);
+            *value = endian_64bit(*((const uint64_t *) addr), mi.big_input);
             size = 8;
             break;
         default:
@@ -3804,9 +3788,10 @@ void Object::getModuleLanguageInfo(dyn_hash_map<string, supportedLanguages> *mod
         /* Only .debug_info for now, not .debug_types */
         size_t cu_header_size;
         for (Dwarf_Off cu_off = 0, next_cu_off;
-             dwarf_nextcu(dbg, cu_off, &next_cu_off, &cu_header_size,
-                          NULL, NULL, NULL) == 0;
-             cu_off = next_cu_off) {
+                dwarf_nextcu(dbg, cu_off, &next_cu_off, &cu_header_size,
+                    NULL, NULL, NULL) == 0;
+                cu_off = next_cu_off)
+        {
             Dwarf_Off cu_die_off = cu_off + cu_header_size;
             Dwarf_Die *cu_die_p;
             cu_die_p = dwarf_offdie(dbg, cu_die_off, &moduleDIE);
@@ -3814,7 +3799,7 @@ void Object::getModuleLanguageInfo(dyn_hash_map<string, supportedLanguages> *mod
 
             Dwarf_Half moduleTag = dwarf_tag(&moduleDIE);
             if (moduleTag != DW_TAG_compile_unit) {
-                break;
+                continue;
             }
 
             /* Extract the name of this module. */
@@ -3829,6 +3814,15 @@ void Object::getModuleLanguageInfo(dyn_hash_map<string, supportedLanguages> *mod
                 ptr = moduleName;
 
             working_module = string(ptr);
+
+            if(working_module=="<artificial>")
+            {
+                auto off_die = dwarf_dieoffset(&moduleDIE);
+                std::stringstream suffix;
+                suffix << std::hex << off_die;
+                working_module  = "<artificial>" + suffix.str();
+            }
+
             auto attr_p = dwarf_attr(&moduleDIE, DW_AT_language, &languageAttribute);
             if (attr_p == NULL) {
                 break;
@@ -4570,7 +4564,6 @@ void Object::parseStabTypes() {
     Symbol *commonBlockVar = NULL;
     string *commonBlockName = NULL;
     boost::shared_ptr<Type> commonBlock = NULL;
-    int mostRecentLinenum = 0;
 
     Module *mod;
     typeCollection *tc = NULL;
@@ -4667,7 +4660,6 @@ void Object::parseStabTypes() {
 #endif
                 break;
             case N_SLINE:
-                mostRecentLinenum = stabptr->desc(i);
                 break;
             default:
                 break;
@@ -4763,7 +4755,7 @@ void Object::parseStabTypes() {
                         if (!commonBlock->isCommonType()) {
                             // its still the null type, create a new one for it
                             commonBlock = Type::make_shared<typeCommon>(*commonBlockName);
-                            tc->addGlobalVariable(*commonBlockName, commonBlock);
+                            tc->addGlobalVariable(commonBlock);
                         }
                         // reset field list
                         commonBlock->asCommonType().beginCommonBlock();
@@ -4833,10 +4825,7 @@ void Object::parseStabTypes() {
                     // bperr("stab #%d = %s\n", i, ptr);
                     // may be nothing to parse - XXX  jdd 5/13/99
 
-                    if (parseCompilerType(this))
-                        temp = parseStabString(mod, mostRecentLinenum, (char *) ptr, stabptr->val(i), &commonBlock->asCommonType());
-                    else
-                        temp = parseStabString(mod, stabptr->desc(i), (char *) ptr, stabptr->val(i), &commonBlock->asCommonType());
+                    temp = parseStabString(mod, stabptr->desc(i), (char *) ptr, stabptr->val(i), &commonBlock->asCommonType());
                     if (temp.length()) {
                         //Error parsing the stabstr, return should be \0
                         // //bperr( "Stab string parsing ERROR!! More to parse: %s\n",
@@ -4939,7 +4928,7 @@ void Object::insertDynamicEntry(long name, long value) {
 
 // Parses sections with relocations and links these relocations to
 // existing symbols
-bool Object::parse_all_relocations(Elf_X &elf, Elf_X_Shdr *dynsym_scnp,
+bool Object::parse_all_relocations(Elf_X_Shdr *dynsym_scnp,
                                    Elf_X_Shdr *dynstr_scnp, Elf_X_Shdr *symtab_scnp,
                                    Elf_X_Shdr *strtab_scnp) {
 //fprintf(stderr, "enter parse_all_relocations for object %s\n", getFileName().c_str() );
@@ -5019,7 +5008,7 @@ bool Object::parse_all_relocations(Elf_X &elf, Elf_X_Shdr *dynsym_scnp,
         result = shToRegion.insert(std::make_pair((*reg_it)->getRegionNumber(), (*reg_it)));
     }
 
-    for (auto i = 0;
+    for (size_t i = 0;
          i < allRegionHdrsByShndx.size();
             ++i) {
         auto shdr = allRegionHdrsByShndx[i];

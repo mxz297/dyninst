@@ -315,7 +315,7 @@ class AssemblerHolder {
 class PrintErrorHandler : public asmjit::ErrorHandler {
    public:
    // Return `true` to set last error to `err`, return `false` to do nothing.
-   void handleError(asmjit::Error err, const char* message, asmjit::BaseEmitter* origin) override {
+   void handleError(asmjit::Error , const char* message, asmjit::BaseEmitter*) override {
       std::cerr << "ERROR : " << message;
    }
 };
@@ -357,7 +357,7 @@ bool AssemblerHolder::CopyToDyninstBuffer(Dyninst::Buffer &buf) {
 class AdjustSPSnippet : public Dyninst::PatchAPI::Snippet {
    public:
    explicit AdjustSPSnippet(int adj): adjustment(adj) {}
-   bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
+   bool generate(Dyninst::PatchAPI::Point* , Dyninst::Buffer& buf) override {
       AssemblerHolder ah;
       asmjit::x86::Assembler* a = ah.GetAssembler();
       a->lea(asmjit::x86::rsp, asmjit::x86::ptr(asmjit::x86::rsp, adjustment, 8));
@@ -374,7 +374,7 @@ class EmulatedReturnAddressSnippet : public Dyninst::PatchAPI::Snippet {
    explicit EmulatedReturnAddressSnippet(PatchFunction* func, PatchBlock* targetBlock):
                f(func), b(targetBlock) {}
 
-   bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
+   bool generate(Dyninst::PatchAPI::Point* , Dyninst::Buffer& buf) override {
       AssemblerHolder ah;
       asmjit::x86::Assembler* a = ah.GetAssembler();
       a->mov(asmjit::x86::ptr(asmjit::x86::rsp, 0, 8), 0);
@@ -668,7 +668,7 @@ class IndirectCallInlineSnippet : public Dyninst::PatchAPI::Snippet {
    public:
    explicit IndirectCallInlineSnippet(const InstructionAPI::Instruction &insn, std::vector<Address> &addresses):
       i(insn), addrs(addresses) {}
-   bool generate(Dyninst::PatchAPI::Point* pt, Dyninst::Buffer& buf) override {
+   bool generate(Dyninst::PatchAPI::Point* , Dyninst::Buffer& buf) override {
       AssemblerHolder ah;
       asmjit::x86::Assembler* a = ah.GetAssembler();
       asmjit::x86::Gp reg;

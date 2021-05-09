@@ -64,7 +64,7 @@
 #include "Relocation/JumpTableMover.h"
 #include "Relocation/FunctionPointerMover.h"
 
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 
 #include "BPatch.h"
 #include "SFI/SFITransformer.h"
@@ -89,6 +89,7 @@ AddressSpace::AddressSpace () :
     new_instp_cb(NULL),
     heapInitialized_(false),
     useTraps_(true),
+    sigILLTrampoline_(false),
     trampGuardBase_(NULL),
     up_ptr_(NULL),
     costAddr_(0),
@@ -96,8 +97,7 @@ AddressSpace::AddressSpace () :
     memEmulator_(NULL),
     emulateMem_(false),
     emulatePC_(false),
-    delayRelocation_(false),
-    patcher_(NULL),
+    delayRelocation_(false),    
     maskBits(0)
 {
 #if 0
@@ -109,6 +109,16 @@ AddressSpace::AddressSpace () :
        emulatePC_ = true;
    }
 #endif
+   // Historically, we only use SIGTRAP as the signal for tramopline.
+   // However, SIGTRAP is always intercepted by GDB, causing it is 
+   // almost impossible to debug through signal trampolines.
+   // Here, we add a new environment variable DYNINST_SIGNAL_TRAMPOLINE_SIGILL
+   // to control whether we use SIGILL as the signal for trampolines.
+   // In the case of binary rewriting, DYNINST_SIGNAL_TRAMPOLINE_SIGILL should be 
+   // consistently set or unset for rewriting the binary and running the rewritten binaries. 
+   if (getenv("DYNINST_SIGNAL_TRAMPOLINE_SIGILL")) {
+      sigILLTrampoline_ = true;
+   }
 }
 
 AddressSpace::~AddressSpace() {
@@ -116,6 +126,8 @@ AddressSpace::~AddressSpace() {
       delete memEmulator_;
     if (mgr_)
        static_cast<DynAddrSpace*>(mgr_->as())->removeAddrSpace(this);
+
+    deleteAddressSpace();
 }
 
 PCProcess *AddressSpace::proc() {
@@ -158,7 +170,6 @@ void AddressSpace::copyAddressSpace(AddressSpace *parent) {
     // This is only defined for process->process copy
     // until someone can give a good reason for copying
     // anything else...
-
     assert(proc());
 
     mapped_object *par_aout = parent->getAOut();
@@ -174,10 +185,7 @@ void AddressSpace::copyAddressSpace(AddressSpace *parent) {
           assert(child_obj);
           addMappedObject(child_obj);
         }
-        // This clones funcs, which then clone instPoints, which then
-        // clone baseTramps, which then clones miniTramps.
     }
-
 
     // Clone the tramp guard base
     if (parent->trampGuardBase_)
@@ -188,7 +196,6 @@ void AddressSpace::copyAddressSpace(AddressSpace *parent) {
     /////////////////////////
     // Inferior heap
     /////////////////////////
-
     heap_ = inferiorHeap(parent->heap_);
     heapInitialized_ = parent->heapInitialized_;
 
@@ -198,31 +205,15 @@ void AddressSpace::copyAddressSpace(AddressSpace *parent) {
     trapMapping.copyTrapMappings(& (parent->trapMapping));
 
     /////////////////////////
-    // Overly complex code tracking system
+    // Code tracking system
     /////////////////////////
-    for (CodeTrackers::iterator iter = parent->relocatedCode_.begin();
-         iter != parent->relocatedCode_.end(); ++iter) {
-       // Efficiency; this avoids a spurious copy of the entire
-       // CodeTracker.
-
-       relocatedCode_.push_back(Relocation::CodeTracker::fork(*iter, this));
+    for (auto *ct : parent->relocatedCode_) {
+       // Efficiency; this avoids a spurious copy of the entire CodeTracker.
+       relocatedCode_.push_back(Relocation::CodeTracker::fork(ct, this));
     }
-
-    // Let's assume we're not forking _in the middle of instrumentation_
-    // (good Lord), and so leave modifiedFunctions_ alone.
-    /*
-    for (CallModMap::iterator iter = parent->callModifications_.begin();
-         iter != parent->callModifications_.end(); ++iter) {
-       // Need to forward map the lot
-       block_instance *newB = findBlock(iter->first->llb());
-       for (std::map<func_instance *, func_instance *>::iterator iter2 = iter->second.begin();
-            iter2 != iter->second.end(); ++iter2) {
-          func_instance *context = (iter2->first == NULL) ? NULL : findFunction(iter2->first->ifunc());
-          func_instance *target = (iter2->second == NULL) ? NULL : findFunction(iter2->second->ifunc());
-          callModifications_[newB][context] = target;
-       }
-    }
-    */
+    
+    // Let's assume we're not forking in the middle of instrumentation, so
+    // leave modifiedFunctions_ alone.
 
     assert(parent->mgr());
     PatchAPI::CallModMap& cmm = parent->mgr()->instrumenter()->callModMap();
@@ -257,19 +248,28 @@ void AddressSpace::copyAddressSpace(AddressSpace *parent) {
 }
 
 void AddressSpace::deleteAddressSpace() {
-   // Methodically clear everything we have - it all went away
-   // We have the following member variables:
-
-   // bool heapInitialized_
-   // inferiorHeap heap_
-
    heapInitialized_ = false;
    heap_.clear();
-   for (unsigned i = 0; i < mapped_objects.size(); i++)
-      delete mapped_objects[i];
 
+   for (auto *mo : mapped_objects) {
+      delete mo;
+   }
    mapped_objects.clear();
 
+   for (auto *rc : relocatedCode_) {
+      delete rc;
+   }
+   relocatedCode_.clear();
+
+   /*
+   * NB: We do not own the contents of forwardDefensiveMap_, reverseDefensiveMap_,
+   *     instrumentationInstances_, modifiedFunctions_, reverseDefensiveMap_,
+   *     or runtime_lib
+   */
+   forwardDefensiveMap_.clear();
+   reverseDefensiveMap_.clear();
+   instrumentationInstances_.clear();
+   modifiedFunctions_.clear();
    runtime_lib.clear();
 
    trampGuardBase_ = NULL;
@@ -277,15 +277,6 @@ void AddressSpace::deleteAddressSpace() {
 
    // up_ptr_ is untouched
    costAddr_ = 0;
-   for (CodeTrackers::iterator iter = relocatedCode_.begin();
-        iter != relocatedCode_.end(); ++iter) {
-      delete *iter;
-   }
-   relocatedCode_.clear();
-   modifiedFunctions_.clear();
-   forwardDefensiveMap_.clear();
-   reverseDefensiveMap_.clear();
-   instrumentationInstances_.clear();
 
    if (memEmulator_) delete memEmulator_;
    memEmulator_ = NULL;
@@ -2312,7 +2303,7 @@ AddressSpace::getStubs(const std::list<block_instance *> &owBlocks,
 	    std::for_each(boost::make_filter_iterator(epred_, sourceEdges.begin(), sourceEdges.end()),
 			  boost::make_filter_iterator(epred_, sourceEdges.end(), sourceEdges.end()),
 			  boost::bind(updateSrcListAndVisited,
-				      _1,
+				      boost::placeholders::_1,
 				      boost::ref(srcList),
 				      boost::ref(visited)));
 
@@ -2335,7 +2326,7 @@ AddressSpace::getStubs(const std::list<block_instance *> &owBlocks,
 		   std::for_each(boost::make_filter_iterator(epred_, srcSrcs.begin(), srcSrcs.end()),
 				 boost::make_filter_iterator(epred_, srcSrcs.end(), srcSrcs.end()),
 				 boost::bind(updateSrcListAndVisited,
-					     _1,
+						 boost::placeholders::_1,
 					     boost::ref(srcList),
 					     boost::ref(visited)));
 
@@ -2403,4 +2394,13 @@ bool uninstrument(Dyninst::PatchAPI::Instance::Ptr inst) {
    point->markModified();
    return true;
 
+}
+
+
+unsigned AddressSpace::getAddressWidth() const {
+    if( mapped_objects.size() > 0 ) {
+        return mapped_objects[0]->parse_img()->codeObject()->cs()->getAddressWidth();
+    }
+    // We can call this before we've attached...best effort guess
+    return sizeof(Address);
 }

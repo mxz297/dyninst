@@ -21,6 +21,7 @@ set (SRC_LIST
 	src/IA_x86.C
 	src/IA_power.C
 	src/IA_aarch64.C
+    src/IA_amdgpu.C
         src/CFGModifier.C
         src/StackTamperVisitor.C
 	src/JumpTableFormatPred.C
@@ -78,7 +79,8 @@ set(ROSE_SRC
         ../dataflowAPI/rose/semantics/BaseSemantics2.C
         #../dataflowAPI/rose/semantics/ConcreteSemantics2.C
         ../dataflowAPI/rose/semantics/DispatcherARM64.C
-	../dataflowAPI/rose/semantics/DispatcherPowerpc.C
+        ../dataflowAPI/rose/semantics/DispatcherAmdgpuVega.C
+	    ../dataflowAPI/rose/semantics/DispatcherPowerpc.C
         ../dataflowAPI/rose/semantics/RegisterParts.C
         ../dataflowAPI/rose/semantics/Registers.C
         #../dataflowAPI/rose/semantics/SMTSolver.C

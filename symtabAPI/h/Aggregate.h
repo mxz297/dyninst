@@ -44,7 +44,6 @@
 #include <boost/iterator/transform_iterator.hpp>
 #include <functional>
 #include "concurrent.h"
-SYMTAB_EXPORT std::ostream &operator<<(std::ostream &os, const Dyninst::SymtabAPI::Aggregate &);
 
 namespace Dyninst{
 namespace SymtabAPI{
@@ -62,7 +61,7 @@ class SYMTAB_EXPORT Aggregate
 {
    friend class Symtab;
    friend struct SymbolCompareByAddr;
-	friend std::ostream &::operator<<(std::ostream &os, const Dyninst::SymtabAPI::Aggregate &);
+	friend std::ostream& operator<<(std::ostream &os, const Aggregate &);
    friend class DwarfWalker;
   protected:
       Aggregate();
@@ -121,12 +120,6 @@ class SYMTAB_EXPORT Aggregate
       Symbol *firstSymbol;  // cached for speed
       Offset offset_;       // cached for speed
 
-
-      void restore_type_by_id(SerializerBase *, Type *&, unsigned) THROW_SPEC (SerializerError);
-      void restore_module_by_name(SerializerBase *, std::string &) THROW_SPEC (SerializerError);
-      //void rebuild_symbol_vector(SerializerBase *, std::vector<Offset> *) THROW_SPEC (SerializerError);
-      void rebuild_symbol_vector(SerializerBase *, std::vector<Address> &) THROW_SPEC (SerializerError);
-      void serialize_aggregate(SerializerBase *, const char * = "Aggregate") THROW_SPEC (SerializerError);
       bool addMangledNameInternal(std::string name, bool isPrimary, bool demangle);
 };
 

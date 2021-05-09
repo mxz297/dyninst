@@ -20,7 +20,7 @@ set(RT_BINARY_DIR ${PROJECT_BINARY_DIR}/dyninstAPI_RT)
 
 set (CMAKE_MODULE_PATH "${DYNINST_ROOT}/cmake" "${DYNINST_ROOT}/cmake/Modules" ${CMAKE_MODULE_PATH})
 
-# Set the C and C++ language API and ABI standards
+# Set the C and C++ language standards
 include(LanguageStandards)
 
 # Find the necessary third-party libraries
@@ -29,9 +29,12 @@ find_package(Threads)
 include(Boost)
 include(ThreadingBuildingBlocks)
 include(ElfUtils)
-include(LibIberty)
-include(Capstone)
-include(asmjit)
+
+if(UNIX)
+  include(LibIberty REQUIRED)
+  include(Capstone)
+  include(asmjit)
+endif()
 
 include(shared)
 
@@ -120,7 +123,8 @@ if(BUILD_RTLIB)
     -DPLATFORM=${PLATFORM}
     -DLibunwind_ROOT_DIR=${Libunwind_ROOT_DIR}
     -G ${CMAKE_GENERATOR}
-    ${RT_SOURCE_DIR})
+    -B ${RT_BINARY_DIR}
+    -S ${RT_SOURCE_DIR})
   find_file(${RT_MAKEFILE} Makefile PATHS ${RT_BINARY_DIR} NO_DEFAULT_PATH)
   message(STATUS "RTlib Makefile: ${RT_MAKEFILE}")
   if(MSVC)
@@ -221,13 +225,6 @@ if(BUILD_DOCS)
     endforeach()
   else()
     message(STATUS "LaTeX not found")
-  endif()
-endif()
-
-if(UNIX)
-  message(STATUS "Adding Unix-specific dependencies")
-  if(NOT USE_GNU_DEMANGLER)
-    add_dependencies(common libiberty_imp)
   endif()
 endif()
 

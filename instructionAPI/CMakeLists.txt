@@ -11,6 +11,7 @@ set (SRC_LIST
      src/Operation.C 
      src/Operand.C 
      src/Register.C 
+     src/Ternary.C 
      src/Expression.C 
      src/BinaryFunction.C 
      src/InstructionCategories.C
@@ -19,6 +20,7 @@ set (SRC_LIST
      src/InstructionDecoder.C 
      src/InstructionDecoder-power.C 
      src/InstructionDecoder-aarch64.C 
+     src/InstructionDecoder-amdgpu-vega.C
      src/InstructionDecoderImpl.C
      src/InstructionDecoder-Capstone.C
      src/InstructionDecoder-Capstone-x86.C

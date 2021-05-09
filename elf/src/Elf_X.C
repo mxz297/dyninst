@@ -47,6 +47,9 @@
 #include <sstream>
 #include <libelf.h>
 
+#if DEBUGINFOD_LIB
+#include <elfutils/debuginfod.h>
+#endif
 
 using namespace std;
 using boost::crc_32_type;
@@ -1663,7 +1666,7 @@ bool Elf_X::findDebugFile(std::string origfilename, string &output_name, char* &
   string debugFileFromDebugLink, debugFileFromBuildID;
   unsigned debugFileCrc = 0;
 
-  for(int i = 0; i < e_shnum(); i++) {
+  for(auto i = 0UL; i < e_shnum(); i++) {
      Elf_X_Shdr scn = get_shdr(i);
      if (!scn.isValid()) { // section is malformed
         continue;
@@ -1711,37 +1714,79 @@ bool Elf_X::findDebugFile(std::string origfilename, string &output_name, char* &
      }
   }
 
-  if (debugFileFromDebugLink.empty())
-     return false;
+  if (!debugFileFromDebugLink.empty()) {
+     char *mfPathNameCopy = strdup(origfilename.c_str());
+     string objectFileDirName = dirname(mfPathNameCopy);
 
-  char *mfPathNameCopy = strdup(origfilename.c_str());
-  string objectFileDirName = dirname(mfPathNameCopy);
+     vector<string> fnames = list_of
+       (objectFileDirName + "/" + debugFileFromDebugLink)
+       (objectFileDirName + "/.debug/" + debugFileFromDebugLink)
+       ("/usr/lib/debug/" + objectFileDirName + "/" + debugFileFromDebugLink);
 
-  vector<string> fnames = list_of
-    (objectFileDirName + "/" + debugFileFromDebugLink)
-    (objectFileDirName + "/.debug/" + debugFileFromDebugLink)
-    ("/usr/lib/debug/" + objectFileDirName + "/" + debugFileFromDebugLink);
+     free(mfPathNameCopy);
 
-  free(mfPathNameCopy);
+     for(unsigned i = 0; i < fnames.size(); i++) {
+        bool result = loadDebugFileFromDisk(fnames[i], output_buffer, output_buffer_size);
+        if (!result)
+           continue;
 
-  for(unsigned i = 0; i < fnames.size(); i++) {
-     bool result = loadDebugFileFromDisk(fnames[i], output_buffer, output_buffer_size);
-     if (!result)
-        continue;
-    
-    boost::crc_32_type crcComputer;
-    crcComputer.process_bytes(output_buffer, output_buffer_size);
-    if(crcComputer.checksum() != debugFileCrc) {
-       munmap(output_buffer, output_buffer_size);
-       continue;
-    }
+        boost::crc_32_type crcComputer;
+        crcComputer.process_bytes(output_buffer, output_buffer_size);
+        if(crcComputer.checksum() != debugFileCrc) {
+           munmap(output_buffer, output_buffer_size);
+           continue;
+        }
 
-    output_name = fnames[i];
-    cached_debug_buffer = output_buffer;
-    cached_debug_size = output_buffer_size;
-    cached_debug_name = output_name;
-    return true;
+        output_name = fnames[i];
+        cached_debug_buffer = output_buffer;
+        cached_debug_size = output_buffer_size;
+        cached_debug_name = output_name;
+        return true;
+     }
   }
+
+#ifdef DEBUGINFOD_LIB
+  if (!debugFileFromBuildID.empty()) {
+     // Given /usr/lib/debug/.buildid/XX/YYYYYY.debug, isolate XXYYYYYY.
+     size_t idx1 = debugFileFromBuildID.find_last_of("/");
+     size_t idx2 = debugFileFromBuildID.find_last_of(".");
+
+     if (idx1 == string::npos || idx2 == string::npos
+         || idx1 < 2 || idx1 > idx2)
+        return false;
+
+     idx1 -= 2;
+     string buildid(debugFileFromBuildID.substr(idx1, idx2 - idx1));
+     buildid.erase(2, 1);
+
+     debuginfod_client *client = debuginfod_begin();
+     if (client == NULL)
+        return false;
+
+     char *filename;
+     int fd = debuginfod_find_debuginfo(client,
+                                        (const unsigned char *)buildid.c_str(),
+                                        0, &filename);
+     debuginfod_end(client);
+
+     if (fd >= 0) {
+        string fname = string(filename);
+        free(filename);
+        close(fd);
+
+        bool result = loadDebugFileFromDisk(fname,
+                                            output_buffer,
+                                            output_buffer_size);
+        if (result) {
+           output_name = fname;
+           cached_debug_buffer = output_buffer;
+           cached_debug_size = output_buffer_size;
+           cached_debug_name = output_name;
+           return true;
+        }
+     }
+  }
+#endif
 
   return false;
 }
@@ -1772,10 +1817,35 @@ Dyninst::Architecture Elf_X::getArch() const
             return Dyninst::Arch_x86_64;
         case EM_CUDA:
             return Dyninst::Arch_cuda;
+        case EM_INTEL_GEN9:
+            return Dyninst::Arch_intelGen9;
         case EM_ARM:
             return Dyninst::Arch_aarch32;
         case EM_AARCH64:
             return Dyninst::Arch_aarch64;
+        case EM_AMDGPU:
+            {
+
+                unsigned int ef_amdgpu_mach = 0x000000ff & e_flags();
+                //cerr << " dealing with amd gpu , mach = "  << std::hex << ef_amdgpu_mach << endl;
+                switch(ef_amdgpu_mach){
+                    case 0x33: case 0x34: case 0x35: case 0x36: case 0x37: case 0x38:
+                        return Dyninst::Arch_amdgpu_rdna;
+                        assert( 0 && "rdna not supported yet " );
+                    case 0x28: case 0x29: case 0x2a: case 0x2b: case 0x2c: case 0x2d: case 0x2e: case 0x2f: case 0x30: case 0x31:
+                        return Dyninst::Arch_amdgpu_vega;
+                    case 0x11: case 0x12: case 0x13: case 0x14: case 0x15: case 0x16: case 0x17: case 0x18:
+                    case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x1d: case 0x1e: case 0x1f:
+                        assert(0 && "reserved for r600 architecture");
+                    case 0x27: case 0x32 : case 0x39:
+                        assert(0 && "reserved");
+                    default:
+                        assert(0 && "probabily won't be supported");
+
+                }
+
+                 
+            }
         default:
             return Dyninst::Arch_none;
     }

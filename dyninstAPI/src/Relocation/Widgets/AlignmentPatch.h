@@ -14,7 +14,7 @@ struct AlignmentPatch : public Patch {
     AlignmentPatch(int bit): n(bit) {}
     
     virtual bool apply(codeGen &gen, CodeBuffer *buf);
-    virtual unsigned estimate(codeGen &templ) { return 0; };
+    virtual unsigned estimate(codeGen &) { return 0; };
 
 };
 

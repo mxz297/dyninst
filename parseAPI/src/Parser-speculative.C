@@ -400,6 +400,6 @@ void Parser::parse_gap_heuristic(CodeRegion*)
 {
 
 }
-void Parser::probabilistic_gap_parsing(CodeRegion *cr) {
+void Parser::probabilistic_gap_parsing(CodeRegion *) {
 }
 #endif

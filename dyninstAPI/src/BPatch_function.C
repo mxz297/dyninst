@@ -1101,6 +1101,7 @@ bool BPatch_function::addMods(std::set<StackMod*> mods)
     StackModChecker checker(this, func);
     return checker.addModsInternal(mods);
 #else
+    (void)mods;
     return false;
 #endif
 }

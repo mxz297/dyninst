@@ -92,6 +92,7 @@ namespace Dyninst
         friend class InstructionDecoder_power;
         friend class InstructionDecoder_aarch64;
         friend class InstructionDecoder_Capstone;
+        friend class InstructionDecoder_amdgpu_vega;
 
         struct CFT
         {
@@ -144,6 +145,9 @@ namespace Dyninst
       /// an empty operand if \c index does not correspond to a valid operand in this
       /// instruction.
       INSTRUCTION_EXPORT Operand getOperand(int index) const;
+
+      INSTRUCTION_EXPORT Operand getPredicateOperand() const;
+      INSTRUCTION_EXPORT bool hasPredicateOperand() const;
 
       /// Returns a pointer to the buffer from which this instruction
       /// was decoded.
@@ -294,9 +298,12 @@ namespace Dyninst
       typedef boost::shared_ptr<Instruction> Ptr;
 	public:
 	  //Should be private, but we're working around some compilers mis-using the 'friend' declaration.
-      void appendOperand(Expression::Ptr e, bool isRead, bool isWritten) const;
-      void appendOperand(Expression::Ptr e, bool isRead, bool isWritten, bool isImplicit) const;
+      INSTRUCTION_EXPORT void appendOperand(Expression::Ptr e, bool isRead, bool isWritten) const;
+      INSTRUCTION_EXPORT void appendOperand(Expression::Ptr e, bool isRead, bool isWritten, bool isImplicit) const;
+      INSTRUCTION_EXPORT void appendOperand(Expression::Ptr e, bool isRead, bool isWritten, bool isImplicit, bool trueP, bool falseP) const;
+
     private:
+      void updateSize(const unsigned int new_size) {m_size = new_size;}
       void decodeOperands() const;
       void addSuccessor(Expression::Ptr e, bool isCall, bool isIndirect, bool isConditional, bool isFallthrough) const;
       void copyRaw(size_t size, const unsigned char* raw);

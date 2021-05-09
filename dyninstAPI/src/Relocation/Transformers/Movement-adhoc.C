@@ -238,7 +238,7 @@ bool adhocMovementTransformer::process(RelocBlock *cur, RelocGraph *cfg) {
   return true;
 }
 
-static Address PCValue(Address addr, Instruction insn) {
+static Address PCValue(Address addr, Instruction) {
     return addr;
 }
 
@@ -289,6 +289,8 @@ bool adhocMovementTransformer::isPCRelData(Widget::Ptr ptr,
       case c_BranchInsn:
       case c_ReturnInsn:
           return false;
+      default:
+	  break;
   }
   if (insn.getControlFlowTarget()) return false;
 
@@ -446,7 +448,6 @@ bool adhocMovementTransformer::isGetPC(Widget::Ptr ptr,
   
   // This is yoinked from arch-x86.C...
   if (addrSpace->isValidAddress(target)) {
-    // Get us an instrucIter    
     const unsigned char* buf = reinterpret_cast<const unsigned char*>(addrSpace->getPtrToInstruction(target));
     if (!buf) {
        cerr << "Error: illegal pointer to buffer!" << endl;

@@ -181,7 +181,7 @@ struct BoundFact {
     StridedInterval* GetBound(const AST::Ptr ast); 
     StridedInterval* GetBound(const AST* ast);
     AST::Ptr GetAlias(const AST::Ptr ast);
-    void Meet(BoundFact &bf, ParseAPI::Block* b);
+    void Meet(BoundFact &bf);
 
 
     bool ConditionalJumpBound(InstructionAPI::Instruction insn, EdgeTypeEnum type);
@@ -196,6 +196,7 @@ struct BoundFact {
     void DeleteElementFromInterval(const AST::Ptr ast, int64_t val);
     void InsertRelation(AST::Ptr left, AST::Ptr right, RelationType);
     void TrackAlias(AST::Ptr expr, AST::Ptr outAST, bool findBound);
+    void CheckZeroExtend(AST::Ptr);
 
     StridedInterval *ApplyRelations(AST::Ptr outAST);
     StridedInterval *ApplyRelations2(AST::Ptr outAST);
@@ -204,7 +205,6 @@ struct BoundFact {
     bool PopAConst(AST::Ptr ast);
     
     void SwapFact(AST::Ptr a, AST::Ptr b);
-    void CheckZeroExtend(AST::Ptr a);
 
     BoundFact();
     ~BoundFact();

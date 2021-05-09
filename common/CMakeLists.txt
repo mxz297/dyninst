@@ -45,12 +45,19 @@ set (SRC_LIST
     src/MachSyscall.C
   )
 
+set (C_SRC_LIST
+)
+
 if (PLATFORM MATCHES freebsd)
   set (SRC_LIST ${SRC_LIST} 
     src/timing-freebsd.C
     src/freebsdKludges.C
     src/addrtranslate-sysv.C
     src/addrtranslate-freebsd.C
+    src/symbolDemangleWithCache.C
+  )
+  set (C_SRC_LIST ${C_SRC_LIST}
+    src/symbolDemangle.c
   )
 endif()
 
@@ -62,6 +69,10 @@ if (PLATFORM MATCHES linux)
     src/addrtranslate-sysv.C
     src/addrtranslate-auxv.C
     src/addrtranslate-linux.C
+    src/symbolDemangleWithCache.C
+  )
+  set (C_SRC_LIST ${C_SRC_LIST}
+    src/symbolDemangle.c
   )
 endif()
 
@@ -89,15 +100,24 @@ endif()
 
 
 SET_SOURCE_FILES_PROPERTIES(${SRC_LIST} PROPERTIES LANGUAGE CXX)
+SET_SOURCE_FILES_PROPERTIES(${C_SRC_LIST} PROPERTIES LANGUAGE C)
+set (SRC_LIST ${SRC_LIST}
+  ${C_SRC_LIST}
+)
 
 ADD_DEFINITIONS(-DCOMMON_LIB)
 
-if (IBERTY_FOUND)
-set(DEPS ${IBERTY_LIBRARIES})
+dyninst_library(common)
+
+if(TARGET LibIberty)
+  add_dependencies(common LibIberty)
+  target_link_libraries(common PRIVATE LibIberty)
+
+  if(${ENABLE_STATIC_LIBS})
+	  target_link_libraries(common_static PRIVATE LibIberty)
+  endif()
 endif()
 
-
-dyninst_library(common ${DEPS})
 if(TARGET TBB)
     add_dependencies(common TBB)
 endif()

@@ -255,18 +255,6 @@ class image_variable {
     
 };
 
-/* Stores source code to address in text association for modules */
-class lineDict {
- public:
-   lineDict()  { }
-   ~lineDict() { /* TODO */ }
-   void setLineAddr (unsigned line, Address addr) { lineMap[line] = addr; }
-   inline bool getLineAddr (const unsigned line, Address &adr);
-
- private:
-   std::unordered_map<unsigned, Address> lineMap;
-};
-
 std::string getModuleName(std::string constraint);
 std::string getFunctionName(std::string constraint);
 
@@ -383,8 +371,6 @@ class image : public codeRange {
 
    bool getExecCodeRanges(std::vector<std::pair<Address, Address> > &ranges);
 
-   bool isNativeCompiler() const { return nativeCompiler; }
-
    // Return symbol table information
    SymtabAPI::Symbol *symbol_info(const std::string& symbol_name);
    // And used for finding inferior heaps.... hacky, but effective.
@@ -461,6 +447,8 @@ class image : public codeRange {
    bool buildFunctionLists(std::vector<parse_func *> &raw_funcs);
    void analyzeImage();
 
+   void insertPLTParseFuncMap(const std::string&, parse_func*);
+
    //
    //  **** GAP PARSING SUPPORT  ****
    bool parseGaps() { return parseGaps_; }
@@ -488,8 +476,6 @@ class image : public codeRange {
    bool is_libdyninstRT;
    bool is_a_out;
    Address main_call_addr_; // address of call to main()
-
-   bool nativeCompiler;
 
    // data from the symbol table 
    SymtabAPI::Symtab *linkedFile;
@@ -547,6 +533,8 @@ class image : public codeRange {
    BPatch_hybridMode mode_;
    Dyninst::Architecture arch;
 
+   dyn_hash_map<string, parse_func*> plt_parse_funcs;
+
 };
 
 class pdmodule {
@@ -590,13 +578,6 @@ class pdmodule {
    SymtabAPI::Module *mod_;
    image *exec_;
 };
-
-inline bool lineDict::getLineAddr (const unsigned line, Address &adr) {
-   auto iter = lineMap.find(line);
-   if (iter == lineMap.end()) return false;
-   adr = iter->second;
-   return true;
-}
 
 class BPatch_basicBlock;
 

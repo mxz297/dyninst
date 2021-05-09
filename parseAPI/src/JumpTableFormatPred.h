@@ -46,6 +46,8 @@ public:
 			ThunkData &t,
 			SymbolicExpression &sym);
     virtual bool ignoreEdge(ParseAPI::Edge *e);
+    virtual int slicingSizeLimitFactor() { return 100; }
+    //virtual bool endAtPoint(AssignmentPtr) override;
 
 };
 

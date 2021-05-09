@@ -76,7 +76,6 @@ class BPATCH_DLL_EXPORT BPatch_module: public BPatch_sourceObj{
     friend class BPatch_function;
     friend class BPatch_flowGraph;
     friend class BPatch_image;
-    friend class InstrucIter;
     friend class BPatch_thread;
     friend class BPatch_process;
     friend class BPatch_binaryEdit;
@@ -215,12 +214,6 @@ public:
     // Returns true if this module represents a shared library
 
     bool isSharedLib();
-
-    // BPatch_module::isNativeCompiler
-    // Returns true if this module was compiled with a native compiler for  
-    // the particular platform
-
-    bool isNativeCompiler();
 
 
     // BPatch_module::getAddressRanges

@@ -1515,15 +1515,6 @@ int PCProcess::incrementThreadIndex() {
     return ret;
 }
 
-unsigned PCProcess::getAddressWidth() const {
-    if( mapped_objects.size() > 0 ) {
-        return mapped_objects[0]->parse_img()->codeObject()->cs()->getAddressWidth();
-    }
-
-    // We can call this before we've attached...best effort guess
-    return sizeof(Address);
-}
-
 PCEventHandler * PCProcess::getPCEventHandler() const {
     return eventHandler_;
 }
@@ -3249,7 +3240,11 @@ void PCProcess::addTrap(Address from, Address to, codeGen &gen) {
    gen.allocate(64);
    gen.setAddrSpace(this);
    gen.setAddr(from);
-   insnCodeGen::generateIllegal(gen);
+   if (sigILLTrampoline_) {
+      insnCodeGen::generateIllegal(gen);
+   } else {
+      insnCodeGen::generateTrap(gen);
+   }   
    trapMapping.addTrapMapping(from, to, true);
    springboard_cerr << "Generated springboard trap " << hex << from << "->" << to << dec << endl;
 }

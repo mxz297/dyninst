@@ -480,6 +480,12 @@ static struct trap_mapping_header *getStaticTrapMap(unsigned long addr)
  done:
    tc_lock_unlock(&trap_mapping_lock);
    return header;
+#else
+	// Silence compiler warnings
+    (void)addr;
+	assert(0);
+	return NULL;
+#endif
 }
 
 static int parse_libs()
@@ -641,10 +647,6 @@ static unsigned get_next_set_bitmask(unsigned *bit_mask, int last_pos) {
 }
 
 #endif
-
-
-
-#endif /* cap_mutatee_traps */
 
 #if defined(cap_binary_rewriter) && !defined(DYNINST_RT_STATIC_LIB)
 /* For a static binary, all global constructors are combined in an undefined
