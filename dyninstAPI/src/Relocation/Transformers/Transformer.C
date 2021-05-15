@@ -39,12 +39,21 @@ using namespace Dyninst;
 using namespace Relocation;
 
 bool Transformer::processGraph(RelocGraph *cfg) {
+   std::vector<RelocBlock*> relocBlocks;   
    for (RelocBlock *cur = cfg->head; cur != NULL; cur = cur->next()) {
+      relocBlocks.emplace_back(cur);
+   }
+
+   size_t total = relocBlocks.size();
+   bool ret = true;
+#pragma omp parallel for schedule(dynamic)
+   for (size_t i = 0; i < total; ++i) {
+      RelocBlock* cur = relocBlocks[i];
       if (!process(cur, cfg)) {
          cerr << "Failed to transform trace " << cur->id() << endl;
-         return false;
+         ret = false;         
       }
    }
-   return true;
+   return ret;
 }
 

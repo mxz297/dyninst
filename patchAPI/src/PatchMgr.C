@@ -103,11 +103,6 @@ PatchMgr::removeSnippet(InstancePtr instance) {
 Point *PatchMgr::findPoint(Location loc,
                            Point::Type type,
                            bool create) {
-   // Verify an untrusted Location
-   if (!loc.trusted) {
-      if (!verify(loc)) return NULL;
-   }
-
    // Not sure if it's better to go by type
    // or location first, so we're running
    // with type...

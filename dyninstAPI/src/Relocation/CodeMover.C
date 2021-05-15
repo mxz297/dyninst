@@ -85,7 +85,7 @@ bool CodeMover::addFunctions(FuncSetOrderdByLayout::const_iterator begin,
    dyn_c_hash_map<func_instance*, std::vector<RelocBlock*> > funcBlockMap;
 
    size_t total = funcs.size();
-   #pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(dynamic)
    for (size_t i = 0; i < total; ++i) {
       func_instance* func = funcs[i];
       if (!func->isInstrumentable()) {
