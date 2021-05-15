@@ -75,36 +75,44 @@ CodeMover::~CodeMover() {
 
 bool CodeMover::addFunctions(FuncSetOrderdByLayout::const_iterator begin,
 			     FuncSetOrderdByLayout::const_iterator end) {
-   // A vector of Functions is just an extended vector of basic blocks...
+   // Put the functions in a vector
+   std::vector<func_instance*> funcs;
    for (; begin != end; ++begin) {
-      func_instance *func = *begin;
+      funcs.emplace_back(*begin);
+   }
+
+   // Construct RelocBlock objects in parallel
+   dyn_c_hash_map<func_instance*, std::vector<RelocBlock*> > funcBlockMap;
+
+   size_t total = funcs.size();
+   #pragma omp parallel for schedule(dynamic)
+   for (size_t i = 0; i < total; ++i) {
+      func_instance* func = funcs[i];
       if (!func->isInstrumentable()) {
-	relocation_cerr << "\tFunction " << func->symTabName() << " is non-instrumentable, skipping" << endl;
+         relocation_cerr << "\tFunction " << func->symTabName() << " is non-instrumentable, skipping" << endl;
          continue;
       }
       relocation_cerr << "\tAdding function " << func->symTabName() << endl;
-      //if (!addRelocBlocks(func->blocks().begin(), func->blocks().end(), func)) {
-      if (!addRelocBlocks(func->blocks().begin(), func->blocks().end(), func)) {
-         return false;
+      std::vector<RelocBlock*> relocBlockList;
+      for (auto b : func->blocks()) {
+         block_instance* bi = static_cast<block_instance*>(b);
+         RelocBlock * block = RelocBlock::createReloc(bi, func);
+         relocBlockList.emplace_back(block);
+      }
+
+      dyn_c_hash_map<func_instance*, std::vector<RelocBlock*> >::accessor a;
+      assert(funcBlockMap.insert(a, std::make_pair(func, relocBlockList)));
+   }    
+            
+   // Put RelocBlock objects into RelocGraph in its original order (in serial)
+   for (auto func : funcs) {
+      dyn_c_hash_map<func_instance*, std::vector<RelocBlock*> >::accessor a;
+      if (!funcBlockMap.find(a, func)) continue;
+      for (auto relocBlock: a->second) {
+         cfg_->addRelocBlock(relocBlock);
       }
    }
 
-   return true;
-}
-
-template <typename RelocBlockIter>
-bool CodeMover::addRelocBlocks(RelocBlockIter begin, RelocBlockIter end, func_instance *f) {
-   for (; begin != end; ++begin) {
-     addRelocBlock(SCAST_BI(*begin), f);
-   }
-   return true;
-}
-
-bool CodeMover::addRelocBlock(block_instance *bbl, func_instance *f) {
-   RelocBlock * block = RelocBlock::createReloc(bbl, f);
-   if (!block)
-      return false;
-   cfg_->addRelocBlock(block);
    return true;
 }
 

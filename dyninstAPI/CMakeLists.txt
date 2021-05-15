@@ -225,4 +225,8 @@ if(UNIX)
 	target_compile_definitions(dyninstAPI PRIVATE DYNINST_COMPILER_SEARCH_DIRS=${DYNINST_COMPILER_SEARCH_DIRS})
 endif()
 
+if (USE_OpenMP)
+set_target_properties (dyninstAPI PROPERTIES COMPILE_FLAGS ${OpenMP_CXX_FLAGS} LINK_FLAGS ${OpenMP_CXX_FLAGS})
+endif()
+
 install(SCRIPT "${RT_BINARY_DIR}/cmake_install.cmake")

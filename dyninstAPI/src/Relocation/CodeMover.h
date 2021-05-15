@@ -126,10 +126,6 @@ class CodeMover {
   CodeMover(AddressSpace* as, CodeTracker *t);
   
   void setAddr(Address &addr) { addr_ = addr; }
-  template <typename RelocBlockIter>
-     bool addRelocBlocks(RelocBlockIter begin, RelocBlockIter end, func_instance *f);
-
-  bool addRelocBlock(block_instance *block, func_instance *f);
 
   void finalizeRelocBlocks();
   void OptimizeSpringboards();
