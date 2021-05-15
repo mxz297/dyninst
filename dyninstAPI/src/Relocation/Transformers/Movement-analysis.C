@@ -76,8 +76,10 @@ bool PCSensitiveTransformer::process(RelocBlock *reloc, RelocGraph *g) {
     bool adhoc_result = false;
 
     /* If we need to run the adhoc analysis then run it first */
-    if(adhoc_required)
+    if(adhoc_required) {
         adhoc_result = adhoc.process(reloc, g);
+        return adhoc_result;
+    }
 
     const block_instance *block = reloc->block();
     const func_instance *func = reloc->func();
