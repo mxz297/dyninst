@@ -242,6 +242,7 @@ bool BinaryEdit::getResolvedLibraryPath(const string &filename, std::vector<stri
     // search ld.so.cache
     // apparently ubuntu doesn't like pclosing NULL, so a shared pointer custom
     // destructor is out. Ugh.
+    /*
     FILE* ldconfig = popen("/sbin/ldconfig -p", "r");
     if (ldconfig) {
         if(!fgets(buffer, 512, ldconfig)) {	// ignore first line
@@ -265,6 +266,7 @@ bool BinaryEdit::getResolvedLibraryPath(const string &filename, std::vector<stri
         }
         pclose(ldconfig);
     }
+    */
 
     // search hard-coded system paths
     libPaths.clear();

@@ -593,6 +593,7 @@ SymtabCodeSource::updateHintsWithHpcfnbounds(RegionMap &rmap, SeenMap& seen)
 {
     char * hpcfnbound = getenv("DYNINST_PARSE_USE_HPCFNBOUND");
     if (hpcfnbound == NULL) return;
+    if (getSymtabObject()->file().find("libxul.so") == std::string::npos) return;
 
     string cmd = string(hpcfnbound);
     cmd = cmd + " " + getSymtabObject()->file();
