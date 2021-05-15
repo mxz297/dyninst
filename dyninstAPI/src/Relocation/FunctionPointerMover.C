@@ -75,8 +75,8 @@ Address FunctionPointerMover::movePointer(Address addr, Address ptr_addr) {
     return ret;
 }
 
-static unsigned char* buf = NULL;
-static int bufSize = 0;
+thread_local unsigned char* buf = NULL;
+thread_local int bufSize = 0;
 
 void FunctionPointerMover::movePointersInCodeSection() {
     switch (as->getArch()) {
@@ -94,12 +94,23 @@ void FunctionPointerMover::movePointersInCodeSection() {
 }
 
 void FunctionPointerMover::movePointersInCodeSectionX86() {
+    dyn_c_vector<codeGen> codeGenList;
+
     // TODO: handle multiple loaded objects
     bool isPIC = as->mappedObjects()[0]->isSharedLib();
     AddressSpace::CodeTrackers& trackers = as->relocatedCode_;
     CodeTracker* tracker = trackers.back();
+
+    std::vector<const TrackerElement*> elementList;
     for (auto code_tracker_iter = tracker->trackers().begin(); code_tracker_iter != tracker->trackers().end(); ++code_tracker_iter) {
         const TrackerElement *t = *code_tracker_iter;
+        elementList.emplace_back(t);
+    }
+
+    size_t total = elementList.size();
+#pragma omp parallel for schedule(dynamic)
+    for (size_t i = 0 ; i < total; ++i) {
+        const TrackerElement *t = elementList[i];
         if (t->size() > bufSize) {
             if (buf != NULL) free(buf);
             buf = (unsigned char*) malloc(t->size());
@@ -133,7 +144,7 @@ void FunctionPointerMover::movePointersInCodeSectionX86() {
 
  			    instruction ugly_insn(ins.ptr(), true);
 			    insnCodeGen::modifyData(newValue, ugly_insn, gen);
-                newPointers.push_back(gen);
+                codeGenList.push_back(gen);
             } else if (!isPIC) {                
                 Address orig = getImmediateOperand(ins);
                 if (orig == 0) {
@@ -162,10 +173,14 @@ void FunctionPointerMover::movePointersInCodeSectionX86() {
                     byte_vec[byte_vec.size() - i] = byte;
                 }
                 gen.copy(byte_vec);
-                newPointers.push_back(gen);                
+                codeGenList.push_back(gen);                
             }
 	        curAddr += ins.size();
 	    }
+    }
+
+    for (auto& c : codeGenList) {
+        newPointers.emplace_back(c);
     }
 }
 

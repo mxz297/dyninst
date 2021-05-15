@@ -1088,27 +1088,40 @@ void BinaryEdit::buildRAMapping() {
    Symtab *symtab = getMappedObject()->parse_img()->getObject();
    vector<SymtabAPI::ExceptionBlock*> ex;
    if (!symtab->getAllExceptions(ex) && !isGoBinary()) return;
-   std::map<Address, Address> RAMap;
+
+   std::vector<const Relocation::TrackerElement*> elementList;
    for (CodeTrackers::iterator i = relocatedCode_.begin();
         i != relocatedCode_.end(); ++i) {
-      Relocation::CodeTracker *CT = *i;
+        Relocation::CodeTracker *CT = *i;
 
-      for (Relocation::CodeTracker::TrackerList::const_iterator iter = CT->trackers().begin();
-           iter != CT->trackers().end(); ++iter) {
-         const Relocation::TrackerElement *tracker = *iter;
+        for (Relocation::CodeTracker::TrackerList::const_iterator iter = CT->trackers().begin();
+                iter != CT->trackers().end(); ++iter) {
+            const Relocation::TrackerElement *tracker = *iter;
+            elementList.emplace_back(tracker);
+        }
+    }
 
-         block_instance *tblock = tracker->block();
-         Address lastAddr = tblock->block()->last();
-         // Function call should be last instruction of a block.
-         // So, we only need to create RA mapping when the last instruction of a block
-         // is within the tracker's range
-         if (tracker->orig() <= lastAddr && lastAddr < tracker->orig() + tracker->size()) {
-             InstructionAPI::Instruction i = tblock->getInsn(lastAddr);
-             if (i.getCategory() != InstructionAPI::c_CallInsn) continue;
-             RAMap[tracker->reloc() + tracker->size()] = tracker->orig() + tracker->size();
-         }
-      }
-   }
+    dyn_c_vector<std::pair<Address, Address> > RAMapEntries;
+    size_t total = elementList.size();    
+#pragma omp parallel for schedule(dynamic)
+    for (size_t i = 0; i < total; ++i) {
+        const Relocation::TrackerElement *tracker = elementList[i];
+        block_instance *tblock = tracker->block();
+        Address lastAddr = tblock->block()->last();
+        // Function call should be last instruction of a block.
+        // So, we only need to create RA mapping when the last instruction of a block
+        // is within the tracker's range
+        if (tracker->orig() <= lastAddr && lastAddr < tracker->orig() + tracker->size()) {
+            InstructionAPI::Instruction i = tblock->getInsn(lastAddr);
+            if (i.getCategory() != InstructionAPI::c_CallInsn) continue;
+            RAMapEntries.push_back(std::make_pair(tracker->reloc() + tracker->size(), tracker->orig() + tracker->size()));            
+        }
+    }
+
+    std::map<Address, Address> RAMap;
+    for ( auto &entry : RAMapEntries) {
+        RAMap[entry.first] = entry.second;
+    }
 
    // Calculate return address mapping table size:
    // 1: total entry
