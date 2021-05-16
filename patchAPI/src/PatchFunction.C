@@ -62,26 +62,27 @@ PatchFunction::PatchFunction(const PatchFunction *parFunc, PatchObject* child)
 
 
 const PatchFunction::Blockset&
-PatchFunction::blocks() {
+PatchFunction::blocks() {  
   if (all_blocks_.size() == func_->num_blocks()) 
       return all_blocks_;
   else if (all_blocks_.size() > func_->num_blocks())
       return all_blocks_;
 
-  // Otherwise we need to create them
-  for (ParseAPI::Function::blocklist::iterator iter = func_->blocks().begin();
-       iter != func_->blocks().end(); ++iter) {
-    all_blocks_.insert(obj()->getBlock(*iter));
-  }
+  std::call_once(blocks_flag, [this]() {
+   // Otherwise we need to create them
+   for (ParseAPI::Function::blocklist::iterator iter = func_->blocks().begin();
+         iter != func_->blocks().end(); ++iter) {
+      all_blocks_.insert(obj()->getBlock(*iter));
+   }
 
-  // Copy jump table data
-  for (auto b : all_blocks_) {
-     auto it = func_->getJumpTables().find(b->last());
-     if (it != func_->getJumpTables().end()) {
-        addJumpTableInstance(b, it->second);
-     }
-  }
-
+   // Copy jump table data
+   for (auto b : all_blocks_) {
+      auto it = func_->getJumpTables().find(b->last());
+      if (it != func_->getJumpTables().end()) {
+         addJumpTableInstance(b, it->second);
+      }
+   }
+  });    
   return all_blocks_;
 }
 

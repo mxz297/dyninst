@@ -343,6 +343,7 @@ class PATCHAPI_EXPORT PatchFunction {
     std::map<PatchBlock*, PatchBlock*> immediatePostDominator;
 
     JumpTableMap jumpTables;
+    std::once_flag blocks_flag;
 
 
 };
