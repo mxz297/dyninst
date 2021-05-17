@@ -338,3 +338,7 @@ PatchMgrPtr PatchObject::mgr() const {
 void PatchObject::setAddrSpace(AddrSpace *as) {
    addr_space_ = as;
 }
+
+CFGMaker* PatchObject::getCFGMaker() const {
+   return cfg_maker_;
+}

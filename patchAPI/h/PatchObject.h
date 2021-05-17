@@ -75,6 +75,7 @@ class PATCHAPI_EXPORT PatchObject {
     AddrSpace* addrSpace() const { return addr_space_; }
     void setAddrSpace(AddrSpace* as);
     PatchMgrPtr mgr() const;
+    CFGMaker* getCFGMaker() const;
 
     // Function
     PatchFunction *getFunc(ParseAPI::Function *, bool create = true);
@@ -83,6 +84,7 @@ class PATCHAPI_EXPORT PatchObject {
     void removeFunc(ParseAPI::Function *);
     template <class Iter> 
 	void funcs(Iter iter); 
+    const FuncMap& getFuncMap() { return funcs_; }
     // Block
     PatchBlock *getBlock(ParseAPI::Block*, bool create = true);
     void addBlock(PatchBlock*);
