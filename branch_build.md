@@ -39,7 +39,7 @@ git clone -b layout_opt https://github.com/mxz297/dyninst.git dyninst
 cd dyninst
 mkdir -p install build
 cd build
-cmake -DLibunwind_ROOT_DIR=`pwd`/../../libunwind/install -DCapstone_ROOT_DIR=`pwd`/../../capstone/install/ -DCMAKE_INSTALL_PREFIX=`pwd`/../install -G 'Unix Makefiles' ..
+cmake -Dasmjit_ROOT_DIR=`pwd`/../../asmjit/install -DLibunwind_ROOT_DIR=`pwd`/../../libunwind/install -DCapstone_ROOT_DIR=`pwd`/../../capstone/install/ -DCMAKE_INSTALL_PREFIX=`pwd`/../install -G 'Unix Makefiles' ..
 make install -j4
 ```
 
