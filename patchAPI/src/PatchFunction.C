@@ -203,7 +203,7 @@ Point *PatchFunction::findPoint(Location loc, Point::Type type, bool create) {
             return iter->second.during;
             break;
          case Point::PreInsn: {
-            if (!loc.addr || !loc.insn.isValid()) {
+            if (!loc.addr) {
                assert(0);
             }
             InsnPoints::iterator iter2 = iter->second.preInsn.find(loc.addr);
