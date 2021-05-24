@@ -35,9 +35,34 @@
 
 #include "CFG.h"
 
+#include "parseAPI/src/LoopAnalyzer.h"
+
 using namespace std;
 using namespace Dyninst;
 using namespace PatchAPI;
+
+template<>
+Architecture ParseAPI::LoopAnalyzer<
+   PatchFunction,
+   PatchBlock,
+   PatchEdge,
+   PatchLoop,
+   PatchLoopTreeNode>::getArch() {
+   return func->obj()->co()->cs()->getArch();
+}
+
+template<>
+PatchFunction* ParseAPI::LoopAnalyzer<
+   PatchFunction,
+   PatchBlock,
+   PatchEdge,
+   PatchLoop,
+   PatchLoopTreeNode>::lookupFunctionByAddr(Address addr) {
+   ParseAPI::Function* parse_func = func->function();
+   ParseAPI::Function* ret_parse_func = func->obj()->co()->findFuncByEntry(parse_func->region(), addr);
+   return func->obj()->getFunc(ret_parse_func);
+}
+
 
 PatchFunction*
 PatchFunction::create(ParseAPI::Function *f, PatchObject* obj) {
@@ -801,13 +826,18 @@ void PatchFunction::invalidateBlocks() {
 }
 
 PatchLoopTreeNode* PatchFunction::getLoopTree() {
-  if (_loop_root == NULL) {
+   if (_loop_root == NULL) {
       if (_loop_analyzed == false) {
-          createLoops();
-	  _loop_analyzed = true;
+
+         ParseAPI::LoopAnalyzer<
+            PatchFunction,
+            PatchBlock,
+            PatchEdge,
+            PatchLoop,
+            PatchLoopTreeNode> la(this);
+         la.createLoopHierarchy();
+         _loop_analyzed = true;
       }
-      _loop_root = new PatchLoopTreeNode(obj_, func_->getLoopTree(), _loop_map);
-      
   }
   return _loop_root;
 }
@@ -818,7 +848,13 @@ PatchLoopTreeNode* PatchFunction::getLoopTree() {
 void PatchFunction::getLoopsByNestingLevel(vector<PatchLoop*>& lbb, bool outerMostOnly)
 {
   if (_loop_analyzed == false) {
-      createLoops();
+      ParseAPI::LoopAnalyzer<
+         PatchFunction,
+         PatchBlock,
+         PatchEdge,
+         PatchLoop,
+         PatchLoopTreeNode> la(this);
+      la.analyzeLoops();         
       _loop_analyzed = true;
   }
 
@@ -826,7 +862,7 @@ void PatchFunction::getLoopsByNestingLevel(vector<PatchLoop*>& lbb, bool outerMo
        iter != _loops.end(); ++iter) {
      // if we are only getting the outermost loops
      if (outerMostOnly && 
-         (*iter)->parent != NULL) continue;
+         (*iter)->parentLoop() != NULL) continue;
 
      lbb.push_back(*iter);
   }
@@ -850,32 +886,6 @@ bool PatchFunction::getOuterLoops(vector<PatchLoop*>& lbb)
 PatchLoop *PatchFunction::findLoop(const char *name)
 {
   return getLoopTree()->findLoop(name);
-}
-
-void PatchFunction::createLoops() {
-    vector<ParseAPI::Loop*> loops;    
-    func_->getLoops(loops);
-    
-    // Create all the PatchLoop objects in the function
-    for (auto lit = loops.begin(); lit != loops.end(); ++lit) {
-        PatchLoop* pl = new PatchLoop(obj_, *lit);
-	_loop_map[*lit] = pl;
-        _loops.insert(pl);
-    }
-
-    // Build nesting relations among loops
-    for (auto lit = loops.begin(); lit != loops.end(); ++lit) {
-         ParseAPI::Loop* l = *lit;
-         PatchLoop *pl = _loop_map[l];
-	 // set parent pointer
-         if (l->parentLoop() != NULL)
-	     pl->parent = _loop_map[l->parentLoop()];
-	 // set contained loop vector
-         vector<ParseAPI::Loop*> containedLoops;
-	 l->getContainedLoops(containedLoops);
-	 for (auto lit2 = containedLoops.begin(); lit2 != containedLoops.end(); ++lit2)
-	     pl->containedLoops.insert(_loop_map[*lit2]);
-    }     
 }
 
 void PatchFunction::fillDominatorInfo()

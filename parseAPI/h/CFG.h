@@ -62,7 +62,6 @@ namespace Dyninst {
 
 namespace ParseAPI {
 
-class LoopAnalyzer;
 class dominatorCFG;
 class CodeObject;
 class CFGModifier;
@@ -392,9 +391,18 @@ class FuncExtent;
 class Loop;
 class LoopTreeNode;
 
+template<
+  typename TF, // Function type: ParseAPI::Function, PatchAPI::PatchFunction
+  typename TB, // Block type: ParseAPI::Block, PatchAPI::PatchBlock
+  typename TE, // Edge type: ParseAPI::Edge, PatchAPI::PatchEdge
+  typename TL, // Loop type: ParseAPI::Loop, PatchAPI::PatchLoop
+  typename TLT // LoopTreeNode: ParseAPI::LoopTreeNode, PatchAPI::PatchLoopTreeNode
+>
+class LoopAnalyzer;
+
 class PARSER_EXPORT Function : public AnnotatableSparse, public boost::lockable_adapter<boost::recursive_mutex> {
-   friend class CFGModifier;
-   friend class LoopAnalyzer;
+   friend class CFGModifier;   
+   friend class LoopAnalyzer<Function, Block, Edge, Loop, LoopTreeNode>;
  protected:
     Address _start;
     CodeObject * _obj;
@@ -704,7 +712,7 @@ class PARSER_EXPORT FuncExtent : public Dyninst::SimpleInterval<Address, Functio
 
 class PARSER_EXPORT Loop  
 {
-	friend class LoopAnalyzer;
+    friend class LoopAnalyzer<Function, Block, Edge, Loop, LoopTreeNode>;
 	friend std::ostream& operator<<(std::ostream&,Loop&);
 
 private:
@@ -816,8 +824,8 @@ private:
  *  @see BPatch_flowGraph
  */
 
-class PARSER_EXPORT LoopTreeNode {
-    friend class LoopAnalyzer;
+class PARSER_EXPORT LoopTreeNode {    
+    friend class LoopAnalyzer<Function, Block, Edge, Loop, LoopTreeNode>;
 
  public:
     // A loop node contains a single Loop instance

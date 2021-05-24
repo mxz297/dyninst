@@ -351,8 +351,8 @@ BPatch_flowGraph::createLoops()
          PatchLoop* l = *lit;
          BPatch_basicBlockLoop *pl = _loop_map[l];
 	 // set parent pointer
-         if (l->parent != NULL)
-	     pl->parent = _loop_map[l->parent];
+         if (l->parentLoop() != NULL)
+	     pl->parent = _loop_map[l->parentLoop()];
 	 // set contained loop vector
          vector<PatchLoop*> containedLoops;
 	 l->getContainedLoops(containedLoops);

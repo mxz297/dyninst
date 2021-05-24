@@ -33,8 +33,7 @@ set (SRC_LIST
 	src/BoundFactData.C
 	src/ThunkData.C
 	../dataflowAPI/src/ABI.C 
-	src/dominator.C
-	src/LoopAnalyzer.C
+	src/dominator.C	
 	src/Loop.C
 	src/LoopTreeNode.C
 	src/IdiomModelDesc.C

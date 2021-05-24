@@ -35,9 +35,9 @@
 #include "common/src/std_namesp.h"
 #include <iterator>
 #include <algorithm>
-#include "CFG.h"
+
 #include "PatchCFG.h"
-#include <iostream>
+
 using namespace std;
 using namespace Dyninst;
 using namespace Dyninst::PatchAPI;
@@ -45,45 +45,22 @@ using namespace Dyninst::PatchAPI;
 //internal use only
 
 
-PatchLoop::PatchLoop(PatchObject *obj, ParseAPI::Loop *loop): loop_(loop), parent(NULL) {
-    //parent pointer and containedLoops vectors are set in PatchFunction::createLoops
-    
-    //set backEdges
-    vector<ParseAPI::Edge*> be;
-    loop->getBackEdges(be);
-    for (auto eit = be.begin(); eit != be.end(); ++eit) {
-        backEdges.insert(obj->getEdge(*eit, obj->getBlock((*eit)->src()), obj->getBlock((*eit)->trg())));
+PatchLoop::PatchLoop(PatchFunction *f)
+    : func(f), parent(NULL) {
     }
-      
-    //set func
-    func = obj->getFunc(const_cast<ParseAPI::Function*>(loop->getFunction()));
 
-    //set basicBlocks
-    vector<ParseAPI::Block*> b;
-    loop->getLoopBasicBlocks(b);
-    for (auto bit = b.begin(); bit != b.end(); ++bit)
-        basicBlocks.insert(obj->getBlock(*bit));
-
-    //set entries;
-    vector<ParseAPI::Block*> eb;
-    loop->getLoopEntries(eb);
-    for (auto bit = eb.begin(); bit != eb.end(); ++bit)
-        entries.insert(obj->getBlock(*bit));
-
+PatchLoop::PatchLoop(PatchEdge *be, PatchFunction *f)
+    : func(f), parent(NULL) 
+{
+    backEdges.insert(be);
 }
-
 
 bool PatchLoop::containsAddress(Address addr)
 {
-    vector<PatchBlock*> blks;
-    getLoopBasicBlocksExclusive(blks);
-
-    for(unsigned i = 0; i < blks.size(); i++) {
-	if (addr >= blks[i]->start() &&
-	    addr < blks[i]->end() ) 
-	    return true;
+    for(auto b : exclusiveBlocks) {
+        if (addr >= b->start() && addr < b->end())
+            return true;
     }
-
     return false;
 }
 
@@ -108,21 +85,17 @@ int PatchLoop::getBackEdges(vector<PatchEdge*> &edges)
 
 }
 
-int PatchLoop::getLoopEntries(vector<PatchBlock*> &e) {
-   e.insert(e.end(), entries.begin(), entries.end());
-   return e.size();
-}
-
-
-bool PatchLoop::hasAncestor(PatchLoop* l) {
+bool 
+PatchLoop::hasAncestor(PatchLoop* l) {
    return (l->containedLoops.find(this) != l->containedLoops.end());
 }
 
 
-bool PatchLoop::getLoops(vector<PatchLoop*>& nls, bool outerMostOnly) const
+bool
+PatchLoop::getLoops(vector<PatchLoop*>& nls, bool outerMostOnly) const
 {
    for (auto iter = containedLoops.begin(); iter != containedLoops.end(); ++iter) {
-      // only return a contained loop if this loop is its parent
+      // only return a contained PatchLoop if this PatchLoop is its parent
       if (outerMostOnly && (this != (*iter)->parent)) continue;
       nls.push_back(*iter);
    }
@@ -130,53 +103,44 @@ bool PatchLoop::getLoops(vector<PatchLoop*>& nls, bool outerMostOnly) const
    return true;
 }
 
-//method that returns the nested loops inside the loop. It returns a set
-//of Loop that are contained. It might be useful to add nest 
+//method that returns the nested PatchLoops inside the PatchLoop. It returns a set
+//of PatchLoop that are contained. It might be useful to add nest 
 //as a field of this class but it seems it is not necessary at this point
-bool PatchLoop::getContainedLoops(vector<PatchLoop*>& nls)
+bool
+PatchLoop::getContainedLoops(vector<PatchLoop*>& nls)
 {
   return getLoops(nls, false);
 }
 
-// get the outermost loops nested under this loop
+// get the outermost PatchLoops nested under this PatchLoop
 bool 
 PatchLoop::getOuterLoops(vector<PatchLoop*>& nls)
 {
   return getLoops(nls, true);
 }
 
-//returns the basic blocks in the loop
+//returns the basic blocks in the PatchLoop
 bool PatchLoop::getLoopBasicBlocks(vector<PatchBlock*>& bbs) {
-   bbs.insert(bbs.end(), basicBlocks.begin(), basicBlocks.end());
+   bbs.insert(bbs.end(), exclusiveBlocks.begin(), exclusiveBlocks.end());
+    bbs.insert(bbs.end(), childBlocks.begin(), childBlocks.end());
   return true;
 }
 
+void PatchLoop::insertBlock(PatchBlock* b)
+{
+    if(childBlocks.find(b) == childBlocks.end()) exclusiveBlocks.insert(b);
+}
+void PatchLoop::insertChildBlock(PatchBlock* b)
+{
+    exclusiveBlocks.erase(b);
+    childBlocks.insert(b);
+}
 
-// returns the basic blocks in this loop, not those of its inner loops
+
+// returns the basic blocks in this PatchLoop, not those of its inner PatchLoops
 bool PatchLoop::getLoopBasicBlocksExclusive(vector<PatchBlock*>& bbs) {
-    // start with a copy of all this loops basic blocks
-   std::set<PatchBlock*> allBlocks(basicBlocks);
-
-
-   // remove the blocks in each contained loop
-   vector<PatchLoop*> contLoops;
-   getContainedLoops(contLoops);
-
-
-   std::set<PatchBlock *> toRemove;
-
-   for (unsigned int i = 0; i < contLoops.size(); i++) {
-      std::copy(contLoops[i]->basicBlocks.begin(),
-                contLoops[i]->basicBlocks.end(),
-                std::inserter(toRemove, toRemove.end()));
-   }
-   
-   std::set_difference(allBlocks.begin(), allBlocks.end(),
-                       toRemove.begin(), toRemove.end(),
-                       std::back_inserter(bbs),
-                       std::less<PatchBlock *>());
-
-   return true;
+    std::copy(exclusiveBlocks.begin(), exclusiveBlocks.end(), std::back_inserter(bbs));
+    return true;
 }
 
 
@@ -186,7 +150,7 @@ bool PatchLoop::hasBlock(PatchBlock* block)
     vector<PatchBlock*> blks;
     getLoopBasicBlocks(blks);
 
-    for(unsigned i = 0; i < basicBlocks.size(); i++)
+    for(unsigned i = 0; i < blks.size(); i++)
         if (blks[i]->start() == block->start())
             return true;
     return false;
@@ -198,7 +162,7 @@ bool PatchLoop::hasBlockExclusive(PatchBlock*block)
     vector<PatchBlock*> blks;
     getLoopBasicBlocksExclusive(blks);
 
-    for(unsigned i = 0; i < basicBlocks.size(); i++)
+    for(unsigned i = 0; i < blks.size(); i++)
         if (blks[i]->start() == block->start())
             return true;
     return false;
@@ -206,22 +170,52 @@ bool PatchLoop::hasBlockExclusive(PatchBlock*block)
 
 
 
-PatchFunction* PatchLoop::getFunction() 
+
+int PatchLoop::getLoopEntries(vector<PatchBlock*> &e) {
+    e.insert(e.end(), entries.begin(), entries.end());
+    return e.size();
+}
+
+
+PatchFunction* PatchLoop::getFunction()
 {
     return func;
 }
 
 
-
+void PatchLoop::insertLoop(PatchLoop *childLoop) {
+    containedLoops.insert(childLoop);
+    childLoop->parent = this;
+    for(auto L = childLoop->containedLoops.begin();
+            L != childLoop->containedLoops.end();
+            ++L)
+    {
+        containedLoops.insert(*L);
+    }
+    for (auto b = childLoop->exclusiveBlocks.begin();
+         b != childLoop->exclusiveBlocks.end();
+         ++b) {
+        insertChildBlock(*b);
+    }
+    for (auto b = childLoop->childBlocks.begin();
+         b != childLoop->childBlocks.end();
+         ++b) {
+        insertChildBlock(*b);
+    }
+}
 
 std::string PatchLoop::format() const {
    std::stringstream ret;
    
    ret << hex << "(PatchLoop " << this << ": ";
-   for (std::set<PatchBlock *>::iterator iter = basicBlocks.begin();
-        iter != basicBlocks.end(); ++iter) {
+   for (std::set<PatchBlock *>::iterator iter = exclusiveBlocks.begin();
+        iter != exclusiveBlocks.end(); ++iter) {
       ret << (*iter)->start() << ", ";
    }
+    for (std::set<PatchBlock *>::iterator iter = childBlocks.begin();
+         iter != childBlocks.end(); ++iter) {
+        ret << (*iter)->start() << ", ";
+    }
    ret << ")" << dec << endl;
 
    return ret.str();

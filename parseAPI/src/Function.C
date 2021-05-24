@@ -55,6 +55,15 @@ using namespace std;
 using namespace Dyninst;
 using namespace Dyninst::ParseAPI;
 
+template<>
+Architecture LoopAnalyzer<Function, Block, ParseAPI::Edge, Loop, LoopTreeNode>::getArch() {
+    return func->obj()->cs()->getArch();
+}
+
+template<>
+Function* LoopAnalyzer<Function, Block, ParseAPI::Edge, Loop, LoopTreeNode>::lookupFunctionByAddr(Address addr) {
+    return func->obj()->findFuncByEntry(func->region(), addr);
+}
 
 Function::Function() :
         _start(0),
@@ -716,7 +725,7 @@ void Function::destroy(Function *f) {
 LoopTreeNode* Function::getLoopTree() const{
     boost::lock_guard<const Function> g(*this);
   if (_loop_root == NULL) {
-      LoopAnalyzer la(this);
+      LoopAnalyzer<Function, Block, Edge, Loop, LoopTreeNode> la(this);
       la.createLoopHierarchy();
   }
   return _loop_root;
@@ -730,7 +739,7 @@ void Function::getLoopsByNestingLevel(vector<Loop*>& lbb,
 {
     boost::lock_guard<const Function> g(*this);
   if (_loop_analyzed == false) {
-      LoopAnalyzer la(this);
+      LoopAnalyzer<Function, Block, Edge, Loop, LoopTreeNode> la(this);
       la.analyzeLoops();
       _loop_analyzed = true;
   }

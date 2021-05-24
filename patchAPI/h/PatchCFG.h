@@ -40,6 +40,16 @@
 namespace Dyninst {
 class Graph;
 
+namespace ParseAPI {
+template<
+  typename TF, // Function type: ParseAPI::Function, PatchAPI::PatchFunction
+  typename TB, // Block type: ParseAPI::Block, PatchAPI::PatchBlock
+  typename TE, // Edge type: ParseAPI::Edge, PatchAPI::PatchEdge
+  typename TL, // Loop type: ParseAPI::Loop, PatchAPI::PatchLoop
+  typename TLT // LoopTreeNode: ParseAPI::LoopTreeNode, PatchAPI::PatchLoopTreeNode
+>
+class LoopAnalyzer;
+}
 namespace PatchAPI {
 
 class PatchParseCallback;
@@ -200,6 +210,7 @@ class PATCHAPI_EXPORT PatchFunction {
    friend class PatchObject;
    friend class PatchParseCallback;
    friend class PatchModifier;
+   friend class ParseAPI::LoopAnalyzer<PatchFunction, PatchBlock, PatchEdge, PatchLoop, PatchLoopTreeNode>;
 
    public:
 
@@ -325,8 +336,7 @@ class PATCHAPI_EXPORT PatchFunction {
     std::set<PatchLoop*> _loops;
     map<ParseAPI::Loop*, PatchLoop*> _loop_map;
     PatchLoopTreeNode *_loop_root; // NULL if the tree structure has not be calculated    
-    void getLoopsByNestingLevel(vector<PatchLoop*>& lbb, bool outerMostOnly);
-    void createLoops();
+    void getLoopsByNestingLevel(vector<PatchLoop*>& lbb, bool outerMostOnly);    
     void createLoopHierarchy();
 
     /* Dominator and post-dominator info details */
@@ -350,8 +360,8 @@ class PATCHAPI_EXPORT PatchFunction {
 
 
 class PATCHAPI_EXPORT PatchLoop  
-{
-	friend class PatchFunction;
+{	
+        friend class ParseAPI::LoopAnalyzer<PatchFunction, PatchBlock, PatchEdge, PatchLoop, PatchLoopTreeNode>;
 private:
         std::set<PatchEdge*> backEdges;
 
@@ -366,13 +376,17 @@ private:
         std::set<PatchLoop*> containedLoops;
 
 	/** the basic blocks in the loop */
-        std::set<PatchBlock*> basicBlocks;
+        std::set<PatchBlock*> childBlocks;
+        std::set<PatchBlock*> exclusiveBlocks;
 
-        ParseAPI::Loop *loop_;
+        PatchLoop *parent;
 
-public:
+public:	
+	/** If loop which directly encloses this loop. NULL if no such loop */
+        void insertBlock(PatchBlock* b);
+        void insertChildBlock(PatchBlock* b);
 
-	PatchLoop* parent;
+        PatchLoop* parentLoop() { return parent; }
 
         bool containsAddress(Address addr);
 	bool containsAddressInclusive(Address addr);
@@ -416,10 +430,12 @@ public:
         ~PatchLoop() { }
 
         std::string format() const;
+        void insertLoop(PatchLoop *childLoop);
 
 private:
 	/** constructor of class */
-	PatchLoop(PatchObject* obj, ParseAPI::Loop *);
+	PatchLoop(PatchFunction*);
+        PatchLoop(PatchEdge*, PatchFunction*);
 
 	/** get either contained or outer loops, determined by outerMostOnly */
 	bool getLoops(vector<PatchLoop*>&, bool outerMostOnly) const;
@@ -427,7 +443,7 @@ private:
 
 
 class PATCHAPI_EXPORT PatchLoopTreeNode {
-
+   friend class ParseAPI::LoopAnalyzer<PatchFunction, PatchBlock, PatchEdge, PatchLoop, PatchLoopTreeNode>;
  public:
     // A loop node contains a single Loop instance
     PatchLoop *loop;
@@ -437,7 +453,7 @@ class PATCHAPI_EXPORT PatchLoopTreeNode {
 
     //  LoopTreeNode::LoopTreeNode
     //  Create a loop tree node for Loop with name n 
-    PatchLoopTreeNode(PatchObject *obj, ParseAPI::LoopTreeNode *l, std::map<ParseAPI::Loop*, PatchLoop*>&);
+    PatchLoopTreeNode(PatchLoop *l, const char *n);
 
     //  Destructor
     ~PatchLoopTreeNode();

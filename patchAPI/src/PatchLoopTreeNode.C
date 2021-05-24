@@ -34,25 +34,13 @@
 using namespace Dyninst;
 using namespace Dyninst::PatchAPI;
 
-PatchLoopTreeNode::PatchLoopTreeNode(PatchObject *obj,
-                                     ParseAPI::LoopTreeNode *tree,
-				     std::map<ParseAPI::Loop*, PatchLoop*>& loopMap)
+PatchLoopTreeNode::PatchLoopTreeNode(PatchLoop *l, const char *n)
 {
-    if (tree->loop != NULL) {
-        loop = loopMap[tree->loop];
-	hierarchicalName = strdup(tree->name());
-    } else {
-        loop = NULL;
-	hierarchicalName = NULL;
-    }
-
-    for (auto cit = tree->children.begin(); cit != tree->children.end(); ++cit)
-        children.push_back(new PatchLoopTreeNode(obj, *cit, loopMap));
-
-    vector<ParseAPI::Function*> parseCallees;
-    tree->getCallees(parseCallees);
-    for (auto fit = parseCallees.begin(); fit != parseCallees.end(); ++fit)
-        callees.push_back(obj->getFunc(*fit));
+    loop = l;
+    hierarchicalName = NULL;
+    if (n != NULL) {
+        hierarchicalName = strdup(n);
+    }    
 }
  
 
