@@ -36,6 +36,7 @@ void PatchModifier::setIndirectCallInlineLimit(int i) {
 }
 
 bool PatchModifier::beginInlineSet(PatchObject * obj) {
+   patch_printf("Enter PatchModifier::beginInlineSet\n");
    functionSplit.clear();
    inlineInstData.clear();
    inlineMap.clear();
@@ -374,7 +375,7 @@ static bool inlineDirectCall(
    PatchBlock* cb,
    Address callee
 ) {
-   patch_printf("Enter PatchModifier::inlineDirectCall: caller %s at %lx, call block [%lx, %lx), callee %lx\n",
+   patch_printf("Enter inlineDirectCall: caller %s at %lx, call block [%lx, %lx), callee %lx\n",
      caller->name().c_str(), caller->addr(), cb->start(), cb->end(), callee);
 
    PatchBlock* call_ft_block = GetCallFTBlock(cb);
@@ -399,7 +400,7 @@ static bool inlineIndirectCall(
 )
 {
    PatchMgr::Ptr patcher = caller->obj()->mgr();
-   patch_printf("Enter PatchModifier::inlineDirectCall\n");
+   patch_printf("Enter inlineDirectCall\n");
    PatchBlock* call_ft_block = GetCallFTBlock(cb);
    if (call_ft_block == nullptr) {
       patch_printf("\tcannot find call fallthrough block\n");
@@ -588,10 +589,12 @@ bool PatchModifier::inlineCall(PatchFunction* f, PatchBlock*b, Address callee) {
    }
 
    patch_printf("\t inlined, is indirect %d\n", isIndirect);
+   inlineMap[f][b].emplace_back(callee);
    return true;
 }
 
 bool PatchModifier::endInlineSet() {
+   patch_printf("Enter PatchModifier::endInlineSet\n");
    bool done = false;
    while (!done) {
       done = true;
