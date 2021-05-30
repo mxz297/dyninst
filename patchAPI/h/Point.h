@@ -256,6 +256,8 @@ class PATCHAPI_EXPORT Point {
     PatchCallback *cb() const;
 
     bool consistency() const;
+
+    const InstanceList& getInstanceList() { return instanceList_; }
     
   protected:
     bool destroy();

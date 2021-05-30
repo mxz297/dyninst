@@ -31,6 +31,7 @@
 
 #include "PatchCFG.h"
 #include "PatchCallback.h"
+#include "PatchMgr.h"
 
 using namespace std;
 using namespace Dyninst;
@@ -159,4 +160,19 @@ std::string PatchEdge::format() const {
 void PatchEdge::setTailCallOverride(bool val) {
    tailCallOverride_ = true;
    tailCallOverrideVal_ = val;
+}
+
+void PatchEdge::cloneInstrumentation(
+   PatchFunction* newF, // newF is the function that contains this edge
+   PatchFunction* f, // f is the function that contains edge e
+   PatchEdge *e
+) {
+   PatchMgr::Ptr patcher = f->obj()->mgr();
+   auto p1 = patcher->findPoint(Location::EdgeInstance(f, e), Point::EdgeDuring, false);
+   if (p1 != nullptr) {
+      auto p2 = patcher->findPoint(Location::EdgeInstance(newF, this), Point::EdgeDuring, true);
+      for (auto const& instInstance : p1->getInstanceList()) {
+         p2->pushBack(instInstance->snippet());
+      }
+   }   
 }

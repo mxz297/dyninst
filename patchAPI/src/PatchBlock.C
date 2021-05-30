@@ -1,28 +1,28 @@
 /*
  * See the dyninst/COPYRIGHT file for copyright information.
- * 
+ *
  * We provide the Paradyn Tools (below described as "Paradyn")
  * on an AS IS basis, and do not warrant its validity or performance.
  * We reserve the right to update, modify, or discontinue this
  * software at any time.  We shall have no obligation to supply such
  * updates or modifications or any other form of support to you.
- * 
+ *
  * By your use of Paradyn, you understand and agree that we (or any
  * other person or entity with proprietary rights in Paradyn) are
  * under no obligation to provide either maintenance services,
  * update services, notices of latent defects, or correction of
  * defects for Paradyn.
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
- * 
+ *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
@@ -70,10 +70,10 @@ const PatchBlock::edgelist&
 PatchBlock::sources() {
   if (srclist_.empty() && cloneVersion_ == 0) {
     for (ParseAPI::Block::edgelist::const_iterator iter = block_->sources().begin();
-         iter != block_->sources().end(); ++iter) 
+         iter != block_->sources().end(); ++iter)
     {
       // search for edge in object of source block
-      PatchObject *obj = obj_->addrSpace()->findObject((*iter)->src()->obj()); 
+      PatchObject *obj = obj_->addrSpace()->findObject((*iter)->src()->obj());
       PatchEdge *newEdge = obj->getEdge(*iter, NULL, this);
       srclist_.push_back(newEdge);
     }
@@ -127,7 +127,7 @@ void PatchBlock::addTargetEdge(PatchEdge *e, bool addIfEmpty) {
    if (!addIfEmpty && trglist_.empty()) return;
 
    trglist_.push_back(e);
-   
+
    cb()->add_edge(this, e, PatchCallback::target);
 }
 
@@ -140,7 +140,7 @@ PatchBlock::removeSourceEdge(PatchEdge *e) {
   if ((iter = std::find(srclist_.begin(), srclist_.end(), e)) != srclist_.end()) {
     srclist_.erase(iter);
   } else {
-      cerr << "WARNING: failed to remove target edge from block [" 
+      cerr << "WARNING: failed to remove target edge from block ["
           <<hex <<start() <<" " <<end() <<") from "<< e->src()->last() << dec <<endl;
   }
   cb()->remove_edge(this, e, PatchCallback::source);
@@ -154,7 +154,7 @@ PatchBlock::removeTargetEdge(PatchEdge *e) {
   if ((iter = std::find(trglist_.begin(), trglist_.end(), e)) != trglist_.end()) {
     trglist_.erase(iter);
   } else {
-      cerr << "WARNING: failed to remove target edge from block [" 
+      cerr << "WARNING: failed to remove target edge from block ["
           <<hex <<start() <<" " <<end() <<") to "<< e->src()->start() << dec <<endl;
   }
   cb()->remove_edge(this, e, PatchCallback::target);
@@ -207,7 +207,7 @@ PatchBlock::containingFuncs() const {
   return block_->containingFuncs();
 }
 
-int 
+int
 PatchBlock::numRetEdges() const {
   int numRets = 0;
   const ParseAPI::Block::edgelist & out_edges = block_->targets();
@@ -241,7 +241,7 @@ PatchBlock::containsDynamicCall() {
   const ParseAPI::Block::edgelist & out_edges = block_->targets();
   ParseAPI::Block::edgelist::const_iterator eit = out_edges.begin();
    for( ; eit != out_edges.end(); ++eit) {
-     if ( ParseAPI::CALL == (*eit)->type() ) { 
+     if ( ParseAPI::CALL == (*eit)->type() ) {
          // see if it's a static call to a bad address
          if ((*eit)->sinkEdge()) {
              using namespace InstructionAPI;
@@ -253,11 +253,11 @@ PatchBlock::containsDynamicCall() {
                  Expression::Ptr tExpr = insn.getControlFlowTarget();
                  if (tExpr)
                      tExpr->getUses(regs);
-                 for (set<InstructionAST::Ptr>::iterator rit = regs.begin(); 
+                 for (set<InstructionAST::Ptr>::iterator rit = regs.begin();
                       rit != regs.end(); rit++)
                  {
-                     if (RegisterAST::makePC(obj()->co()->cs()->getArch()).getID() != 
-                         boost::dynamic_pointer_cast<RegisterAST>(*rit)->getID()) 
+                     if (RegisterAST::makePC(obj()->co()->cs()->getArch()).getID() !=
+                         boost::dynamic_pointer_cast<RegisterAST>(*rit)->getID())
                      {
                          return true;
                      }
@@ -292,10 +292,10 @@ std::string
 PatchBlock::long_format() const {
   stringstream ret;
   ret << format() << endl;
-  
+
   Insns insns;
   getInsns(insns);
-  
+
   for (Insns::iterator iter = insns.begin(); iter != insns.end(); ++iter) {
      ret << "\t" << hex << iter->first << " : " << iter->second.format() << dec << endl;
   }
@@ -424,7 +424,7 @@ void PatchBlock::destroyPoints()
         cb->destroy(points_.entry);
         delete points_.entry;
         points_.entry = NULL;
-    } 
+    }
     if (points_.during) {
         cb->destroy(points_.during);
         delete points_.during;
@@ -436,9 +436,9 @@ void PatchBlock::destroyPoints()
         points_.exit = NULL;
     }
     if (!points_.preInsn.empty()) {
-        for (InsnPoints::iterator iit = points_.preInsn.begin(); 
-             iit != points_.preInsn.end(); 
-             iit++) 
+        for (InsnPoints::iterator iit = points_.preInsn.begin();
+             iit != points_.preInsn.end();
+             iit++)
         {
             cb->destroy(iit->second);
             delete iit->second;
@@ -446,9 +446,9 @@ void PatchBlock::destroyPoints()
         points_.preInsn.clear();
     }
     if (!points_.postInsn.empty()) {
-        for (InsnPoints::iterator iit = points_.postInsn.begin(); 
-             iit != points_.postInsn.end(); 
-             iit++) 
+        for (InsnPoints::iterator iit = points_.postInsn.begin();
+             iit != points_.postInsn.end();
+             iit++)
         {
             cb->destroy(iit->second);
             delete iit->second;
@@ -474,10 +474,10 @@ PatchCallback *PatchBlock::cb() const {
 void PatchBlock::splitBlock(PatchBlock *succ)
 {
 
-   // Okay, get our edges right and stuff. 
-   // We want to modify when possible so that we keep Points on affected edges the same. 
+   // Okay, get our edges right and stuff.
+   // We want to modify when possible so that we keep Points on affected edges the same.
    // Therefore:
-   // 1) Incoming edges are unchanged. 
+   // 1) Incoming edges are unchanged.
    // 2) Outgoing edges from p1 are switched to p2 (except the fallthrough from p1 to p2)
    // 3) Fallthrough edge from p1 to p2 added if it wasn't already (depends on the status
    //    of our lazy block & edge creation when parseAPI added the edge)
@@ -494,7 +494,7 @@ void PatchBlock::splitBlock(PatchBlock *succ)
    }
    trglist_.clear();
    // list will be built up lazily when needed, hopefully after parsing is done
-   succ->trglist_.clear(); 
+   succ->trglist_.clear();
 
    // 3)
    assert(1 == block_->targets().size());
@@ -505,7 +505,7 @@ void PatchBlock::splitBlock(PatchBlock *succ)
    else {
        const ParseAPI::Block::edgelist &tmp = this->block()->targets();
        if (tmp.size() != 1) {
-          cerr << "ERROR: split block has " << tmp.size() 
+          cerr << "ERROR: split block has " << tmp.size()
               << " edges, not 1 as expected!" << endl;
           assert(0);
        }
@@ -558,7 +558,7 @@ bool PatchBlock::consistency() const {
    if (!trglist_.empty()) {
       if (trglist_.size() != block_->targets().size()) {
          cerr << "Error: block at "<<hex<< block_->start()<< dec<<" has inconsistent targets size; ParseAPI "
-              << block_->targets().size() << " and PatchAPI " 
+              << block_->targets().size() << " and PatchAPI "
               << trglist_.size() << endl;
          CONSIST_FAIL;
       }
@@ -568,8 +568,8 @@ bool PatchBlock::consistency() const {
          // is a conditional taken and the other a conditional not-taken
          // (even this is weird, but it happens in obfuscated code)
          if (trgs.find(trglist_[i]->trg()) != trgs.end() &&
-             trglist_[i]->type() != ParseAPI::COND_TAKEN && 
-             trglist_[i]->type() != ParseAPI::COND_NOT_TAKEN) 
+             trglist_[i]->type() != ParseAPI::COND_TAKEN &&
+             trglist_[i]->type() != ParseAPI::COND_NOT_TAKEN)
          {
             cerr << "Error: multiple target edges to same block" << endl;
             CONSIST_FAIL;
@@ -636,4 +636,66 @@ bool PatchBlock::wasUserAdded() const {
 
 void PatchBlock::setCloneVersion(int v) {
     cloneVersion_ = v;
+}
+
+static void cloneBlockLevelInstrumentation(
+   PatchFunction* newF,
+   PatchBlock* newB,
+   PatchFunction* f,
+   PatchBlock* b,
+   Point::Type t
+) {
+   PatchMgr::Ptr patcher = f->obj()->mgr();
+   auto p1 = patcher->findPoint(Location::BlockInstance(f, b), t, false);
+   if (p1 != nullptr) {
+      auto p2 = patcher->findPoint(Location::BlockInstance(newF, newB), t, true);
+      for (auto const& instInstance : p1->getInstanceList()) {
+         p2->pushBack(instInstance->snippet());
+      }
+   }
+}
+
+static void cloneInsnLevelInstrumentation(
+   PatchFunction* newF,
+   PatchBlock* newB,
+   PatchFunction* f,
+   PatchBlock* b,
+   Address addr,
+   Point::Type t
+) {
+   PatchMgr::Ptr patcher = f->obj()->mgr();
+   auto p1 = patcher->findPoint(Location::InstructionInstance(f, b, addr), t, false);
+   if (p1 != nullptr) {
+      auto p2 = patcher->findPoint(Location::InstructionInstance(newF, newB, addr), t, true);
+      for (auto const& instInstance : p1->getInstanceList()) {
+         p2->pushBack(instInstance->snippet());
+      }
+   }
+}
+
+void PatchBlock::cloneInstrumentation(
+   PatchFunction* newF, // newF is the function that contains this block
+   PatchFunction* f, // f is the function that contains block b
+   PatchBlock *b
+) {
+   // Need to copy instrumentation for BlockEntry, BlockExit and every pre and post instruction
+   cloneBlockLevelInstrumentation(newF, this, f, b, Point::BlockEntry);
+   cloneBlockLevelInstrumentation(newF, this, f, b, Point::BlockExit);
+
+   Insns insns;
+   b->getInsns(insns);
+   for (auto &it : insns) {
+      cloneInsnLevelInstrumentation(newF, this, f, b, it.first, Point::PreInsn);
+      cloneInsnLevelInstrumentation(newF, this, f, b, it.first, Point::PostInsn);
+   }
+
+   // Also copy instrumentation for out-going edges
+   for (auto e1: b->targets()) {
+      for (auto e2: targets()) {
+         if (e1->trg() == e2->trg()) {
+            e2->cloneInstrumentation(newF, f, e1);
+         }
+      }
+   }
+
 }

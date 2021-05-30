@@ -96,6 +96,7 @@ class PATCHAPI_EXPORT PatchEdge {
 
    std::string format() const;
    void setTailCallOverride(bool);
+   void cloneInstrumentation(PatchFunction*, PatchFunction*, PatchEdge*);
  protected:
     ParseAPI::Edge *edge_;
     PatchEdge* original_edge_;
@@ -175,6 +176,8 @@ class PATCHAPI_EXPORT PatchBlock {
 
    void setAlignHint(bool val) { shouldAlign_ = val; }
    bool getAlignHint() { return shouldAlign_; }
+
+   void cloneInstrumentation(PatchFunction*, PatchFunction*, PatchBlock*);
 
   protected:
     typedef enum {

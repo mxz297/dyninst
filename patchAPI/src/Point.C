@@ -148,7 +148,7 @@ Point::Point(Type type, PatchMgrPtr mgr, PatchFunction* func, PatchBlock *b) :
 
 /* old_instance, old_instance, <---new_instance */
 InstancePtr
-Point::pushBack(SnippetPtr snippet) {
+Point::pushBack(SnippetPtr snippet) {  
   InstancePtr instance = Instance::create(this, snippet);
   if (!instance) return instance;
   instanceList_.push_back(instance);

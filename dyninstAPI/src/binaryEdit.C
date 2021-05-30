@@ -1176,6 +1176,10 @@ void BinaryEdit::buildRelocatedCodeMapping() {
          } else {
              relocMap[tracker->reloc()] = std::make_pair(-1, tracker->size());             
          }
+         if (tracker->type() == Relocation::TrackerElement::original) {
+             relocation_cerr << "Version mapping: " << std::hex << tracker->reloc() << " " << tracker->orig() 
+                << " version " << tracker->block()->getCloneVersion() << std::dec << endl;
+         }
       }
    }
 /*
