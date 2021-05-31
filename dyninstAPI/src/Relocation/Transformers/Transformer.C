@@ -46,7 +46,6 @@ bool Transformer::processGraph(RelocGraph *cfg) {
 
    size_t total = relocBlocks.size();
    bool ret = true;
-#pragma omp parallel for schedule(dynamic)
    for (size_t i = 0; i < total; ++i) {
       RelocBlock* cur = relocBlocks[i];
       if (!process(cur, cfg)) {
