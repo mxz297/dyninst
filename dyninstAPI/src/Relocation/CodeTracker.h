@@ -153,8 +153,8 @@ class EmulatorTracker : public TrackerElement {
 
 class InstTracker : public TrackerElement {
  public:
-  InstTracker(Address orig, baseTramp *baseT, block_instance *b, func_instance *f, edge_instance *e) :
-   TrackerElement(orig, b, f), baseT_(baseT), edge_(e) {};
+  InstTracker(Address orig, baseTramp *baseT, block_instance *b, func_instance *f, edge_instance *e, const char* name) :
+   TrackerElement(orig, b, f), baseT_(baseT), edge_(e), snippetName(name) {};
   virtual ~InstTracker() {};
 
   virtual Address relocToOrig(Address reloc) const {
@@ -176,9 +176,12 @@ class InstTracker : public TrackerElement {
   
   virtual bool mergeable() const { return false; };
 
+  const char* getSnippetName() const { return snippetName; }
+
  private:
   baseTramp *baseT_;
   edge_instance* edge_;
+  const char* snippetName;
 };
 
 class PaddingTracker : public TrackerElement {

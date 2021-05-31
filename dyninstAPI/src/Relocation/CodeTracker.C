@@ -74,7 +74,7 @@ CodeTracker *CodeTracker::fork(CodeTracker *parent,
          case TrackerElement::instrumentation: {
             InstTracker *pI = static_cast<InstTracker *>(pE);
             baseTramp *bt = baseTramp::fork(pI->baseT(), child);
-            cE = new InstTracker(pE->orig(), bt, cB, cF, pI->edge());
+            cE = new InstTracker(pE->orig(), bt, cB, cF, pI->edge(), pI->getSnippetName());
             break;
          }
          case TrackerElement::padding: {
@@ -218,6 +218,7 @@ void CodeTracker::debug() {
 */
 
   const char* path = BPatch::bpatch->getMappingFilePath();
+  if (path == nullptr) return;
   FILE* f = fopen(path, "w");
   if (f == NULL) return;
   std::vector<ReverseMap::Entry> reverseEntries;

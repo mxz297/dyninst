@@ -12,6 +12,7 @@ class AdjustSPSnippet : public Dyninst::PatchAPI::Snippet {
    public:
    explicit AdjustSPSnippet(int adj): adjustment(adj) {}
    bool generate(Dyninst::PatchAPI::Point* , Dyninst::Buffer& buf) override;
+   const char* snippetName() const override { return "inline"; }
    private:
    int adjustment;
 };
@@ -22,6 +23,7 @@ class EmulatedReturnAddressSnippet : public Dyninst::PatchAPI::Snippet {
                f(func), b(targetBlock) {}
 
    bool generate(Dyninst::PatchAPI::Point* , Dyninst::Buffer& buf) override;
+   const char* snippetName() const override { return "inline"; }
    PatchBlock* getBlock() { return b; }
 
    private:
@@ -34,6 +36,7 @@ class IndirectCallInlineSnippet : public Dyninst::PatchAPI::Snippet {
    explicit IndirectCallInlineSnippet(const InstructionAPI::Instruction &insn, std::vector<Address> &addresses):
       i(insn), addrs(addresses) {}
    bool generate(Dyninst::PatchAPI::Point* , Dyninst::Buffer& buf) override;
+   const char* snippetName() const override { return "inline"; }
    private:
 
    const InstructionAPI::Instruction& i;

@@ -57,8 +57,15 @@ TrackerElement *InstWidget::tracker() const {
    // instPs; fix when Wenbin fixes the instP data structure.
    if (point_->block_compat() == NULL)
       return NULL;
+   
+   const char* name;
+   if (point_->getInstanceList().begin() == point_->getInstanceList().end()) {
+      name = "dyninst";      
+   } else {
+      name = (*point_->getInstanceList().begin())->snippet()->snippetName();      
+   }
 
-   e = new InstTracker(point_->addr_compat(), point_->tramp(), point_->block_compat(), point_->func(), point_->edge() );
+   e = new InstTracker(point_->addr_compat(), point_->tramp(), point_->block_compat(), point_->func(), point_->edge(), name );
    
    return e;
 }

@@ -61,6 +61,7 @@ class PATCHAPI_EXPORT Snippet {
     // being generated.
     // Buffer is an out-param that holds the generated code. 
     virtual bool generate(Point *, Buffer &) = 0;
+    virtual const char* snippetName() const { return "dyninst"; }
 };
 
 

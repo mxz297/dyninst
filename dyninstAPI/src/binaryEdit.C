@@ -542,7 +542,7 @@ bool BinaryEdit::writeFile(const std::string &newFileName)
 
       buildRAMapping();
       if (BPatch::bpatch->writeAddressMappingForProfile()) {
-          buildRelocatedCodeMapping();
+          buildRelocatedCodeMapping(newFileName + ".mapping");
       }
       
 
@@ -1162,90 +1162,77 @@ void BinaryEdit::buildRAMapping() {
    }
 }
 
-void BinaryEdit::buildRelocatedCodeMapping() {
-   std::map<Address, std::pair<int64_t, int64_t> > relocMap;
-   for (CodeTrackers::iterator i = relocatedCode_.begin();
-        i != relocatedCode_.end(); ++i) {
-      Relocation::CodeTracker *CT = *i;
+void BinaryEdit::buildRelocatedCodeMapping(std::string mappingFileName) {
+    // if cannot open the file, then just do not create mapping
+    FILE* f = fopen(mappingFileName.c_str(), "w");
+    if (f == nullptr) {
+        fprintf(stderr, "cannot write instrumentation mapping file %s\n", mappingFileName.c_str());
+        return;
+    }
+    
+    std::map<Address, const Relocation::TrackerElement* > relocMap;
+    std::set<std::string> stringSet;    
+    stringSet.insert("dyninst");
+    for (CodeTrackers::iterator i = relocatedCode_.begin(); i != relocatedCode_.end(); ++i) {
+        Relocation::CodeTracker *CT = *i;        
+        for (Relocation::CodeTracker::TrackerList::const_iterator iter = CT->trackers().begin(); iter != CT->trackers().end(); ++iter) {
+            const Relocation::TrackerElement *tracker = *iter;
+            relocMap[tracker->reloc()] = tracker;
 
-      for (Relocation::CodeTracker::TrackerList::const_iterator iter = CT->trackers().begin();
-           iter != CT->trackers().end(); ++iter) {
-         const Relocation::TrackerElement *tracker = *iter;
-         if (tracker->type() == Relocation::TrackerElement::original || tracker->type() == Relocation::TrackerElement::emulated) {
-             relocMap[tracker->reloc()] = std::make_pair(tracker->orig(), tracker->size());             
-         } else {
-             relocMap[tracker->reloc()] = std::make_pair(-1, tracker->size());             
-         }
-         if (tracker->type() == Relocation::TrackerElement::original) {
-             relocation_cerr << "Version mapping: " << std::hex << tracker->reloc() << " " << tracker->orig() 
-                << " version " << tracker->block()->getCloneVersion() << std::dec << endl;
-         }
-      }
-   }
-/*
-   Address relocAddr, origAddr;
-   int64_t rangeSize = -1;
-   for (auto &it : relocMapOrig) {
-      // Combine instrumentation ranges
-      if (rangeSize > 0 && origAddr == -1 && it.second.first == -1 && relocAddr + rangeSize == it.first) {          
-          rangeSize += it.second.second;
-          continue;
-      }
-      // Combine original code ranges
-      if (rangeSize > 0 && origAddr != -1 && origAddr + rangeSize == it.second.first && relocAddr + rangeSize == it.first) {
-          rangeSize += it.second.second;
-          continue;
-      }
-      if (rangeSize > 0) {
-          relocMap[relocAddr] = std::make_pair(origAddr, rangeSize);
-      }
-      relocAddr = it.first;
-      origAddr = it.second.first;
-      rangeSize = it.second.second;
-   }
-   if (rangeSize > 0) {
-       relocMap[relocAddr] = std::make_pair(origAddr, rangeSize);
-   }   
-*/
-   // Calculate relocated code mapping table size:
-   // 1: total entry
-   // 2: each entry mapping
-   unsigned long tableSize = sizeof(int64_t) + sizeof(int64_t) * 3 * relocMap.size();
-   Address table_header = inferiorMalloc(tableSize);
-   unsigned long offset = 0;
+            // Build instrumentation annotation set
+            if (tracker->type() != Relocation::TrackerElement::instrumentation) continue;
+            const Relocation::InstTracker * instT = static_cast<const Relocation::InstTracker*>(tracker);
+            if (instT->getSnippetName() == nullptr) continue;
+            stringSet.insert(std::string(instT->getSnippetName()));        
+        }
+    }
 
-   // Write the total entry
-   unsigned long entryCount = relocMap.size();
-   bool result = writeDataSpace((void *) (table_header + offset), sizeof(int64_t), &entryCount);
-   assert(result);
-   offset += sizeof(int64_t);
+    // Assign an integer index to each annotation string
+    std::map<std::string, int> stringMap;
+    int index = 0;
+    for (auto &s : stringSet) {
+        index += 1;
+        stringMap.emplace(s, index);
+    }
 
-   // Write each entry
-   for (auto& it : relocMap) {
-       relocation_cerr << "Relocated code address mapping " << hex 
-       << it.first << " -> " << it.second.first << " , size " << 
-       it.second.second << dec << endl;
-       result = writeDataSpace((void *) (table_header + offset), sizeof(int64_t), &(it.first));
-       offset += sizeof(int64_t);
-       result = writeDataSpace((void *) (table_header + offset), sizeof(int64_t), &(it.second.first));
-       offset += sizeof(int64_t);
-       result = writeDataSpace((void *) (table_header + offset), sizeof(int64_t), &(it.second.second));
-       offset += sizeof(int64_t);       
-   }
+    int defaultInstIndex = -stringMap["dyninst"];
+    
+    // Write address mapping
+    fprintf(f, "%lu\n", relocMap.size());    
+    for (auto& it : relocMap) {
+        const Relocation::TrackerElement *tracker = it.second;
+        int64_t orig = defaultInstIndex;
+        if (tracker->type() == Relocation::TrackerElement::original || tracker->type() == Relocation::TrackerElement::emulated) {
+            orig = tracker->orig();          
+        } else {
+            const Relocation::InstTracker * instT = static_cast<const Relocation::InstTracker*>(tracker);
+            if (instT->getSnippetName() != nullptr && stringMap.find(instT->getSnippetName()) != stringMap.end()) {
+                orig = -stringMap[instT->getSnippetName()];
+            }
+        }
+        // Each line includes:
+        // 1. relocated address start
+        // 2. if positive, the value is original address;
+        //    if negative, it represents an instrumentation range;
+        //    the negative of the value is the index into the instrumentation annotation table
+        // 3. size of the interval
+        // 4. version number
+        fprintf(f, "%lx %lx %x %x\n", it.first, orig, tracker->size(), tracker->block()->getCloneVersion());         
+    }
 
-   // Create a dynamic tag in the dynamic section
-   // to help DyninstRT to find the table
-   Symtab *symtab = getMappedObject()->parse_img()->getObject();
-   if( !symtab->isStaticBinary() ) {
-       symtab->addSysVDynamic(DT_DYNINST_RELOCMAP, table_header);
-   }
+    // print string table
+    fprintf(f, "%lu\n", stringMap.size());
+    for (auto &it : stringMap) {
+        fprintf(f, "%s\n", it.first.c_str());
+    }
+    fclose(f);
 }
 
 void BinaryEdit::instrumentGoRuntimeStackTrace(string func_to_inst, int index) {
     std::vector<func_instance*> funcs;
     findFuncsByMangled(func_to_inst, funcs);
     if (funcs.size() != 1) {
-        fprintf(stderr, "Find %u %s\n", funcs.size(), func_to_inst.c_str());
+        fprintf(stderr, "Find %lu %s\n", funcs.size(), func_to_inst.c_str());
         return;
     }
     func_instance* func = funcs[0];
