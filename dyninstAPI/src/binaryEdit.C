@@ -184,15 +184,15 @@ Address BinaryEdit::inferiorMalloc(unsigned size,
         case 0:
             // See if we have available memory
             break;
-        case 1: {            
+        case 1: {
             inferiorFreeCompact();
             auto lastItem = heap_.heapFree.rbegin();
             // Shrink the upper bound if it is free
-            if (lastItem != heap_.heapFree.rend() && (*lastItem)->addr + (*lastItem)->length == highWaterMark_) {                
+            if (lastItem != heap_.heapFree.rend() && (*lastItem)->addr + (*lastItem)->length == highWaterMark_) {
                 highWaterMark_ = (*lastItem)->addr;
                 delete *lastItem;
                 heap_.heapFree.pop_back();
-            }            
+            }
             break;
         }
         case 2:
@@ -305,8 +305,8 @@ BinaryEdit::~BinaryEdit()
     delete memoryTracker_;
 }
 
-BinaryEdit *BinaryEdit::openFile(const std::string &file, 
-                                 PatchMgrPtr mgr, 
+BinaryEdit *BinaryEdit::openFile(const std::string &file,
+                                 PatchMgrPtr mgr,
                                  Dyninst::PatchAPI::Patcher::Ptr patch,
                                  const std::string &member) {
     if (!OS::executableExists(file)) {
@@ -509,7 +509,7 @@ bool BinaryEdit::writeFile(const std::string &newFileName)
 
       Symtab *symObj = mobj->parse_img()->getObject();
 
-      if (BPatch::bpatch->relocateFunctionPointer()) {          
+      if (BPatch::bpatch->relocateFunctionPointer()) {
           symObj->setNewEntryOffset(getRelocatedFunctionEntry(symObj->getEntryOffset()));
           symObj->setNewInitOffset(getRelocatedFunctionEntry(symObj->getInitOffset()));
           symObj->setNewFiniOffset(getRelocatedFunctionEntry(symObj->getFiniOffset()));
@@ -544,7 +544,7 @@ bool BinaryEdit::writeFile(const std::string &newFileName)
       if (BPatch::bpatch->writeAddressMappingForProfile()) {
           buildRelocatedCodeMapping(newFileName + ".mapping");
       }
-      
+
 
       // Now, we need to copy in the memory of the new segments
       for (unsigned i = 0; i < oldSegs.size(); i++) {
@@ -672,7 +672,7 @@ bool BinaryEdit::writeFile(const std::string &newFileName)
             */
          }
       }
-      
+
       std::vector<Symbol *> newSyms;
       buildDyninstSymbols(newSyms, newSec, symObj->getOrCreateModule("dyninstInst",
                                                                      lowWaterMark_));
@@ -859,11 +859,11 @@ void BinaryEdit::addLibraryPrereq(std::string libname) {
 }
 
 
-// Build a list of symbols describing instrumentation and relocated functions. 
-// To keep this list (somewhat) short, we're doing one symbol per extent of 
-// instrumentation + relocation for a particular function. 
-// New: do this for one mapped object. 
-void BinaryEdit::buildDyninstSymbols(std::vector<Symbol *> &newSyms, 
+// Build a list of symbols describing instrumentation and relocated functions.
+// To keep this list (somewhat) short, we're doing one symbol per extent of
+// instrumentation + relocation for a particular function.
+// New: do this for one mapped object.
+void BinaryEdit::buildDyninstSymbols(std::vector<Symbol *> &newSyms,
                                      Region *newSec,
                                      Module *newMod) {
    for (std::vector<SymtabAPI::Symbol *>::iterator iter = newDyninstSyms_.begin();
@@ -1102,7 +1102,7 @@ void BinaryEdit::buildRAMapping() {
     }
 
     dyn_c_vector<std::pair<Address, Address> > RAMapEntries;
-    size_t total = elementList.size();    
+    size_t total = elementList.size();
 #pragma omp parallel for schedule(dynamic)
     for (size_t i = 0; i < total; ++i) {
         const Relocation::TrackerElement *tracker = elementList[i];
@@ -1114,7 +1114,7 @@ void BinaryEdit::buildRAMapping() {
         if (tracker->orig() <= lastAddr && lastAddr < tracker->orig() + tracker->size()) {
             InstructionAPI::Instruction i = tblock->getInsn(lastAddr);
             if (i.getCategory() != InstructionAPI::c_CallInsn) continue;
-            RAMapEntries.push_back(std::make_pair(tracker->reloc() + tracker->size(), tracker->orig() + tracker->size()));            
+            RAMapEntries.push_back(std::make_pair(tracker->reloc() + tracker->size(), tracker->orig() + tracker->size()));
         }
     }
 
@@ -1169,12 +1169,13 @@ void BinaryEdit::buildRelocatedCodeMapping(std::string mappingFileName) {
         fprintf(stderr, "cannot write instrumentation mapping file %s\n", mappingFileName.c_str());
         return;
     }
-    
+
     std::map<Address, const Relocation::TrackerElement* > relocMap;
-    std::set<std::string> stringSet;    
-    stringSet.insert("dyninst");
+    std::set<std::string> stringSet;
+    stringSet.insert(PatchAPI::Snippet::defaultName);
+    stringSet.insert(Relocation::EmulatorTracker::name);
     for (CodeTrackers::iterator i = relocatedCode_.begin(); i != relocatedCode_.end(); ++i) {
-        Relocation::CodeTracker *CT = *i;        
+        Relocation::CodeTracker *CT = *i;
         for (Relocation::CodeTracker::TrackerList::const_iterator iter = CT->trackers().begin(); iter != CT->trackers().end(); ++iter) {
             const Relocation::TrackerElement *tracker = *iter;
             relocMap[tracker->reloc()] = tracker;
@@ -1183,7 +1184,7 @@ void BinaryEdit::buildRelocatedCodeMapping(std::string mappingFileName) {
             if (tracker->type() != Relocation::TrackerElement::instrumentation) continue;
             const Relocation::InstTracker * instT = static_cast<const Relocation::InstTracker*>(tracker);
             if (instT->getSnippetName() == nullptr) continue;
-            stringSet.insert(std::string(instT->getSnippetName()));        
+            stringSet.insert(std::string(instT->getSnippetName()));
         }
     }
 
@@ -1195,15 +1196,18 @@ void BinaryEdit::buildRelocatedCodeMapping(std::string mappingFileName) {
         stringMap.emplace(s, index);
     }
 
-    int defaultInstIndex = -stringMap["dyninst"];
-    
+    int defaultInstIndex = -stringMap[PatchAPI::Snippet::defaultName];
+    int dynEmulatedIndex = -stringMap[Relocation::EmulatorTracker::name];
+
     // Write address mapping
-    fprintf(f, "%lu\n", relocMap.size());    
+    fprintf(f, "%lu\n", relocMap.size());
     for (auto& it : relocMap) {
         const Relocation::TrackerElement *tracker = it.second;
-        int64_t orig = defaultInstIndex;
-        if (tracker->type() == Relocation::TrackerElement::original || tracker->type() == Relocation::TrackerElement::emulated) {
-            orig = tracker->orig();          
+        int64_t orig = defaultInstIndex;        
+        if (tracker->type() == Relocation::TrackerElement::original) {
+            orig = tracker->orig();
+        } else if (tracker->type() == Relocation::TrackerElement::emulated) {
+            orig = dynEmulatedIndex;
         } else {
             const Relocation::InstTracker * instT = static_cast<const Relocation::InstTracker*>(tracker);
             if (instT->getSnippetName() != nullptr && stringMap.find(instT->getSnippetName()) != stringMap.end()) {
@@ -1217,7 +1221,11 @@ void BinaryEdit::buildRelocatedCodeMapping(std::string mappingFileName) {
         //    the negative of the value is the index into the instrumentation annotation table
         // 3. size of the interval
         // 4. version number
-        fprintf(f, "%lx %lx %x %x\n", it.first, orig, tracker->size(), tracker->block()->getCloneVersion());         
+        if (orig > 0) {
+            fprintf(f, "%lx %lx %x %x\n", it.first, orig, tracker->size(), tracker->block()->getCloneVersion());
+        } else {
+            fprintf(f, "%lx %d %x %x\n", it.first, orig, tracker->size(), tracker->block()->getCloneVersion());
+        }
     }
 
     // print string table

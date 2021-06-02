@@ -145,6 +145,7 @@ class EmulatorTracker : public TrackerElement {
   }
 
   virtual type_t type() const { return TrackerElement::emulated; };
+  static constexpr const char* name = "dyninst-emulate";
 
 
 
