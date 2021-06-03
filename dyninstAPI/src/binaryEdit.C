@@ -1164,6 +1164,7 @@ void BinaryEdit::buildRAMapping() {
 
 void BinaryEdit::buildRelocatedCodeMapping(std::string mappingFileName) {
     // if cannot open the file, then just do not create mapping
+    const char* mapEmulate = getenv("DYNINST_INSTUMENTATION_MAPPING_EMULATE");
     FILE* f = fopen(mappingFileName.c_str(), "w");
     if (f == nullptr) {
         fprintf(stderr, "cannot write instrumentation mapping file %s\n", mappingFileName.c_str());
@@ -1196,8 +1197,11 @@ void BinaryEdit::buildRelocatedCodeMapping(std::string mappingFileName) {
         stringMap.emplace(s, index);
     }
 
-    int defaultInstIndex = -stringMap[PatchAPI::Snippet::defaultName];
-    int dynEmulatedIndex = -stringMap[Relocation::EmulatorTracker::name];
+    int defaultInstIndex = -stringMap[PatchAPI::Snippet::defaultName];    
+    int dynEmulatedIndex = 0;
+    if (mapEmulate != nullptr) {
+        dynEmulatedIndex = -stringMap[Relocation::EmulatorTracker::name];
+    } 
 
     // Write address mapping
     fprintf(f, "%lu\n", relocMap.size());
@@ -1207,7 +1211,11 @@ void BinaryEdit::buildRelocatedCodeMapping(std::string mappingFileName) {
         if (tracker->type() == Relocation::TrackerElement::original) {
             orig = tracker->orig();
         } else if (tracker->type() == Relocation::TrackerElement::emulated) {
-            orig = dynEmulatedIndex;
+            if (mapEmulate == nullptr) {
+                orig = tracker->orig();
+            } else {
+                orig = dynEmulatedIndex;
+            }
         } else {
             const Relocation::InstTracker * instT = static_cast<const Relocation::InstTracker*>(tracker);
             if (instT->getSnippetName() != nullptr && stringMap.find(instT->getSnippetName()) != stringMap.end()) {
