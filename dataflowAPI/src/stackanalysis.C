@@ -3897,3 +3897,21 @@ StackAnalysis::~StackAnalysis() {
 
    funcCleanAmounts.clear();
 }
+
+void StackAnalysis::clearAnnotation() {
+   func->addAnnotation(intervals_, Stack_Anno_Intervals);
+   func->removeAnnotation(Stack_Anno_Intervals);
+   if (intervals_ != nullptr) delete intervals_;
+
+   func->getAnnotation(blockEffects, Stack_Anno_Block_Effects);
+   func->removeAnnotation(Stack_Anno_Block_Effects);
+   if (blockEffects != nullptr) delete blockEffects;
+
+   func->getAnnotation(insnEffects, Stack_Anno_Insn_Effects);
+   func->removeAnnotation(Stack_Anno_Insn_Effects);
+   if (insnEffects != nullptr) delete insnEffects;
+
+   func->getAnnotation(callEffects, Stack_Anno_Call_Effects);
+   func->removeAnnotation(Stack_Anno_Call_Effects);
+   if (callEffects != nullptr) delete callEffects;
+}

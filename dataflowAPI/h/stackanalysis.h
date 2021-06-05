@@ -516,6 +516,7 @@ public:
    DATAFLOW_EXPORT bool getFunctionSummary(TransferSet &summary);
 
    DATAFLOW_EXPORT void debug();
+   DATAFLOW_EXPORT void clearAnnotation();
 
 private:
    std::string format(const AbslocState &input) const;
