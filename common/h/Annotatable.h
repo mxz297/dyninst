@@ -1,28 +1,28 @@
 /*
  * See the dyninst/COPYRIGHT file for copyright information.
- * 
+ *
  * We provide the Paradyn Tools (below described as "Paradyn")
  * on an AS IS basis, and do not warrant its validity or performance.
  * We reserve the right to update, modify, or discontinue this
  * software at any time.  We shall have no obligation to supply such
  * updates or modifications or any other form of support to you.
- * 
+ *
  * By your use of Paradyn, you understand and agree that we (or any
  * other person or entity with proprietary rights in Paradyn) are
  * under no obligation to provide either maintenance services,
  * update services, notices of latent defects, or correction of
  * defects for Paradyn.
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
- * 
+ *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
@@ -68,10 +68,10 @@ class COMMON_EXPORT AnnotationClassBase
 
    protected:
 
-     AnnotationClassBase(std::string n, 
+     AnnotationClassBase(std::string n,
                                        anno_cmp_func_t cmp_func_ = NULL);
 
-     virtual ~AnnotationClassBase(); 
+     virtual ~AnnotationClassBase();
 
    public:
 
@@ -81,62 +81,62 @@ class COMMON_EXPORT AnnotationClassBase
        AnnotationClassID getID() { return id; }
        std::string &getName() {return name;}
        anno_cmp_func_t getCmpFunc() {return cmp_func;}
-	   virtual const char *getTypeName() = 0;
-	   virtual void *allocate() = 0;
+       virtual const char *getTypeName() = 0;
+       virtual void *allocate() = 0;
 };
 
-template <class T> 
+template <class T>
 class AnnotationClass : public AnnotationClassBase {
    public:
 
-	  AnnotationClass(std::string n, 
-			  anno_cmp_func_t cmp_func_ = NULL) :
-		  AnnotationClassBase(n, cmp_func_)
-	  {
-	  }
+      AnnotationClass(std::string n,
+              anno_cmp_func_t cmp_func_ = NULL) :
+          AnnotationClassBase(n, cmp_func_)
+      {
+      }
 
-	  const char *getTypeName() { return typeid(T).name();}
-	  void *allocate() 
-	  {
-		  return (void *) new T();
-	  }
+      const char *getTypeName() { return typeid(T).name();}
+      void *allocate()
+      {
+          return (void *) new T();
+      }
 
-	  size_t size() {return sizeof(T);}
+      size_t size() {return sizeof(T);}
 #if 0
-	  bool isSparselyAnnotatable(); 
-	  bool isDenselyAnnotatable(); 
+      bool isSparselyAnnotatable();
+      bool isDenselyAnnotatable();
 #endif
 };
 
 
 typedef enum {
-	    sparse,
-		dense
+        sparse,
+        dense
 } sparse_or_dense_anno_t;
 
 typedef struct {
-	AnnotationClassBase *acb;
-	void *data;
-	void *parent_id;
-	sparse_or_dense_anno_t sod;
+    AnnotationClassBase *acb;
+    void *data;
+    void *parent_id;
+    sparse_or_dense_anno_t sod;
 } ser_rec_t;
 
 typedef enum {
-	sp_add_anno = 2,
-	sp_rem_anno = 3,
-	sp_add_cont_item = 4,
-	sp_rem_cont_item = 5
+    sp_add_anno = 2,
+    sp_rem_anno = 3,
+    sp_add_cont_item = 4,
+    sp_rem_cont_item = 5
 } ser_post_op_t;
 
 COMMON_EXPORT const char *serPostOp2Str(ser_post_op_t);
 
 class COMMON_EXPORT AnnotatableDense
 {
-	typedef void *anno_list_t;
+    typedef void *anno_list_t;
 
-	/**
+    /**
     * Inheriting from this class adds a pointer to each object.  Multiple
-    * types of annotations are stored under this pointer in a 
+    * types of annotations are stored under this pointer in a
     * annotation_type -> anno_list_t map.
     **/
 
@@ -151,44 +151,44 @@ class COMMON_EXPORT AnnotatableDense
 
       aInfo *annotations;
 
-      bool addAnnotation(const void *a, AnnotationClassID id) 
-	  {
-		  if (annotation_debug_flag())
-		  {
-			  fprintf(stderr, "%s[%d]:  Dense(%p) add %s-%d\n", FILE__, __LINE__, this, 
-					  AnnotationClassBase::findAnnotationClass(id) 
-					  ? AnnotationClassBase::findAnnotationClass(id)->getName().c_str() 
-					  : "bad_anno_id", id);
-		  }
+      bool addAnnotation(const void *a, AnnotationClassID id)
+      {
+          if (annotation_debug_flag())
+          {
+              fprintf(stderr, "%s[%d]:  Dense(%p) add %s-%d\n", FILE__, __LINE__, this,
+                      AnnotationClassBase::findAnnotationClass(id)
+                      ? AnnotationClassBase::findAnnotationClass(id)->getName().c_str()
+                      : "bad_anno_id", id);
+          }
 
          unsigned size = id + 1;
          if (!annotations)
          {
             annotations = (aInfo *) malloc(sizeof(aInfo));
-			annotations->data = NULL;
-		 }
+            annotations->data = NULL;
+         }
 
-		 //  can have case where we have allocated annotations struct but not the
-		 //  actual annotations data array in case where we have performed serialization
+         //  can have case where we have allocated annotations struct but not the
+         //  actual annotations data array in case where we have performed serialization
 
-		 if (annotations->data == NULL) 
-		 {
-			annotations->data = (anno_list_t *) calloc(sizeof(anno_list_t), (size));
-			annotations->max = size;
-			for (unsigned i=0; i<size; i++)
-				annotations->data[i] = NULL;
-		 } 
-		 else if (id >= annotations->max) 
-		 {
-			 int old_max = annotations->max;
-			 size = annotations->max * 2;
-			 annotations->max = size;
-			 annotations->data = (anno_list_t *) realloc(annotations->data, sizeof(anno_list_t) * size);
-			 for (unsigned i=old_max; i<size; i++)
-				 annotations->data[i] = NULL;
-		 }
+         if (annotations->data == NULL)
+         {
+            annotations->data = (anno_list_t *) calloc(sizeof(anno_list_t), (size));
+            annotations->max = size;
+            for (unsigned i=0; i<size; i++)
+                annotations->data[i] = NULL;
+         }
+         else if (id >= annotations->max)
+         {
+             int old_max = annotations->max;
+             size = annotations->max * 2;
+             annotations->max = size;
+             annotations->data = (anno_list_t *) realloc(annotations->data, sizeof(anno_list_t) * size);
+             for (unsigned i=old_max; i<size; i++)
+                 annotations->data[i] = NULL;
+         }
 
-		 annotations->data[id] = const_cast<void *>(a);
+         annotations->data[id] = const_cast<void *>(a);
 
          return true;
       }
@@ -197,38 +197,38 @@ class COMMON_EXPORT AnnotatableDense
       {
       }
 
-	  ~AnnotatableDense()
-	  {
-		  if (annotations)
-		  {
-			  if (annotations->data)
-				  free(annotations->data);
-			  free(annotations);
-		  }
-	  }
-
-      template<class T> 
-      bool addAnnotation(const T *a, AnnotationClass<T> &a_id) 
+      ~AnnotatableDense()
       {
-		  if (annotation_debug_flag())
-		  {
-			  fprintf(stderr, "%s[%d]:  Dense(%p):  Add %s-%d, %s\n", FILE__, __LINE__, 
-					  this, a_id.getName().c_str(), a_id.getID(), typeid(T).name());
-		  }
+          if (annotations)
+          {
+              if (annotations->data)
+                  free(annotations->data);
+              free(annotations);
+          }
+      }
+
+      template<class T>
+      bool addAnnotation(const T *a, AnnotationClass<T> &a_id)
+      {
+          if (annotation_debug_flag())
+          {
+              fprintf(stderr, "%s[%d]:  Dense(%p):  Add %s-%d, %s\n", FILE__, __LINE__,
+                      this, a_id.getName().c_str(), a_id.getID(), typeid(T).name());
+          }
 
          int id = a_id.getID();
-		 T *a_noconst = const_cast<T *>(a);
-		 bool ret = addAnnotation((void *)a_noconst, id);
-		 if (!ret)
-		 {
-			 fprintf(stderr, "%s[%d]:  failed to add annotation\n", FILE__, __LINE__);
-			 return ret;
-		 }
-		 return true;
-	  }
+         T *a_noconst = const_cast<T *>(a);
+         bool ret = addAnnotation((void *)a_noconst, id);
+         if (!ret)
+         {
+             fprintf(stderr, "%s[%d]:  failed to add annotation\n", FILE__, __LINE__);
+             return ret;
+         }
+         return true;
+      }
 
 
-      template<class T> 
+      template<class T>
       inline bool getAnnotation(T *&a, AnnotationClass<T> &a_id) const
       {
          if (!annotations)
@@ -236,7 +236,7 @@ class COMMON_EXPORT AnnotatableDense
 
          int id = a_id.getID();
 
-         if (id > annotations->max) 
+         if (id > annotations->max)
          {
             return false;
          }
@@ -247,24 +247,24 @@ class COMMON_EXPORT AnnotatableDense
          return true;
       }
 
-      template<class T> 
+      template<class T>
       inline bool removeAnnotation(AnnotationClass<T> &a_id)
       {
-		  if (annotation_debug_flag())
-		  {
-			  fprintf(stderr, "%s[%d]:  Dense(%p) remove %s-%d, %s\n", FILE__, __LINE__, 
-					  this, a_id.getName().c_str(), a_id.getID(), a_id.getTypeName());
-		  }
+          if (annotation_debug_flag())
+          {
+              fprintf(stderr, "%s[%d]:  Dense(%p) remove %s-%d, %s\n", FILE__, __LINE__,
+                      this, a_id.getName().c_str(), a_id.getID(), a_id.getTypeName());
+          }
 
          if (!annotations) return false;
 
          int id = a_id.getID();
-         if (id > annotations->max) 
+         if (id > annotations->max)
          {
             return false;
          }
 
-         if (!annotations->data[id]) 
+         if (!annotations->data[id])
             return false;
 
          annotations->data[id] = NULL;
@@ -272,37 +272,37 @@ class COMMON_EXPORT AnnotatableDense
          return true;
       }
 
-	  void annotationsReport()
-	  {
-		  std::vector<AnnotationClassBase *> atypes;
-		  if (annotations && annotations->data)
-		  {
-			  for (unsigned int i = 0; i < annotations->max; ++i)
-			  {
-				  if (NULL != annotations->data[i])
-				  {
-					  AnnotationClassBase *acb = AnnotationClassBase::findAnnotationClass(i);
-					  if (!acb)
-					  {
-						  fprintf(stderr, "%s[%d]:  ERROR:  failed to find acb for %d\n", 
-								  FILE__, __LINE__, i);
-						  continue;
-					  }
-					  else
-						  atypes.push_back(acb);
-				  }
-			  }
+      void annotationsReport()
+      {
+          std::vector<AnnotationClassBase *> atypes;
+          if (annotations && annotations->data)
+          {
+              for (unsigned int i = 0; i < annotations->max; ++i)
+              {
+                  if (NULL != annotations->data[i])
+                  {
+                      AnnotationClassBase *acb = AnnotationClassBase::findAnnotationClass(i);
+                      if (!acb)
+                      {
+                          fprintf(stderr, "%s[%d]:  ERROR:  failed to find acb for %d\n",
+                                  FILE__, __LINE__, i);
+                          continue;
+                      }
+                      else
+                          atypes.push_back(acb);
+                  }
+              }
 
-			  fprintf(stderr, "%s[%d]:  Dense(%p):  have %lu annotations\n", 
-				  FILE__, __LINE__, this, (unsigned long) atypes.size());
+              fprintf(stderr, "%s[%d]:  Dense(%p):  have %lu annotations\n",
+                  FILE__, __LINE__, this, (unsigned long) atypes.size());
 
-			  for (unsigned int i = 0; i < atypes.size(); ++i)
-			  {
-				  fprintf(stderr, "\t%s-%d, %s\n", atypes[i]->getName().c_str(), 
-						  atypes[i]->getID(), atypes[i]->getTypeName());
-			  }
-		  }
-	  }
+              for (unsigned int i = 0; i < atypes.size(); ++i)
+              {
+                  fprintf(stderr, "\t%s-%d, %s\n", atypes[i]->getName().c_str(),
+                          atypes[i]->getID(), atypes[i]->getTypeName());
+              }
+          }
+      }
 };
 
 #define NON_STATIC_SPARSE_MAP 1
@@ -329,46 +329,46 @@ class COMMON_EXPORT AnnotatableSparse
 
       typedef std::vector<annos_by_type_t *> annos_t;
 
-	  ~AnnotatableSparse()
-	  {
-		  //  We need to remove annotations from the static map when objects
-		  //  are destroyed:  (1)  memory may be reclaimed and reused at the same
-		  //  place, and (2) regardless of 1, the map can possibly explode to 
-		  //  unmanageable sizes, with a lot of unused junk in it if a lot of i
-		  //  annotatable objects are created and destroyed.
+      ~AnnotatableSparse()
+      {
+          //  We need to remove annotations from the static map when objects
+          //  are destroyed:  (1)  memory may be reclaimed and reused at the same
+          //  place, and (2) regardless of 1, the map can possibly explode to
+          //  unmanageable sizes, with a lot of unused junk in it if a lot of i
+          //  annotatable objects are created and destroyed.
 
-		  //  Alas this is kinda expensive right now, but the data structure is
-		  //  set up to minimize search time, not deletion time.  It could
-		  //  be changed if this becomes a significant time drain.
+          //  Alas this is kinda expensive right now, but the data structure is
+          //  set up to minimize search time, not deletion time.  It could
+          //  be changed if this becomes a significant time drain.
 
-		  unsigned int n = 0;
-		  for (unsigned int i = 0; i < getAnnos()->size(); ++i)
-		  {
-			  annos_by_type_t *abt = (*getAnnos())[i];
-			  if (!abt) continue;
+          unsigned int n = 0;
+          for (unsigned int i = 0; i < getAnnos()->size(); ++i)
+          {
+              annos_by_type_t *abt = (*getAnnos())[i];
+              if (!abt) continue;
 
-			  annos_by_type_t::iterator iter = abt->find(this);
-			  if (iter != abt->end())
-			  {
-				  if (annotation_debug_flag())
-				  {
-					  fprintf(stderr, "%s[%d]:  Sparse(%p) dtor remove %s-%d\n", FILE__, __LINE__,  
-							  this, AnnotationClassBase::findAnnotationClass(i) 
-							  ? AnnotationClassBase::findAnnotationClass(i)->getName().c_str() 
-							  : "bad_anno_id", i);
-				  }
+              annos_by_type_t::iterator iter = abt->find(this);
+              if (iter != abt->end())
+              {
+                  if (annotation_debug_flag())
+                  {
+                      fprintf(stderr, "%s[%d]:  Sparse(%p) dtor remove %s-%d\n", FILE__, __LINE__,
+                              this, AnnotationClassBase::findAnnotationClass(i)
+                              ? AnnotationClassBase::findAnnotationClass(i)->getName().c_str()
+                              : "bad_anno_id", i);
+                  }
 
-				  abt->erase(iter);
-				  n++;
+                  abt->erase(iter);
+                  n++;
 
-				  //  get rid of this check...  just making sure that erase is behaving as
-				  //  expected...
-				  annos_by_type_t::iterator iter2 = abt->find(this);
-				  if (iter2 != abt->end())
-					  fprintf(stderr, "%s[%d]:  FIXME:  REMOVE FAILED\n", FILE__, __LINE__);
-			  }
-		  }
-	  }
+                  //  get rid of this check...  just making sure that erase is behaving as
+                  //  expected...
+                  annos_by_type_t::iterator iter2 = abt->find(this);
+                  if (iter2 != abt->end())
+                      fprintf(stderr, "%s[%d]:  FIXME:  REMOVE FAILED\n", FILE__, __LINE__);
+              }
+          }
+      }
 
    private:
 
@@ -377,12 +377,12 @@ class COMMON_EXPORT AnnotatableSparse
 #else
       static annos_t annos;
 #endif
-	  annos_t *getAnnos() const;
-	  static dyn_hash_map<void *, unsigned short> ser_ndx_map;
+      annos_t *getAnnos() const;
+      static dyn_hash_map<void *, unsigned short> ser_ndx_map;
 
       annos_by_type_t *getAnnosOfType(AnnotationClassID aid, bool do_create =false) const
-	  {
-		  annos_t &l_annos = *getAnnos();
+      {
+          annos_t &l_annos = *getAnnos();
          long nelems_to_create = aid - l_annos.size() + 1;
 
          if (nelems_to_create > 0)
@@ -410,12 +410,12 @@ class COMMON_EXPORT AnnotatableSparse
       {
          AnnotationClassID aid = a_id.getID();
 
-		 return getAnnosOfType(aid, do_create);
-	  }
+         return getAnnosOfType(aid, do_create);
+      }
 
 
       void *getAnnosForObject(annos_by_type_t *abt,
-            void *obj, bool do_create = false) const 
+            void *obj, bool do_create = false) const
       {
          assert(abt);
          assert(obj);
@@ -441,60 +441,60 @@ class COMMON_EXPORT AnnotatableSparse
          return target;
       }
 
-	  AN_INLINE bool addAnnotation(const void *a, AnnotationClassID aid)
-	  {
-		  if (annotation_debug_flag())
-		  {
-			  fprintf(stderr, "%s[%d]:  Sparse(%p) add %s-%d void\n", FILE__, __LINE__, this, 
-					  AnnotationClassBase::findAnnotationClass(aid) 
-					  ? AnnotationClassBase::findAnnotationClass(aid)->getName().c_str() 
-					  : "bad_anno_id", aid);
-		  }
+      AN_INLINE bool addAnnotation(const void *a, AnnotationClassID aid)
+      {
+          if (annotation_debug_flag())
+          {
+              fprintf(stderr, "%s[%d]:  Sparse(%p) add %s-%d void\n", FILE__, __LINE__, this,
+                      AnnotationClassBase::findAnnotationClass(aid)
+                      ? AnnotationClassBase::findAnnotationClass(aid)->getName().c_str()
+                      : "bad_anno_id", aid);
+          }
 
-		  void *obj = this;
-		  annos_by_type_t *abt = getAnnosOfType(aid, true /*do create if needed*/);
-		  assert(abt);
+          void *obj = this;
+          annos_by_type_t *abt = getAnnosOfType(aid, true /*do create if needed*/);
+          assert(abt);
 
-		  annos_by_type_t::iterator iter = abt->find(obj);
-		  if (iter == abt->end())
-		  {
-			  (*abt)[obj] = const_cast<void *>(a);
-		  }
-		  else
-		  {
-			  //  do silent replacement -- this case can arise if an annotatable object
-			  //  is destroyed and then reallocated as a new object at the same address.
-			  //  Given the sparse map data structure, it would be rather expensive to 
-			  //  go through the map in the dtor to eliminate references to the 
-			  //  destroyed object.
+          annos_by_type_t::iterator iter = abt->find(obj);
+          if (iter == abt->end())
+          {
+              (*abt)[obj] = const_cast<void *>(a);
+          }
+          else
+          {
+              //  do silent replacement -- this case can arise if an annotatable object
+              //  is destroyed and then reallocated as a new object at the same address.
+              //  Given the sparse map data structure, it would be rather expensive to
+              //  go through the map in the dtor to eliminate references to the
+              //  destroyed object.
 
-			  //  Added annotation removal in dtor...  so this case should _not_ arise,
-			  //  do the replacement, but make some noise:
+              //  Added annotation removal in dtor...  so this case should _not_ arise,
+              //  do the replacement, but make some noise:
 
-			  if (a != iter->second)
-			  {
-				  annotatable_printf("%s[%d]:  WEIRD:  already have annotation of this type: %p, replacing with %p\n", FILE__, __LINE__, iter->second, a);
-				  iter->second = const_cast<void *>(a);
-			  }
+              if (a != iter->second)
+              {
+                  annotatable_printf("%s[%d]:  WEIRD:  already have annotation of this type: %p, replacing with %p\n", FILE__, __LINE__, iter->second, a);
+                  iter->second = const_cast<void *>(a);
+              }
 
-			  return true;
-		  }
+              return true;
+          }
 
-		  return true;
-	  }
+          return true;
+      }
 
    public:
 
-	  bool operator==(AnnotatableSparse &cmp)
-	  {
-		  annos_t &l_annos = *getAnnos();
-		  unsigned this_ntypes = l_annos.size();
+      bool operator==(AnnotatableSparse &cmp)
+      {
+          annos_t &l_annos = *getAnnos();
+          unsigned this_ntypes = l_annos.size();
          unsigned cmp_ntypes = cmp.getAnnos()->size();
          unsigned ntypes = (cmp_ntypes > this_ntypes) ? cmp_ntypes : this_ntypes;
 
-         for (unsigned int i = 0; i < ntypes; ++i) 
+         for (unsigned int i = 0; i < ntypes; ++i)
          {
-            if ((i >= cmp_ntypes) || (i >= this_ntypes)) 
+            if ((i >= cmp_ntypes) || (i >= this_ntypes))
             {
                //  compare is done since at least one set of annotations
                //  has been exhausted
@@ -504,13 +504,13 @@ class COMMON_EXPORT AnnotatableSparse
             annos_by_type_t *this_abt = l_annos[i];
             annos_by_type_t *cmp_abt = (*cmp.getAnnos())[i];
 
-            if (!this_abt) 
+            if (!this_abt)
             {
                fprintf(stderr, "%s[%d]:  WEIRD: FIXME\n", FILE__, __LINE__);
                continue;
             }
 
-            if (!cmp_abt) 
+            if (!cmp_abt)
             {
                fprintf(stderr, "%s[%d]:  WEIRD: FIXME\n", FILE__, __LINE__);
                continue;
@@ -554,7 +554,7 @@ class COMMON_EXPORT AnnotatableSparse
                //  even if not explicitly specified, a default pointer-compare
                //  function should be returned here.
 
-               fprintf(stderr, "%s[%d]:  no cmp func for anno id %d\n", 
+               fprintf(stderr, "%s[%d]:  no cmp func for anno id %d\n",
                      FILE__, __LINE__, i);
                return false;
             }
@@ -573,8 +573,8 @@ class COMMON_EXPORT AnnotatableSparse
       template<class T>
       AN_INLINE bool addAnnotation(const T *a, AnnotationClass<T> &a_id)
          {
-		  annotatable_printf("%s[%d]:  Sparse(%p):  Add %s-%d, %s\n", FILE__, __LINE__, 
-				  this, a_id.getName().c_str(), a_id.getID(), typeid(T).name());
+          annotatable_printf("%s[%d]:  Sparse(%p):  Add %s-%d, %s\n", FILE__, __LINE__,
+                  this, a_id.getName().c_str(), a_id.getID(), typeid(T).name());
             void *obj = this;
             annos_by_type_t *abt = getAnnosOfType(a_id, true /*do create if needed*/);
             assert(abt);
@@ -586,29 +586,29 @@ class COMMON_EXPORT AnnotatableSparse
             }
             else
             {
-				//  do silent replacement -- this case can arise if an annotatable object
-				//  is destroyed and then reallocated as a new object at the same address.
-				//  Given the sparse map data structure, it would be rather expensive to 
-				//  go through the map in the dtor to eliminate references to the 
-				//  destroyed object.
+                //  do silent replacement -- this case can arise if an annotatable object
+                //  is destroyed and then reallocated as a new object at the same address.
+                //  Given the sparse map data structure, it would be rather expensive to
+                //  go through the map in the dtor to eliminate references to the
+                //  destroyed object.
 
-				//  Added annotation removal in dtor...  so this case should _not_ arise,
-				//  do the replacement, but make some noise:
+                //  Added annotation removal in dtor...  so this case should _not_ arise,
+                //  do the replacement, but make some noise:
 
-				if (iter->second != a) 
-				{
-					//fprintf(stderr, "%s[%d]:  WEIRD:  already have annotation of type %s: %p, replacing with %p\n", FILE__, __LINE__, a_id.getName().c_str(), iter->second, a);
-					iter->second = (void *)const_cast<T *>(a);
-				}
+                if (iter->second != a)
+                {
+                    //fprintf(stderr, "%s[%d]:  WEIRD:  already have annotation of type %s: %p, replacing with %p\n", FILE__, __LINE__, a_id.getName().c_str(), iter->second, a);
+                    iter->second = (void *)const_cast<T *>(a);
+                }
 
-				return true;
+                return true;
             }
-				
+
             return true;
          }
 
       template<class T>
-      AN_INLINE bool getAnnotation(T *&a, AnnotationClass<T> &a_id) const 
+      AN_INLINE bool getAnnotation(T *&a, AnnotationClass<T> &a_id) const
       {
          a = NULL;
 
@@ -632,69 +632,86 @@ class COMMON_EXPORT AnnotatableSparse
          return true;
       }
 
-	  template<class T>
-	  inline bool removeAnnotation(AnnotationClass<T> &a_id)
-	  {
-		  if (annotation_debug_flag())
-		  {
-			  fprintf(stderr, "%s[%d]:  Sparse(%p) remove %s-%d, %s\n", FILE__, __LINE__,
-					  this, a_id.getName().c_str(), a_id.getID(), typeid(T).name());
-		  }
+      template<class T>
+      inline bool removeAnnotation(AnnotationClass<T> &a_id)
+      {
+          if (annotation_debug_flag())
+          {
+              fprintf(stderr, "%s[%d]:  Sparse(%p) remove %s-%d, %s\n", FILE__, __LINE__,
+                      this, a_id.getName().c_str(), a_id.getID(), typeid(T).name());
+          }
 
-		  void *obj = this;
-		  annos_by_type_t *abt = getAnnosOfType(a_id, false /*do create if needed*/);
-		  assert(abt);
+          void *obj = this;
+          annos_by_type_t *abt = getAnnosOfType(a_id, false /*do create if needed*/);
+          assert(abt);
 
-		  annos_by_type_t::iterator iter = abt->find(obj);
-		  if (iter == abt->end())
-		  {
-			  //  annotation does not exist, so we return false (remove failed)
-			  return false;
-		  }
-		  else
-		  {
-			  abt->erase(iter);
-			  return true;
-		  }
-	      return false;
-	  }
+          annos_by_type_t::iterator iter = abt->find(obj);
+          if (iter == abt->end())
+          {
+              //  annotation does not exist, so we return false (remove failed)
+              return false;
+          }
+          else
+          {
+              abt->erase(iter);
+              return true;
+          }
+          return false;
+      }
 
-	  void annotationsReport()
-	  {
-		  std::vector<AnnotationClassBase *> atypes;
-		  annos_t &l_annos = *getAnnos();
+      void annotationsReport()
+      {
+          std::vector<AnnotationClassBase *> atypes;
+          annos_t &l_annos = *getAnnos();
 
-		  for (AnnotationClassID id = 0; id < l_annos.size(); ++id)
-		  {
-			  annos_by_type_t *abt = getAnnosOfType(id, false /*don't do create */);
-			  if (NULL == abt) continue;
+          for (AnnotationClassID id = 0; id < l_annos.size(); ++id)
+          {
+              annos_by_type_t *abt = getAnnosOfType(id, false /*don't do create */);
+              if (NULL == abt) continue;
 
-			  annos_by_type_t::iterator iter = abt->find(this);
+              annos_by_type_t::iterator iter = abt->find(this);
 
-			  if (iter == abt->end()) 
-			  {
-				  //	fprintf(stderr, "%s[%d]:  nothing for this obj\n", FILE__, __LINE__);
-				  continue;
-			  }
+              if (iter == abt->end())
+              {
+                  //	fprintf(stderr, "%s[%d]:  nothing for this obj\n", FILE__, __LINE__);
+                  continue;
+              }
 
-			  AnnotationClassBase *acb =  AnnotationClassBase::findAnnotationClass(id);
-			  if (!acb)
-			  {
-				  fprintf(stderr, "%s[%d]:  FIXME, cant find anno class base for id %d\n", 
-						  FILE__, __LINE__, id);
-				  continue;
-			  }
-			  atypes.push_back(acb);
-		  }
+              AnnotationClassBase *acb =  AnnotationClassBase::findAnnotationClass(id);
+              if (!acb)
+              {
+                  fprintf(stderr, "%s[%d]:  FIXME, cant find anno class base for id %d\n",
+                          FILE__, __LINE__, id);
+                  continue;
+              }
+              atypes.push_back(acb);
+          }
 
-		  fprintf(stderr, "%s[%d]:  Sparse(%p):  have %lu annos:\n", FILE__, __LINE__, 
-			  this, (unsigned long) atypes.size());
-		  for (unsigned int i = 0; i < atypes.size(); ++i)
-		  {
-			  fprintf(stderr, "\t%s-%d, %s\n", atypes[i]->getName().c_str(), 
-					  atypes[i]->getID(), atypes[i]->getTypeName());
-		  }
-	  }
+          fprintf(stderr, "%s[%d]:  Sparse(%p):  have %lu annos:\n", FILE__, __LINE__,
+              this, (unsigned long) atypes.size());
+          for (unsigned int i = 0; i < atypes.size(); ++i)
+          {
+              fprintf(stderr, "\t%s-%d, %s\n", atypes[i]->getName().c_str(),
+                      atypes[i]->getID(), atypes[i]->getTypeName());
+          }
+      }
+
+      std::map<std::string, void*> annotationMap;
+
+    template<class T>
+    void addAnnotation(const T* a, const std::string &s) {
+        annotationMap[s] = (void*)a;
+    }
+
+    template<class T>
+    void getAnnotation(T* & a, const std::string &s) {
+        a = static_cast<T*>(annotationMap[s]);
+    }
+
+    void removeAnnotation(const std::string &s) {
+        annotationMap.erase(s);
+    }
+
 
 };
 

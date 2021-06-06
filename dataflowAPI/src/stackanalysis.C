@@ -60,14 +60,10 @@ const StackAnalysis::Height StackAnalysis::Height::bottom(
 const StackAnalysis::Height StackAnalysis::Height::top(
    StackAnalysis::Height::uninitialized, StackAnalysis::Height::TOP);
 
-AnnotationClass<StackAnalysis::Intervals>
-        Stack_Anno_Intervals(std::string("Stack_Anno_Intervals"), NULL);
-AnnotationClass<StackAnalysis::BlockEffects>
-        Stack_Anno_Block_Effects(std::string("Stack_Anno_Block_Effects"), NULL);
-AnnotationClass<StackAnalysis::InstructionEffects>
-        Stack_Anno_Insn_Effects(std::string("Stack_Anno_Insn_Effects"), NULL);
-AnnotationClass<StackAnalysis::CallEffects>
-        Stack_Anno_Call_Effects(std::string("Stack_Anno_Call_Effects"), NULL);
+const std::string Stack_Anno_Intervals = "Stack_Anno_Intervals";
+const std::string Stack_Anno_Block_Effects = "Stack_Anno_Block_Effects";
+const std::string Stack_Anno_Insn_Effects = "Stack_Anno_Insn_Effects";
+const std::string Stack_Anno_Call_Effects = "Stack_Anno_Call_Effects";
 
 template class std::list<Dyninst::StackAnalysis::TransferFunc*>;
 template class std::map<Dyninst::Absloc, Dyninst::StackAnalysis::Height>;
