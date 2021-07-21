@@ -123,7 +123,7 @@ class instPoint : public Dyninst::PatchAPI::Point {
     block_instance *block() const;
     edge_instance *edge() const;
     InstSpec* instSpec() const {return instSpec_; };
-
+    void setInstSpecBase(InstSpec is) {  instSpecBase = is;instSpec_=&instSpecBase; }
     void setInstSpec(InstSpec* is) { instSpec_ = is;} 
 
     // I'm commenting this out so that we don't reinvent the wheel.
@@ -162,6 +162,7 @@ class instPoint : public Dyninst::PatchAPI::Point {
 
     baseTramp *baseTramp_;
     InstSpec * instSpec_;
+    InstSpec  instSpecBase;
 };
 
 #define IPCONV(p) (static_cast<instPoint *>(p))

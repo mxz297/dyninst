@@ -453,7 +453,7 @@ bool PCProcess::bootstrapProcess() {
     costAddr_ = obsCostVec[0]->getAddress();
     assert(costAddr_);
 
-    if( !wasCreatedViaFork() ) {
+    /*if( !wasCreatedViaFork() ) {
         // Install system call tracing
         startup_printf("%s[%d]: installing default Dyninst instrumentation into process %d\n", 
             FILE__, __LINE__, getPid());
@@ -511,7 +511,7 @@ bool PCProcess::bootstrapProcess() {
                 return false;
             }
         }
-    }
+    }*/
 
     // use heuristics to set hybrid analysis mode
     if (BPatch_heuristicMode == analysisMode_) {
@@ -1066,12 +1066,12 @@ bool PCProcess::detachProcess(bool cont = true) {
             }
         }
 
-        tracedSyscalls_->removePreFork();
-        tracedSyscalls_->removePostFork();
-        tracedSyscalls_->removePreExec();
-        tracedSyscalls_->removePostExec();
-        tracedSyscalls_->removePreExit();
-        tracedSyscalls_->removePreLwpExit();
+        //tracedSyscalls_->removePreFork();
+        //tracedSyscalls_->removePostFork();
+        //tracedSyscalls_->removePreExec();
+        //tracedSyscalls_->removePostExec();
+        //tracedSyscalls_->removePreExit();
+        //tracedSyscalls_->removePreLwpExit();
         if (cont) {
             if( needToContinue ) {
                 if( !continueProcess() ) {
@@ -1631,8 +1631,7 @@ Address PCProcess::inferiorMalloc(unsigned size, inferiorHeapType type,
 
     inferiorMallocAlign(size); // align size
     // Set the lo/hi constraints (if necessary)
-    inferiorMallocConstraints(near_, lo, hi, type);
-
+    //inferiorMallocConstraints(near_, lo, hi, type);
     infmalloc_printf("%s[%d]: inferiorMalloc entered; size %d, type %d, near 0x%lx (0x%lx to 0x%lx)\n",
                      FILE__, __LINE__, size, type, near_, lo, hi);
 
@@ -1649,6 +1648,15 @@ Address PCProcess::inferiorMalloc(unsigned size, inferiorHeapType type,
             infmalloc_printf("%s[%d]:  (2) garbage collecting and compacting\n",
                              FILE__, __LINE__);
             inferiorFreeCompact();
+            {
+                auto lastItem = heap_.heapFree.rbegin();
+                // Shrink the upper bound if it is free
+                if (lastItem != heap_.heapFree.rend() && (*lastItem)->addr + (*lastItem)->length == highWaterMark_) {
+                    highWaterMark_ = (*lastItem)->addr;
+                    delete *lastItem;
+                    heap_.heapFree.pop_back();
+                }
+            }
             break;
         case NewSegment1MBConstrained: 
             infmalloc_printf("%s[%d]:  (3) inferiorMallocDynamic "
@@ -1685,6 +1693,15 @@ Address PCProcess::inferiorMalloc(unsigned size, inferiorHeapType type,
         case DeferredFreeAgain: 
             infmalloc_printf("%s[%d]: inferiorMalloc: recompacting\n", FILE__, __LINE__);
             inferiorFreeCompact();
+            {
+                auto lastItem = heap_.heapFree.rbegin();
+                // Shrink the upper bound if it is free
+                if (lastItem != heap_.heapFree.rend() && (*lastItem)->addr + (*lastItem)->length == highWaterMark_) {
+                    highWaterMark_ = (*lastItem)->addr;
+                    delete *lastItem;
+                    heap_.heapFree.pop_back();
+                }
+            }
             break;
 	    //#else /* !(cap_dynamic_heap) */
 	    //case DeferredFree: // deferred free, compact free blocks
@@ -1699,21 +1716,26 @@ Address PCProcess::inferiorMalloc(unsigned size, inferiorHeapType type,
         }
 
         ret = inferiorMallocInternal(size, lo, hi, type);
-        if (ret) break;
+        if (ret) {
+            {
+                memoryTracker *newTracker = new memoryTracker(ret, size);
+                newTracker->alloced = true;
+                if (!memoryTracker_)
+                  memoryTracker_ = new codeRangeTree();
+                memoryTracker_->insert(newTracker);
+            }
+            break;
+        }
     }
     infmalloc_printf("%s[%d]: inferiorMalloc, returning address 0x%lx\n", FILE__, __LINE__, ret);
     return ret;
 }
 
-void PCProcess::inferiorFree(Dyninst::Address item) {
-    inferiorFreeInternal(item);
-}
-
-bool PCProcess::inferiorRealloc(Dyninst::Address item, unsigned int newSize) {
+bool PCProcess::inferiorReallocCheck() {
 	if(bootstrapState_ <= bs_readyToLoadRTLib) {
       return true;
    }
-   return inferiorReallocInternal(item, newSize);
+   return false;
 }
 
 static

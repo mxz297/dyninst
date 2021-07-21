@@ -32,7 +32,6 @@
  * $Id: RTlinux.c,v 1.54 2008/04/11 23:30:44 legendre Exp $
  * RTlinux.c: mutatee-side library function specific to Linux
  ************************************************************************/
-#define _GNU_SOURCE
 #include "dyninstAPI_RT/h/dyninstAPI_RT.h"
 #include "dyninstAPI_RT/src/RTthread.h"
 #include "dyninstAPI_RT/src/RTcommon.h"
@@ -718,15 +717,3 @@ int main(int argc, char *argv[])
   return 0;
 }
 */
-
-typedef void *(*pthread_fn_type)(void *);
-int pthread_create(pthread_t *thread, pthread_attr_t *attr, pthread_fn_type fn,
-                   void *arg) {
-  typedef int (*pthread_create_type)(pthread_t *, pthread_attr_t *,
-                                     pthread_fn_type fn, void *);
-  static pthread_create_type real_create = NULL;
-  if (!real_create)
-    real_create = (pthread_create_type)dlsym(RTLD_NEXT, "pthread_create");
-  DYNINSTShadowRegion();
-  return real_create(thread, attr, fn, arg);
-}

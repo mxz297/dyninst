@@ -89,6 +89,9 @@ AddressSpace::AddressSpace () :
     new_instp_cb(NULL),
     heapInitialized_(false),
     useTraps_(true),
+    highWaterMark_(0),
+    lowWaterMark_(0),
+    memoryTracker_(NULL),
     trampGuardBase_(NULL),
     up_ptr_(NULL),
     costAddr_(0),
@@ -116,6 +119,7 @@ AddressSpace::~AddressSpace() {
       delete memEmulator_;
     if (mgr_)
        static_cast<DynAddrSpace*>(mgr_->as())->removeAddrSpace(this);
+     delete memoryTracker_;
 }
 
 PCProcess *AddressSpace::proc() {
@@ -315,6 +319,17 @@ bool heapItemLessByAddr(const heapItem *a, const heapItem *b)
 // Memory allocation routines
 //////////////////////////////////////////////////////////////////////////////
 
+Address AddressSpace::maxAllocedAddr() {
+   inferiorFreeCompact();
+   Address hi = lowWaterMark_;
+
+   for (auto iter = heap_.heapActive.begin();
+        iter != heap_.heapActive.end(); ++iter) {
+      Address localHi = iter->second->addr + iter->second->length;
+      if (localHi > hi) hi = localHi;
+   }
+   return hi;
+}
 
 void AddressSpace::inferiorFreeCompact() {
    std::vector<heapItem *> &freeList = heap_.heapFree;
@@ -477,6 +492,50 @@ Address AddressSpace::inferiorMallocInternal(unsigned size,
    assert(h->addr);
 
    return(h->addr);
+}
+
+void AddressSpace::inferiorFree(Address item)
+{
+  inferiorFreeInternal(item);
+
+  codeRange *obj;
+  if(!memoryTracker_->find(item, obj))
+  {
+    // Warn the user?
+    return;
+  }
+
+
+  delete obj;
+
+  memoryTracker_->remove(item);
+}
+
+bool AddressSpace::inferiorRealloc(Address item, unsigned newsize)
+{
+  if(dynamic_cast<PCProcess *>(proc()) != NULL) {
+    if(dynamic_cast<PCProcess *>(proc())->inferiorReallocCheck())
+      return true;
+  }
+  bool result = inferiorReallocInternal(item, newsize);
+  if (!result)
+    return false;
+
+  maxAllocedAddr();
+
+  codeRange *obj;
+  result = memoryTracker_->find(item, obj);
+  assert(result);
+
+  memoryTracker_->remove(item);
+
+  memoryTracker *mem_track = dynamic_cast<memoryTracker *>(obj);
+  assert(mem_track);
+
+  mem_track->realloc(newsize);
+
+  memoryTracker_->insert(obj);
+  return true;
 }
 
 void AddressSpace::inferiorFreeInternal(Address block) {
@@ -2403,4 +2462,102 @@ bool uninstrument(Dyninst::PatchAPI::Instance::Ptr inst) {
    point->markModified();
    return true;
 
+}
+
+void AddressSpace::buildRAMapping() {
+
+   Dyninst::SymtabAPI::Symtab *symtab =getAOut()->parse_img()->getObject();
+    Address base = symtab->getFreeOffset(50*1024*1024);
+    base += (1024*1024);
+    base -= (base & (1024*1024-1));
+    highWaterMark_ = base;
+    lowWaterMark_ = highWaterMark_;
+
+   std::map<Address, Address> RAMap;
+   typedef std::list<Relocation::CodeTracker *> CodeTrackers;
+   for (CodeTrackers::iterator i = relocatedCode_.begin();
+        i != relocatedCode_.end(); ++i) {
+      Relocation::CodeTracker *CT = *i;
+
+      for (Relocation::CodeTracker::TrackerList::const_iterator iter = CT->trackers().begin();
+           iter != CT->trackers().end(); ++iter) {
+         const Relocation::TrackerElement *tracker = *iter;
+
+         block_instance *tblock = tracker->block();
+         Address lastAddr = tblock->block()->last();
+         Address strtAddr = tblock->start();
+         InstructionAPI::Instruction i = tblock->getInsn(lastAddr);
+         if (tracker->orig() <= lastAddr && lastAddr < tracker->orig() + tracker->size()) {
+             if (i.getCategory() != InstructionAPI::c_CallInsn) {
+              continue;
+            }
+            if(RAMap[tracker->reloc() + tracker->size()] == 0) {
+              RAMap[tracker->reloc() + tracker->size()] = tracker->orig() + i.size();
+            }
+         }
+      }
+   }
+
+   unsigned long RATableSize = sizeof(unsigned long) + sizeof(Address) * 2 + sizeof(Address) * 2 * RAMap.size();
+   Address table_header = inferiorMalloc(RATableSize);
+   unsigned long offset = 0;
+
+   // Write the total entry
+   unsigned long entryCount = RAMap.size();
+   bool result = writeDataSpace((void *) (table_header + offset), sizeof(unsigned long), &entryCount);
+   assert(result);
+   offset += sizeof(unsigned long);   // Write the minimal and maximal address
+
+   if (entryCount > 0) {
+      result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(RAMap.begin()->first));
+      offset += sizeof(Address);
+      result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(RAMap.rbegin()->first));
+      offset += sizeof(Address);
+   }
+
+   // Write each entry
+   int i = 0;
+   for (auto it = RAMap.begin(); it != RAMap.end(); ++it,++i) {
+       springboard_cerr << "Return address mapping " << hex << it->first << "->" << it->second << dec << endl;
+       result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(it->first));
+       offset += sizeof(Address);
+       result = writeDataSpace((void *) (table_header + offset), sizeof(Address), &(it->second));
+       offset += sizeof(Address);
+   }
+
+   Address ra_tbladdress = 0,tbladdress1 = 0, tbladdress2 = 0;
+   int runningProcess=1;
+   std::vector<int_variable *> vars1;
+   if (findVarsByAll("DYNINSTRunningProcessMode", vars1)) {
+        tbladdress1 = vars1[0]->getAddress();
+        writeDataSpace((void *) tbladdress1, sizeof(int), (void *)&runningProcess);
+        vars1.clear();
+   }
+
+   int parseMode=0;
+   std::vector<int_variable *> vars2;
+   if (findVarsByAll("DYNINSTparsedMode", vars2)) {
+        tbladdress2 = vars2[0]->getAddress();
+        writeDataSpace((void *) tbladdress2, sizeof(int), (void *)&parseMode);
+        vars2.clear();
+   }
+
+   std::vector<int_variable *> v_rtable;
+   if (findVarsByAll("dyninstRTTable", v_rtable) ) {
+       ra_tbladdress = v_rtable[0]->getAddress();
+       unsigned char buffer[16];
+       memset(buffer,0,16);
+       *((unsigned long *) buffer) = table_header;
+       writeDataSpace((void *) ra_tbladdress, 8, buffer);
+   }
+}
+
+bool AddressSpace::isGoBinary() {
+    Dyninst::SymtabAPI::Symtab *symtab = getAOut()->parse_img()->getObject();
+    vector<Dyninst::SymtabAPI::Region*> regs;
+    symtab->getAllRegions(regs);
+    for (auto r : regs) {
+        if (r->getRegionName().find(".go.") != string::npos) return true;
+    }
+    return false;
 }

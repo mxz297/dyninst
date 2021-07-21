@@ -216,46 +216,6 @@ Address BinaryEdit::inferiorMalloc(unsigned size,
     return ret;
 }
 
-void BinaryEdit::inferiorFree(Address item)
-{
-  inferiorFreeInternal(item);
-
-  codeRange *obj;
-  if(!memoryTracker_->find(item, obj))
-  {
-    // Warn the user?
-    return;
-  }
-
-
-  delete obj;
-
-  memoryTracker_->remove(item);
-}
-
-bool BinaryEdit::inferiorRealloc(Address item, unsigned newsize)
-{
-  bool result = inferiorReallocInternal(item, newsize);
-  if (!result)
-    return false;
-
-  maxAllocedAddr();
-
-  codeRange *obj;
-  result = memoryTracker_->find(item, obj);
-  assert(result);
-
-  memoryTracker_->remove(item);
-
-  memoryTracker *mem_track = dynamic_cast<memoryTracker *>(obj);
-  assert(mem_track);
-
-  mem_track->realloc(newsize);
-
-  memoryTracker_->insert(obj);
-  return true;
-}
-
 Architecture BinaryEdit::getArch() const {
   assert(mapped_objects.size());
     // XXX presumably all of the objects in the BinaryEdit collection
@@ -285,10 +245,7 @@ bool BinaryEdit::multithread_ready(bool) {
 }
 
 BinaryEdit::BinaryEdit() :
-   highWaterMark_(0),
-   lowWaterMark_(0),
    isDirty_(false),
-   memoryTracker_(NULL),
    mobj(NULL),
    multithread_capable_(false),
    writing_(false)
@@ -711,19 +668,6 @@ bool BinaryEdit::writeFile(const std::string &newFileName)
       }
    return true;
 }
-
-Address BinaryEdit::maxAllocedAddr() {
-   inferiorFreeCompact();
-   Address hi = lowWaterMark_;
-
-   for (auto iter = heap_.heapActive.begin();
-        iter != heap_.heapActive.end(); ++iter) {
-      Address localHi = iter->second->addr + iter->second->length;
-      if (localHi > hi) hi = localHi;
-   }
-   return hi;
-}
-
 
 bool BinaryEdit::inferiorMallocStatic(unsigned size) {
     // Should be set by now
