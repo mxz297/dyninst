@@ -212,7 +212,6 @@ void DYNINSTinit()
    fakeTickCount=0;
    /* Memory emulation */
 
-   DYNINSTShadowRegion();
 }
 
 /**
@@ -753,21 +752,3 @@ DLLEXPORT void DYNINSTtrapFunction(){
            "nop\n"
            :::);
 }
-
-#if defined(arch_x86) || defined(arch_x86_64)
-#include <asm/prctl.h>
-#include <sys/syscall.h>
-#include <sys/prctl.h>
-#define SHADOW_REGION_SIZE 1024 * 1024
-DLLEXPORT void DYNINSTShadowRegion() {
-  if (getenv("DYNINST_RT_NO_SHADOW_REGION")) return;
-  unsigned long addr = (unsigned long)malloc(SHADOW_REGION_SIZE);
-  if (syscall(SYS_arch_prctl, ARCH_SET_GS, addr) < 0)
-    abort();
-//  asm volatile("mov %0, %%gs:0\n\t" : : "a"(addr) :);     
-}
-#else
-DLLEXPORT void DYNINSTShadowRegion() {
-    return;
-}
-#endif

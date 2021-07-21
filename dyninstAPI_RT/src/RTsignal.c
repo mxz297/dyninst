@@ -31,7 +31,6 @@
 /************************************************************************
  * RTsignal.c: C-language signal handling code
 ************************************************************************/
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <signal.h>
 #include <dlfcn.h>
@@ -65,7 +64,11 @@ static signal_type real_signal = NULL;
 dynsighandler_t user_trap_handler = NULL;
 DLLEXPORT dynsighandler_t signal(int signum, dynsighandler_t handler) {
     if (!real_signal) {
-        real_signal = (signal_type)dlsym(RTLD_NEXT, "signal");
+        void* libc_handle = dlopen("libc.so.6", RTLD_LAZY);
+        if (libc_handle == NULL) {
+            fprintf(stderr, "Cannot find libc handle in dyninst signal\n");
+        }
+        real_signal = (signal_type)dlsym(libc_handle, "signal");
         if (real_signal == NULL) {
             fprintf(stderr, "Cannot find signal\n");
         }
@@ -83,7 +86,12 @@ DLLEXPORT dynsighandler_t signal(int signum, dynsighandler_t handler) {
 static signal_type real_sysv_signal = NULL;
 DLLEXPORT dynsighandler_t __sysv_signal(int signum, dynsighandler_t handler) {
     if (!real_sysv_signal) {
-        real_sysv_signal = (signal_type)dlsym(RTLD_NEXT, "__sysv_signal");
+        void* libc_handle = dlopen("libc.so.6", RTLD_LAZY);
+        if (libc_handle == NULL) {
+            fprintf(stderr, "Cannot find libc handle in dyninst sys_signal\n");
+        }
+        real_sysv_signal = (signal_type)dlsym(libc_handle, "__sysv_signal");
+
         if (real_sysv_signal == NULL) {
             fprintf(stderr, "Cannot find __sysv_signal\n");
         }
@@ -113,7 +121,11 @@ extern void dyninstTrapHandler(int sig, siginfo_t *info, void *context);
 
 int DYNINSTinitializeTrapHandler()
 {
-    real_sigaction = (sigaction_type)dlsym(RTLD_NEXT, "sigaction");
+    void* libc_handle = dlopen("libc.so.6", RTLD_LAZY);
+    if (libc_handle == NULL) {
+        fprintf(stderr, "Cannot find libc handle for sigaction\n");
+    }
+    real_sigaction = (sigaction_type)dlsym(libc_handle, "sigaction");
     if (real_sigaction == NULL) {
         fprintf(stderr, "Cannot find sigaction\n");
     }

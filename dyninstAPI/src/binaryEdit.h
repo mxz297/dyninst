@@ -97,8 +97,6 @@ class BinaryEdit : public AddressSpace {
                            inferiorHeapType type=anyHeap,
                            Address near = 0, 
                            bool *err = NULL);
-    virtual void inferiorFree(Address item);
-    virtual bool inferiorRealloc(Address item, unsigned newSize);
 
     /* AddressSpace pure virtual implementation */
     unsigned getAddressWidth() const;
@@ -198,8 +196,6 @@ class BinaryEdit : public AddressSpace {
     bool isGoBinary();
 
  private:
-    Address highWaterMark_;
-    Address lowWaterMark_;
     bool isDirty_;
 
     static bool getStatFileDescriptor(const std::string &file,
@@ -207,8 +203,6 @@ class BinaryEdit : public AddressSpace {
 
 
     bool inferiorMallocStatic(unsigned size);
-
-    Address maxAllocedAddr();
 
     bool createMemoryBackingStore(mapped_object *obj);
 
@@ -220,8 +214,6 @@ class BinaryEdit : public AddressSpace {
 
    /* Function specific to rewritting static binaries */
    bool doStaticBinarySpecialCases();
-    
-    codeRangeTree* memoryTracker_;
 
     mapped_object * addSharedObject(const std::string *fullPath);
 
@@ -255,47 +247,6 @@ class depRelocation {
  private:
   Address to;
   SymtabAPI::Symbol *referring;
-};
-
-class memoryTracker : public codeRange {
- public:
-    memoryTracker(Address a, unsigned s) :
-        alloced(false),  dirty(false), a_(a), s_(s) {
-        b_ = malloc(s_);
-    }
-
-    memoryTracker(Address a, unsigned s, void *b) :
-    alloced(false), dirty(false), a_(a), s_(s)
-        {
-            if(b) {
-                b_ = malloc(s_);
-                memcpy(b_, b, s_);
-            } else {
-                b_ = calloc(1, s_);
-            }
-        }
-    ~memoryTracker() { free(b_); }
-
-    Address get_address() const { return a_; }
-    unsigned get_size() const { return s_; }
-    void *get_local_ptr() const { return b_; }
-    void realloc(unsigned newsize) {
-      b_ = ::realloc(b_, newsize);
-      s_ = newsize;
-      if (!b_ && newsize) {
-	cerr << "Odd: failed to realloc " << newsize << endl;
-	assert(b_);
-      }
-    }
-
-    bool alloced;
-    bool dirty;
-
- private:
-    Address a_;
-    unsigned s_;
-    void *b_;
-    
 };
 
 #endif // BINARY_H

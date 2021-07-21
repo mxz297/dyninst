@@ -169,8 +169,7 @@ public:
                            Address near_=0, bool *err=NULL);
     void inferiorMallocConstraints(Address near, Address &lo, Address &hi,
                                    inferiorHeapType /* type */); // platform-specific
-    virtual void inferiorFree(Dyninst::Address);
-    virtual bool inferiorRealloc(Dyninst::Address, unsigned int);
+    bool inferiorReallocCheck();
 
     // Instrumentation support
     bool mappedObjIsDeleted(mapped_object *obj);

@@ -63,7 +63,6 @@ extern tc_lock_t DYNINST_trace_lock;
 extern void *map_region(void *addr, int len, int fd);
 extern int unmap_region(void *addr, int len);
 extern void mark_heaps_exec(void);
-extern void DYNINSTShadowRegion();
 
 extern int DYNINSTdebugRTlib;
 

@@ -174,11 +174,11 @@ class AddressSpace : public InstructionSource {
 
     virtual Address inferiorMalloc(unsigned size, inferiorHeapType type=anyHeap,
                                    Address near = 0, bool *err = NULL) = 0;
-    virtual void inferiorFree(Address item) = 0;
+    virtual void inferiorFree(Address item);
     void inferiorFreeInternal(Address item);
     // And a "constrain" call to free unused memory. This is useful because our
     // instrumentation is incredibly wasteful.
-    virtual bool inferiorRealloc(Address item, unsigned newSize) = 0;
+    virtual bool inferiorRealloc(Address item, unsigned newSize);
     bool inferiorReallocInternal(Address item, unsigned newSize);
     bool inferiorShrinkBlock(heapItem *h, Address block, unsigned newSize);
     bool inferiorExpandBlock(heapItem *h, Address block, unsigned newSize);
@@ -418,7 +418,7 @@ class AddressSpace : public InstructionSource {
     // Aaand constructor/destructor
     AddressSpace();
     virtual ~AddressSpace();
-
+    virtual bool isGoBinary();
 
     //////////////////////////////////////////////////////
     // Yuck
@@ -507,7 +507,7 @@ class AddressSpace : public InstructionSource {
     int findFreeIndex(unsigned size, int type, Address lo, Address hi);
     void addHeap(heapItem *h);
     void initializeHeap();
-    
+    Address maxAllocedAddr();
     // Centralization of certain inferiorMalloc operations
     Address inferiorMallocInternal(unsigned size, Address lo, Address hi, 
                                    inferiorHeapType type);
@@ -516,7 +516,9 @@ class AddressSpace : public InstructionSource {
     bool heapInitialized_;
     bool useTraps_;
     inferiorHeap heap_;
-
+    Address highWaterMark_;
+    Address lowWaterMark_;
+    codeRangeTree* memoryTracker_;
     // Loaded mapped objects (may be just 1)
     std::vector<mapped_object *> mapped_objects;
 
@@ -588,8 +590,49 @@ class AddressSpace : public InstructionSource {
     int maskBits;
   public:
     void memoryWriteSanitizing(int bits) { maskBits = bits; }
+    void buildRAMapping();
 };
 
+
+class memoryTracker : public codeRange {
+ public:
+    memoryTracker(Address a, unsigned s) :
+        alloced(false),  dirty(false), a_(a), s_(s) {
+        b_ = malloc(s_);
+    }
+
+    memoryTracker(Address a, unsigned s, void *b) :
+    alloced(false), dirty(false), a_(a), s_(s)
+        {
+            if(b) {
+                b_ = malloc(s_);
+                memcpy(b_, b, s_);
+            } else {
+                b_ = calloc(1, s_);
+            }
+        }
+    ~memoryTracker() { free(b_); }
+
+    Address get_address() const { return a_; }
+    unsigned get_size() const { return s_; }
+    void *get_local_ptr() const { return b_; }
+    void realloc(unsigned newsize) {
+      b_ = ::realloc(b_, newsize);
+      s_ = newsize;
+      if (!b_ && newsize) {
+  cerr << "Odd: failed to realloc " << newsize << endl;
+  assert(b_);
+      }
+    }
+
+    bool alloced;
+    bool dirty;
+
+ private:
+    Address a_;
+    unsigned s_;
+    void *b_;
+};
 
 bool uninstrument(Dyninst::PatchAPI::Instance::Ptr);
 extern int heapItemCmpByAddr(const heapItem **A, const heapItem **B);

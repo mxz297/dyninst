@@ -971,7 +971,8 @@ BPatchSnippetHandle *BPatch_addressSpace::insertSnippet(const BPatch_snippet &ex
 
       /* PatchAPI stuffs */
       instPoint *ipoint = static_cast<instPoint *>(bppoint->getPoint(when));
-      ipoint->setInstSpec(instSpec);
+      if(instSpec)
+         ipoint->setInstSpecBase(*instSpec);
       Dyninst::PatchAPI::InstancePtr instance = (ipOrder == orderFirstAtPoint) ?
          ipoint->pushFront(expr.ast_wrapper) :
          ipoint->pushBack(expr.ast_wrapper);
@@ -1184,6 +1185,43 @@ BPatch_variableExpr *BPatch_addressSpace::createVariable(
 
    return BPatch_variableExpr::makeVariableExpr(this, ll_addressSpace, var_name,
                                                 (void *) at_addr, type);
+}
+
+void BPatch_addressSpace::InjectUnwinding(std::string name, std::string pname, int index) {
+   std::vector<AddressSpace *> as;
+   getAS(as);
+   assert(as.size());
+
+   std::vector<func_instance *> funcs;
+   for (unsigned i=0; i<as.size(); i++) {
+      as[i]->findFuncsByAll(std::string(name), funcs,pname);
+
+      if (funcs.size() != 1)
+           continue;
+       func_instance* func = funcs[0];
+       block_instance* block = func->entryBlock();
+       block_instance* ft_block = block->getFallthroughBlock();
+       if (ft_block == nullptr) {
+           fprintf(stderr, "cannot find fallthrough block\n");
+           return;
+       }
+       Dyninst::PatchAPI::PatchMgrPtr mgtptr = Dyninst::PatchAPI::convert(this);
+       Point *p = mgtptr->findPoint(Dyninst::PatchAPI::Location::Function(func), Point::FuncEntry);
+       //Point *p = mgtptr->findPoint(Dyninst::PatchAPI::Location::BlockInstance(func, ft_block), Point::BlockEntry);
+       AstNodePtr ast = AstNode::goRuntimeUnwindNode(as[i], index);
+       p->pushBack(ast);
+       func->markEntryInstrumented();
+       ft_block->markInstrumented();
+    }
+}
+
+void BPatch_addressSpace::FinalizeUnwinding(bool updatetable) {
+    std::vector<AddressSpace *> as;
+    getAS(as);
+    assert(as.size());
+    if(updatetable)
+      as[0]->buildRAMapping();
+    as[0]->relocate();
 }
 
 Dyninst::PatchAPI::PatchMgrPtr Dyninst::PatchAPI::convert(const BPatch_addressSpace *a) {

@@ -40,6 +40,10 @@ typedef struct {
     Address* entries;
 } RAMappingTable;
 
+RAMappingTable* ra_table = NULL;
+DLLEXPORT int DYNINSTparsedMode = 0;
+DLLEXPORT int DYNINSTRunningProcessMode = 0;
+
 typedef struct {
     unsigned long total;
     Address min;
@@ -47,8 +51,28 @@ typedef struct {
     Address entries[][2];
 } RAMappingInBinary;
 
-RAMappingTable* ra_table = NULL;
-int parsed = 0;
+DLLEXPORT RAMappingInBinary *dyninstRTTable = NULL;
+
+RAMappingTable* BuildProcessTable() {
+  if(dyninstRTTable == NULL)
+    return NULL;
+
+  if(ra_table) {
+    free(ra_table->entries);
+    free(ra_table);
+    ra_table = NULL;
+  }
+  RAMappingTable* table = (RAMappingTable*) malloc(sizeof(RAMappingTable));
+  table->min = dyninstRTTable->min;
+  table->max = dyninstRTTable->max;
+  table->entries = (Address*) malloc( sizeof(Address) * (table->max - table->min + 1) );
+  table->loadAddr = 0;
+  memset(table->entries, 0, sizeof(Address) * (table->max - table->min + 1));
+  for (unsigned long i = 0; i < dyninstRTTable->total; ++i) {
+    table->entries[dyninstRTTable->entries[i][0] - table->min] = dyninstRTTable->entries[i][1];
+  }
+  return table;
+}
 
 RAMappingTable* ParseAModule(struct link_map *l) {
    ElfX_Dyn *dynamic_ptr;
@@ -70,8 +94,9 @@ RAMappingTable* ParseAModule(struct link_map *l) {
    table->entries = (Address*) malloc( sizeof(Address) * (table->max - table->min + 1) );
    table->loadAddr = l->l_addr;
    memset(table->entries, 0, sizeof(Address) * (table->max - table->min + 1));
-   for (unsigned long i = 0; i < header->total; ++i)
-       table->entries[header->entries[i][0] - table->min] = header->entries[i][1];
+   for (unsigned long i = 0; i < header->total; ++i) {
+        table->entries[header->entries[i][0] - table->min] = header->entries[i][1];
+     }
    return table;
 }
 
@@ -89,10 +114,12 @@ RAMappingTable* ExtractRAMapping() {
 }
 
 DLLEXPORT Address DyninstRATranslation(Address ip) {
-    rtdebug_printf("input ip %lx\n", ip);
-    if (parsed == 0) {
-        ra_table = ExtractRAMapping();
-        parsed = 1;
+    if (DYNINSTparsedMode == 0) {
+        DYNINSTparsedMode = 1;
+        if(DYNINSTRunningProcessMode)
+            ra_table = BuildProcessTable();
+        else
+            ra_table = ExtractRAMapping();
     }
     if (ra_table == NULL) return ip;
     Address a = ip;
@@ -103,7 +130,7 @@ DLLEXPORT Address DyninstRATranslation(Address ip) {
         if (ra_table->entries[a - ra_table->min] != 0) {
             newip = (Address) ra_table->entries[a - ra_table->min];
         }
-    }    
+    }
     if (newip == 0) {        
         // Go runtime may substract the RA by 1 to lookup which 
         // function the RA belongs.
@@ -122,7 +149,12 @@ DLLEXPORT Address DyninstRATranslation(Address ip) {
 
 DLLEXPORT int UNW_FUNC_NAME(unw_cursor_t* cursor) {
     if (!real_unw_step) {
-        real_unw_step = (unw_step_fn_type)dlsym(RTLD_NEXT, unw_step_name);
+        void* handle = dlopen("libunwind.so", RTLD_LAZY);
+        if (handle == NULL) {
+            fprintf(stderr, "Cannot find libunwind handle\n");
+        }
+        real_unw_step = (unw_step_fn_type)dlsym(handle, unw_step_name);
+
         if (real_unw_step == NULL) {
             fprintf(stderr, "Cannot find %s\n", unw_step_name);
         }

@@ -1805,6 +1805,12 @@ Register EmitterAMD64::emitCall(opCode op, codeGen &gen, const std::vector<AstNo
    if (binEdit) {
       isGo = binEdit->isGoBinary();
    }
+   else
+    isGo = gen.addrSpace()->isGoBinary();
+
+  if(strstr(callee->name().c_str(),"DYNINSTloadLibrary") != NULL)
+    isGo = false;
+
    assert(op == callOp);
    std::vector <Register> srcs;
 
@@ -2525,8 +2531,8 @@ bool EmitterAMD64::emitBTSaves(baseTramp* bt,  codeGen &gen)
            }
            bool upcast;
            int i = convertRegID(*rit, upcast);
-           emitStoreRelativeSegReg(i, 8 * i, REGNUM_GS, 8, gen);
-           gen.rs()->markSavedRegister(i, 8 * i);
+           emitPushReg64(i,gen);
+           gen.rs()->markSavedRegister(i, 0);
        }
        if (s->raLoc != InvalidReg) {
            bool upcast;
@@ -2793,7 +2799,7 @@ bool EmitterAMD64::emitBTRestores(baseTramp* bt, codeGen &gen)
            }
            bool upcast;
            int i = convertRegID(*rit, upcast);
-           emitLoadRelativeSegReg(i, 8 * i, REGNUM_GS, 8, gen);           
+           emitPopReg64(i,gen);
        }
        if (s->redZone) {
            emitLEA(REGNUM_RSP, Null_Register, 0, AMD64_RED_ZONE, REGNUM_RSP, gen);
